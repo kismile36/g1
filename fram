@@ -41,7 +41,7 @@ WindUI:AddTheme({
         local Window = WindUI:CreateWindow({
             Title = "人挤人",
             Author = "Blox Fruit | by kismile",
-            Folder = "SG",
+            Folder = "RJR",
             Size = UDim2.fromOffset(480, 360),
             Theme = "Dark",
             Background = WindUI:Gradient({
