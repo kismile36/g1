@@ -1,4 +1,6 @@
 ---开源
+---open source
+---by kismile
 
 
 if not game:IsLoaded() then
