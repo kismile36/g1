@@ -1,1 +1,46 @@
-loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/24808588dc1e0973806153a62a728326.lua"))()
+local WindUI = loadstring(request({
+    Url = "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+}).Body)()
+
+WindUI:SetNotificationLower(true)
+
+local Window = WindUI:CreateWindow({
+    Title = "人挤人脚本 - 停更公告",
+    Folder = "RJR_Announcement",
+    Size = UDim2.fromOffset(500, 420),
+    Theme = "Dark",
+    SideBarWidth = 150,
+    HideSearchBar = true,
+    ScrollBarEnabled = true
+})
+
+local Sections = {
+    ["公告"] = Window:Section({
+        Title = "重要通知",
+        Opened = true
+    })
+}
+
+local Tabs = {
+    ["主页"] = Sections["公告"]:Tab({
+        Title = "停更说明",
+        Icon = "info"
+    })
+}
+
+Tabs["主页"]:Paragraph({
+    Title = "各位用户、玩家：",
+    Desc = [[大家好。我是人挤人脚本开发者:kismile
+
+承蒙大家一路支持与信任，本脚本自发布以来，凭借稳定性能与极致体验，稳居同类脚本第一，收获了无数认可，在此由衷感谢每一位用户的陪伴。 
+
+因本人现实工作繁忙，精力有限，无法再投入时间维护与迭代，现正式公告： 
+
+即日起，永久停止人挤人脚本的一切更新与维护，不再修复 bug 、新增功能。 
+永久停止人挤人脚本的售卖、不再出售卡密，现有用户可正常使用。 
+
+感谢大家一路相伴，谢谢。 
+
+人挤人脚本作者 
+2026 年 04 月 10 日]]
+})
