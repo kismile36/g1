@@ -13411,11 +13411,11 @@ F=true
 
 au:Dialog{
 
-Title="Close Window",
-Content="Do you want to close this window? You will not be able to open it again.",
+Title="关闭窗口",
+Content="你确定要关闭这个窗口吗？关闭后将无法再次打开，除非重新执行脚本。",
 Buttons={
 {
-Title="Cancel",
+Title="取消",
 
 Callback=function()
 F=false
@@ -13423,7 +13423,7 @@ end,
 Variant="Secondary",
 },
 {
-Title="Close Window",
+Title="确认关闭",
 
 Callback=function()
 F=false
@@ -13438,6 +13438,29 @@ au:Destroy()
 end
 end
 end,(au.Topbar.ButtonsType=="Default"and 999 or 997),nil,Color3.fromHex"#F4695F")
+
+au:CreateTopbarButton("Minimize","minus",function()
+    local isMinimized = au.UIElements.Main.Size.Y.Offset < 100
+    if isMinimized then
+        -- 恢复大小
+        al(au.UIElements.Main, 0.3, {Size = UDim2.fromOffset(au.Size.X.Offset, au.Size.Y.Offset)}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out):Play()
+        task.delay(0.1, function()
+            for _, child in pairs(au.UIElements.Main.Main:GetChildren()) do
+                if child.Name ~= "Topbar" and child:IsA("GuiObject") then
+                    child.Visible = true
+                end
+            end
+        end)
+    else
+        -- 缩小只保留顶部栏
+        al(au.UIElements.Main, 0.3, {Size = UDim2.fromOffset(au.Size.X.Offset, au.Topbar.Height)}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out):Play()
+        for _, child in pairs(au.UIElements.Main.Main:GetChildren()) do
+            if child.Name ~= "Topbar" and child:IsA("GuiObject") then
+                child.Visible = false
+            end
+        end
+    end
+end,(au.Topbar.ButtonsType=="Default"and 998 or 998),nil,Color3.fromHex"#F4BD5F")
 
 function au.Tag(G,H)
 if au.UIElements.Main.Main.Topbar.Center.Visible==false then
