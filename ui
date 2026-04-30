@@ -12682,17 +12682,50 @@ local x
 al.Icon"minimize"
 al.Icon"maximize"
 
-au:CreateTopbarButton(
-"Fullscreen",
-au.Topbar.ButtonsType=="Mac"and"rbxassetid://127426072704909"or"maximize",
-function()
-au:ToggleFullscreen()
-end,
-(au.Topbar.ButtonsType=="Default"and 997 or 997),
-true,
-Color3.fromHex"#60C762",
-au.Topbar.ButtonsType=="Mac"and 9 or nil
-)
+-- ==========================================
+-- ⬇️ 顶部栏 macOS 风格按钮 (红、黄、绿) ⬇️
+-- ==========================================
+
+-- 1. 红色按钮 (关闭)
+local F = false
+au:CreateTopbarButton("Close", "x", function()
+    if not F then
+        if not au.IgnoreAlerts then
+            F = true
+            au:Dialog{
+                Title = "关闭窗口",
+                Content = "你确定要关闭这个窗口吗？关闭后将无法再次打开，除非重新执行脚本。",
+                Buttons = {
+                    {
+                        Title = "取消",
+                        Callback = function() F = false end,
+                        Variant = "Secondary",
+                    },
+                    {
+                        Title = "确认关闭",
+                        Callback = function()
+                            F = false
+                            au:Destroy()
+                        end,
+                        Variant = "Primary",
+                    },
+                },
+            }
+        else
+            au:Destroy()
+        end
+    end
+end, (au.Topbar.ButtonsType == "Default" and 999 or 999), nil, Color3.fromHex("#F4695F"), au.Topbar.ButtonsType == "Mac" and 9 or nil)
+
+-- 2. 黄色按钮 (折叠/最小化)
+au:CreateTopbarButton("Minimize", "minus", function()
+    au:Close()
+end, (au.Topbar.ButtonsType == "Default" and 998 or 998), nil, Color3.fromHex("#F4C948"), au.Topbar.ButtonsType == "Mac" and 9 or nil)
+
+-- 3. 绿色按钮 (全屏/最大化)
+au:CreateTopbarButton("Fullscreen", au.Topbar.ButtonsType == "Mac" and "rbxassetid://127426072704909" or "maximize", function()
+    au:ToggleFullscreen()
+end, (au.Topbar.ButtonsType == "Default" and 997 or 997), true, Color3.fromHex("#60C762"), au.Topbar.ButtonsType == "Mac" and 9 or nil)
 
 function au.ToggleFullscreen(z)
 local A=au.IsFullscreen
@@ -12731,31 +12764,7 @@ Enum.EasingDirection.Out
 au.IsFullscreen=not A
 end
 
-au:CreateTopbarButton("Minimize","minus",function()
-au:Close()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-end,(au.Topbar.ButtonsType=="Default"and 997 or 998),nil,Color3.fromHex"#F4C948")
 
 function au.OnOpen(z,A)
 au.OnOpenCallback=A
@@ -13391,64 +13400,6 @@ return J
 end
 
 local F=false
-
-au:CreateTopbarButton("Close","x",function()
-if not F then
-if not au.IgnoreAlerts then
-F=true
-
-au:Dialog{
-
-Title="关闭窗口",
-Content="你确定要关闭这个窗口吗？关闭后将无法再次打开，除非重新执行脚本。",
-Buttons={
-{
-Title="取消",
-
-Callback=function()
-F=false
-end,
-Variant="Secondary",
-},
-{
-Title="确认关闭",
-
-Callback=function()
-F=false
-au:Destroy()
-end,
-Variant="Primary",
-},
-},
-}
-else
-au:Destroy()
-end
-end
-end,(au.Topbar.ButtonsType=="Default"and 999 or 999),nil,Color3.fromHex"#F4695F", au.Topbar.ButtonsType=="Mac" and 9 or nil)
-
-au:CreateTopbarButton("Minimize","minus",function()
-    local isMinimized = au.UIElements.Main.Size.Y.Offset < 100
-    if isMinimized then
-        -- 恢复大小
-        al(au.UIElements.Main, 0.4, {Size = UDim2.fromOffset(au.Size.X.Offset, au.Size.Y.Offset)}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out):Play()
-        task.delay(0.1, function()
-            for _, child in pairs(au.UIElements.Main.Main:GetChildren()) do
-                if child.Name ~= "Topbar" and child:IsA("GuiObject") then
-                    child.Visible = true
-                end
-            end
-        end)
-    else
-        -- 缩小只保留顶部栏
-        al(au.UIElements.Main, 0.4, {Size = UDim2.fromOffset(au.Size.X.Offset, au.Topbar.Height)}, Enum.EasingStyle.Quint, Enum.EasingDirection.Out):Play()
-        for _, child in pairs(au.UIElements.Main.Main:GetChildren()) do
-            if child.Name ~= "Topbar" and child:IsA("GuiObject") then
-                child.Visible = false
-            end
-        end
-    end
-end,(au.Topbar.ButtonsType=="Default"and 998 or 998),nil,Color3.fromHex"#F4BD5F", au.Topbar.ButtonsType=="Mac" and 9 or nil)
 
 function au.Tag(G,H)
 if au.UIElements.Main.Main.Topbar.Center.Visible==false then
