@@ -116,7 +116,23 @@ local function SetupSoruInterceptor()
     _G.SoruConnection = SoruButton:GetAttributeChangedSignal("Selected"):Connect(function()
         local isSelected = SoruButton:GetAttribute("Selected")
         if isSelected == false then
-            ExecuteSmartSoru()
+            local onCooldown = false
+            
+            pcall(function()
+                local cdObj = PlayerGui.Main.BottomHUDList.UniversalContextButtons.BoundActionSoru.Cooldown
+                local perc = cdObj:GetAttribute("Percentage")
+                if perc == nil and cdObj:FindFirstChild("Percentage") then
+                    perc = cdObj.Percentage.Value
+                end
+                
+                if perc ~= nil and perc ~= 0 and perc ~= -0 then
+                    onCooldown = true
+                end
+            end)
+            
+            if not onCooldown then
+                ExecuteSmartSoru()
+            end
         end
     end)
 end
