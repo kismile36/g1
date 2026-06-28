@@ -1,7 +1,12 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
+
+local Effect = require(ReplicatedStorage:WaitForChild("Effect"))
+local Util = require(ReplicatedStorage:WaitForChild("Util"))
+
 
 local OldIndex
 OldIndex = hookmetamethod(game, "__index", function(self, key)
@@ -49,10 +54,15 @@ local function GetClosestPlayerInScreen()
     return closestPlayer
 end
 
+
 local function ExecuteSmartSoru()
     local targetChar = GetClosestPlayerInScreen()
+    local Character = LocalPlayer.Character
     
-    if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+    if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and Character then
+        local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+        if not HumanoidRootPart then return end
+        
         local targetPos = (targetChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)).Position
         _G.FakeSoruTarget = CFrame.new(targetPos)
         
@@ -63,24 +73,57 @@ local function ExecuteSmartSoru()
             cas:CallFunction("BoundActionSoru", Enum.UserInputState.End, Instance.new("InputObject"))
         end)
 
+  
         if not success then
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                 local hrp = char.HumanoidRootPart
-                 local startCFrame = hrp.CFrame
-                 local finalCFrame = (startCFrame - startCFrame.Position) + targetPos + Vector3.new(0, hrp.Size.Y * 1.5, 0)
-                 local randomId = math.random(1, 999999999)
-                 
-                 game:GetService("ReplicatedStorage").Remotes.CommE:FireServer(
-                     "Soru", 
-                     startCFrame, 
-                     finalCFrame, 
-                     workspace:GetServerTimeNow(), 
-                     randomId
-                 )
-                 hrp.CFrame = finalCFrame
-                 game:GetService("ReplicatedStorage").Events.PlaySkillCooldownAnimation:Fire("BoundActionSoru", "none", 15)
+            local startCFrame = HumanoidRootPart.CFrame
+            local finalCFrame = (startCFrame - startCFrame.Position) + targetPos + Vector3.new(0, HumanoidRootPart.Size.Y * 1.5, 0)
+            local randomId = math.random(1, 999999999)
+            
+            
+            ReplicatedStorage.Remotes.CommE:FireServer(
+                "Soru", 
+                startCFrame, 
+                finalCFrame, 
+                workspace:GetServerTimeNow(), 
+                randomId
+            )
+            
+      
+            local isEvolvedHuman = false
+            if LocalPlayer.Data.Race.Value == "Human" and LocalPlayer.Data.Race:FindFirstChild("Evolved") then
+                isEvolvedHuman = LocalPlayer.Data.Race:FindFirstChild("A") and LocalPlayer.Data.Race.A.Value >= 1 and LocalPlayer.Data.Race.A.Value or false
             end
+            local isDracoEvolved = (LocalPlayer.Data.Race.Value == "Draco" and LocalPlayer.Data.Race:FindFirstChild("Evolved"))
+            
+            local SharedSoru = Effect.new("Shared.Soru")
+            
+           
+            if isEvolvedHuman then
+                Effect.new("RaceAwakenings.Human"):play({ Root = HumanoidRootPart, originPos = startCFrame, goalPos = finalCFrame, level = isEvolvedHuman })
+            elseif isDracoEvolved then
+                Effect.new("DracoRace.Step"):play({ ID = 1, CFrame = startCFrame, Character = Character, player = LocalPlayer })
+            else
+                SharedSoru:play({ Mode = 1, CFrame = startCFrame, Character = Character, player = LocalPlayer })
+            end
+            
+        
+            HumanoidRootPart.CFrame = finalCFrame
+            
+           
+            local animSpeed = math.clamp((HumanoidRootPart.Velocity * Vector3.new(1, 0, 1)).Magnitude / 16, 1.1, 3.3)
+            
+            if isDracoEvolved then
+                local dracoAnim = Util.Anims:Get(Character, "FlashStepDraco")
+                if dracoAnim then dracoAnim:Play(0, nil, animSpeed) end
+                Effect.new("DracoRace.Step"):play({ ID = 2, CFrame = HumanoidRootPart.CFrame, Character = Character, player = LocalPlayer })
+            elseif not isEvolvedHuman then
+                local regularAnim = Util.Anims:Get(Character, "FlashStepRegular")
+                if regularAnim then regularAnim:Play(0, nil, animSpeed) end
+                SharedSoru:play({ Mode = 2, CFrame = finalCFrame, Character = Character })
+            end
+            
+        
+            ReplicatedStorage.Events.PlaySkillCooldownAnimation:Fire("BoundActionSoru", "none", isEvolvedHuman and 10 or 15)
         end
         
         task.delay(0.2, function()
@@ -90,6 +133,7 @@ local function ExecuteSmartSoru()
         _G.FakeSoruTarget = nil
     end
 end
+
 
 local isHooked = false
 
@@ -116,26 +160,30 @@ local function SetupSoruInterceptor()
     _G.SoruConnection = SoruButton:GetAttributeChangedSignal("Selected"):Connect(function()
         local isSelected = SoruButton:GetAttribute("Selected")
         if isSelected == false then
-            local onCooldown = false
+            local canTrigger = false
             
             pcall(function()
-                local cdObj = PlayerGui.Main.BottomHUDList.UniversalContextButtons.BoundActionSoru.Cooldown
-                local perc = cdObj:GetAttribute("Percentage")
-                if perc == nil and cdObj:FindFirstChild("Percentage") then
-                    perc = cdObj.Percentage.Value
-                end
+                local mobileButtons = PlayerGui:FindFirstChild("MobileContextButtons")
+                local btnFrame = mobileButtons and mobileButtons:FindFirstChild("ContextButtonFrame")
+                local boundSoru = btnFrame and btnFrame:FindFirstChild("BoundActionSoru")
+                local button = boundSoru and boundSoru:FindFirstChild("Button")
+                local cdObj = button and button:FindFirstChild("Cooldown")
                 
-                if perc ~= nil and perc ~= 0 and perc ~= -0 then
-                    onCooldown = true
+                if cdObj then
+                    local perc = cdObj:GetAttribute("Percentage")
+                    if type(perc) == "number" and perc <= 0 then
+                        canTrigger = true
+                    end
                 end
             end)
             
-            if not onCooldown then
+            if canTrigger then
                 ExecuteSmartSoru()
             end
         end
     end)
 end
+
 
 task.spawn(function()
     while task.wait(2) do
