@@ -1,0 +1,130 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
+
+local OldIndex
+OldIndex = hookmetamethod(game, "__index", function(self, key)
+    if not checkcaller() and self == Mouse and (key == "Hit" or key == "Target") and _G.FakeSoruTarget then
+        if key == "Hit" then
+            return _G.FakeSoruTarget
+        end
+    end
+    return OldIndex(self, key)
+end)
+
+local function GetClosestPlayerInScreen()
+    local closestPlayer = nil
+    local shortestDistance = 200 
+    
+    local Character = LocalPlayer.Character
+    if not Character or not Character:FindFirstChild("HumanoidRootPart") then 
+        return nil 
+    end
+    
+    local myPos = Character.HumanoidRootPart.Position
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local char = player.Character
+            if char then
+                local targetHum = char:FindFirstChild("Humanoid")
+                local targetRoot = char:FindFirstChild("HumanoidRootPart")
+                
+                if targetHum and targetRoot and targetHum.Health > 0 then
+                    local _, onScreen = Camera:WorldToViewportPoint(targetRoot.Position)
+                    
+                    if onScreen then
+                        local distance = (targetRoot.Position - myPos).Magnitude
+                        if distance <= 200 and distance < shortestDistance then
+                            shortestDistance = distance
+                            closestPlayer = char
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+local function ExecuteSmartSoru()
+    local targetChar = GetClosestPlayerInScreen()
+    
+    if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+        local targetPos = (targetChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)).Position
+        _G.FakeSoruTarget = CFrame.new(targetPos)
+        
+        local success = pcall(function()
+            local cas = game:GetService("ContextActionService")
+            cas:CallFunction("BoundActionSoru", Enum.UserInputState.Begin, Instance.new("InputObject"))
+            task.wait(0.05)
+            cas:CallFunction("BoundActionSoru", Enum.UserInputState.End, Instance.new("InputObject"))
+        end)
+
+        if not success then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                 local hrp = char.HumanoidRootPart
+                 local startCFrame = hrp.CFrame
+                 local finalCFrame = (startCFrame - startCFrame.Position) + targetPos + Vector3.new(0, hrp.Size.Y * 1.5, 0)
+                 local randomId = math.random(1, 999999999)
+                 
+                 game:GetService("ReplicatedStorage").Remotes.CommE:FireServer(
+                     "Soru", 
+                     startCFrame, 
+                     finalCFrame, 
+                     workspace:GetServerTimeNow(), 
+                     randomId
+                 )
+                 hrp.CFrame = finalCFrame
+                 game:GetService("ReplicatedStorage").Events.PlaySkillCooldownAnimation:Fire("BoundActionSoru", "none", 15)
+            end
+        end
+        
+        task.delay(0.2, function()
+            _G.FakeSoruTarget = nil
+        end)
+    else
+        _G.FakeSoruTarget = nil
+    end
+end
+
+local isHooked = false
+
+local function SetupSoruInterceptor()
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 5)
+    if not PlayerGui then return end
+    
+    local ContextButtonFrame = PlayerGui:WaitForChild("MobileContextButtons", 5)
+        and PlayerGui.MobileContextButtons:WaitForChild("ContextButtonFrame", 5)
+        
+    if not ContextButtonFrame then return end
+    
+    local SoruButton = ContextButtonFrame:WaitForChild("BoundActionSoru", 5)
+    if not SoruButton then return end
+
+    if _G.SoruConnection then
+        _G.SoruConnection:Disconnect()
+    end
+
+    if not isHooked then
+        isHooked = true
+    end
+
+    _G.SoruConnection = SoruButton:GetAttributeChangedSignal("Selected"):Connect(function()
+        local isSelected = SoruButton:GetAttribute("Selected")
+        if isSelected == false then
+            ExecuteSmartSoru()
+        end
+    end)
+end
+
+task.spawn(function()
+    while task.wait(2) do
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            SetupSoruInterceptor()
+        end
+    end
+end)
