@@ -1,0 +1,156 @@
+if setfpscap then setfpscap(999) end
+
+local s = settings()
+local us = UserSettings():GetService("UserGameSettings")
+local ws = game:GetService("Workspace")
+local l = game:GetService("Lighting")
+local t = ws:FindFirstChildOfClass("Terrain")
+local ss = game:GetService("SoundService")
+local m = game:GetService("Materials")
+
+pcall(function()
+    us.SavedQualityLevel = Enum.SavedQualityLevel.QualityLevel1
+    s.Rendering.QualityLevel = Enum.QualityLevel.Level01
+    s.Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
+    s.Rendering.AntiAliasing = Enum.Antialiasing.Off
+    s.Rendering.GlobalShadows = false
+    s.Rendering.EagerBulkExecution = false
+    s.Network.IncomingReplicationLag = 0
+    s.Network.PrintEvents = false
+    s.Physics.AllowSleep = true
+    s.Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.DefaultAuto
+    ws.InterpolationThrottling = Enum.InterpolationThrottling.Mode.Disabled
+    ws.PhysicsSteppingMethod = Enum.PhysicsSteppingMethod.Adaptive
+    ws.SignalBehavior = Enum.SignalBehavior.Deferred
+    ss.VolumetricAudio = Enum.VolumetricAudio.Disabled
+    ss.RespectFilteringEnabled = true
+    m.Use2022Materials = false
+    if sethiddenproperty then
+        sethiddenproperty(l, "Technology", Enum.Technology.Compatibility)
+    end
+end)
+
+local function o_L()
+    pcall(function() l.GlobalShadows = false end)
+    pcall(function() l.FogEnd = 9e9 end)
+    pcall(function() l.FogStart = 9e9 end)
+    pcall(function() l.ShadowSoftness = 0 end)
+    pcall(function() l.Brightness = 1 end)
+    pcall(function() l.EnvironmentDiffuseScale = 0 end)
+    pcall(function() l.EnvironmentSpecularScale = 0 end)
+    pcall(function() l.ClockTime = 12 end)
+    if t then
+        pcall(function() t.Decoration = false end)
+        pcall(function() t.WaterWaveSize = 0 end)
+        pcall(function() t.WaterWaveSpeed = 0 end)
+        pcall(function() t.WaterReflectance = 0 end)
+        pcall(function() t.WaterTransparency = 0 end)
+    end
+    for _, v in ipairs(l:GetChildren()) do
+        if v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("Clouds") then
+            pcall(function() v:Destroy() end)
+        end
+    end
+end
+o_L()
+
+local function applyGranularEffects(i)
+    if i:IsA("BasePart") then
+        pcall(function() i.Material = Enum.Material.SmoothPlastic end)
+        pcall(function() i.Reflectance = 0 end)
+        pcall(function() i.CastShadow = false end)
+        if i:IsA("MeshPart") and sethiddenproperty then
+            pcall(function() sethiddenproperty(i, "RenderFidelity", Enum.RenderFidelity.Performance) end)
+        end
+    elseif i:IsA("Decal") or i:IsA("Texture") or i:IsA("SurfaceAppearance") then
+        pcall(function() i:Destroy() end)
+    elseif i:IsA("ParticleEmitter") then
+        pcall(function()
+            i.Rate = math.clamp(i.Rate * 0.1, 0, 10)
+            local currentTransparency = i.Transparency
+            if typeof(currentTransparency) == "NumberSequence" then
+                i.Transparency = NumberSequence.new(0.6)
+            end
+        end)
+    elseif i:IsA("Fire") then
+        pcall(function()
+            i.Enabled = true
+            i.Size = 1
+            i.Heat = 1
+        end)
+    elseif i:IsA("Smoke") then
+        pcall(function()
+            i.Enabled = true
+            i.Size = 1.5
+            i.Opacity = 0.8
+        end)
+    elseif i:IsA("Explosion") then
+        pcall(function()
+            i.BlastPressure = 1
+            i.BlastRadius = 1
+            i.Enabled = false
+        end)
+    elseif i:IsA("PointLight") or i:IsA("SurfaceLight") or i:IsA("SpotLight") then
+        pcall(function() i.Enabled = false end)
+    elseif i:IsA("Clothing") or i:IsA("ShirtGraphic") then
+        pcall(function() i:Destroy() end)
+    end
+end
+
+for _, v in ipairs(ws:GetDescendants()) do applyGranularEffects(v) end
+ws.DescendantAdded:Connect(function(v) task.defer(applyGranularEffects, v) end)
+
+local function cleanExtraVisuals(descendant)
+    if descendant:IsA("ColorCorrectionEffect") or descendant:IsA("FadeEffect") or descendant:IsA("LensFlareEffect") or descendant:IsA("SunRaysEffect") then
+        pcall(function() descendant.Enabled = false end)
+    elseif descendant:IsA("ScreenGui") and (descendant.Name:find("Flash") or descendant.Name:find("闪光")) then
+        pcall(function() descendant:Destroy() end)
+    elseif descendant:IsA("ImageLabel") and descendant.Size == UDim2.new(1, 0, 1, 0) then
+        if descendant.Transparency < 1 then
+            pcall(function()
+                descendant.Transparency = 1
+                descendant.Visible = false
+            end)
+        end
+    end
+end
+
+for _, v in ipairs(game:GetDescendants()) do cleanExtraVisuals(v) end
+game.DescendantAdded:Connect(function(v) task.defer(cleanExtraVisuals, v) end)
+
+pcall(function()
+    local redundantServices = {"TelemetryService", "AnalyticsService", "SocialService"}
+    for _, serviceName in pairs(redundantServices) do
+        local service = game:GetService(serviceName, false)
+        if service then pcall(function() service.Enabled = false end) end
+    end
+end)
+
+local o_NC, o_NI
+
+o_NC = hookmetamethod(game, "__namecall", function(self, ...)
+    local m = getnamecallmethod()
+    if not checkcaller() then
+        if self.ClassName == "AnalyticsService" then return end
+        if m == "FireServer" and string.find(self.Name, "Telemetry") then return end
+    end
+    return o_NC(self, ...)
+end)
+
+o_NI = hookmetamethod(game, "__newindex", function(obj, k, v)
+    if not checkcaller() then
+        if obj == l then
+            if k == "FogEnd" or k == "FogStart" then return o_NI(obj, k, 9e9) end
+            if k == "GlobalShadows" then return o_NI(obj, k, false) end
+            if k == "ShadowSoftness" or k == "EnvironmentDiffuseScale" or k == "EnvironmentSpecularScale" then return o_NI(obj, k, 0) end
+            if k == "Technology" then return o_NI(obj, k, Enum.Technology.Compatibility) end
+        elseif typeof(obj) == "Instance" then
+            if obj:IsA("BasePart") then
+                if k == "Material" then return o_NI(obj, k, Enum.Material.SmoothPlastic) end
+                if k == "Reflectance" then return o_NI(obj, k, 0) end
+                if k == "CastShadow" then return o_NI(obj, k, false) end
+            end
+        end
+    end
+    return o_NI(obj, k, v)
+end)
