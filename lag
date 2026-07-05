@@ -1,0 +1,71 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local isLocked = false
+local currentTask = nil
+
+local function lockFps()
+    if not isLocked and setfpscap then
+        isLocked = true
+        setfpscap(22)
+    end
+end
+
+local function unlockFpsWithDelay()
+    if isLocked and not currentTask then
+        currentTask = task.spawn(function()
+            task.wait(0.3)
+            if setfpscap then
+                setfpscap(0)
+            end
+            isLocked = false
+            currentTask = nil
+        end)
+    end
+end
+
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(function()
+            local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+            if not playerGui then return end
+            
+            local main = playerGui:FindFirstChild("Main")
+            if not main then return end
+            
+            local skills = main:FindFirstChild("Skills")
+            if not skills then return end
+            
+            local sanguine = skills:FindFirstChild("Sanguine Art")
+            if not sanguine then return end
+            
+            local zSkill = sanguine:FindFirstChild("Z")
+            if not zSkill then return end
+            
+            local cooldown = zSkill:FindFirstChild("Cooldown")
+            if cooldown and not cooldown:GetAttribute("AutoFpsBound") then
+                cooldown:SetAttribute("AutoFpsBound", true)
+                
+                local fullCdSize = UDim2.new(1, 0, 1, -1)
+                
+                if cooldown.Size == fullCdSize then
+                    lockFps()
+                else
+                    unlockFpsWithDelay()
+                end
+                
+                cooldown:GetPropertyChangedSignal("Size"):Connect(function()
+                    if cooldown.Size == fullCdSize then
+                        if currentTask then
+                            task.cancel(currentTask)
+                            currentTask = nil
+                        end
+                        lockFps()
+                    else
+                        unlockFpsWithDelay()
+                    end
+                end)
+            end
+        end)
+    end
+end)
