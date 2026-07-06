@@ -1,0 +1,1168 @@
+local WindUI = loadstring(request({
+    Url = "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+}).Body)()
+
+_G.AutoBird = false
+_G.AutoSummonBird = false
+_G.FarmLocation = "左边"
+_G.BringMob = false
+_G.WeaponType = "Melee"
+_G.AutoEquipWeapon = false
+_G.OptimizeFPS = false
+_G.AutoHaki = true
+_G.AutoV3 = false
+_G.AutoV4 = false
+_G.FastAttack = false
+_G.NoCooldown = false
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+
+local LocalPlayer = Players.LocalPlayer
+local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+
+--====================================================
+-- 反挂机 (Anti-AFK) 默认开启
+--====================================================
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+end)
+
+local FastAttackSettings = {
+    Range = 1000,           
+    AttackSpeed = 0.05,     
+    AutoScanRemotes = true, 
+}
+
+
+local function forceNoclip()
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    for _, part in ipairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+end
+
+
+local ActiveTween = nil
+
+local function SetCollide()
+    local character = LocalPlayer.Character
+    if not character then return end
+    for _, v in ipairs(character:GetChildren()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = false
+            v.CanTouch   = true
+            v.CanQuery   = true
+        end
+    end
+end
+
+local function SetNoCollide()
+    local character = LocalPlayer.Character
+    if not character then return end
+    for _, v in ipairs(character:GetChildren()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = false
+            v.CanTouch   = true
+            v.CanQuery   = true
+        end
+    end
+end
+
+local function topos(Pos)
+    if not LocalPlayer or not LocalPlayer.Character then return end
+    
+    local HRP = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local Humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+    if not HRP or not Humanoid then return end
+
+    HRP.AssemblyLinearVelocity  = Vector3.zero
+    HRP.AssemblyAngularVelocity = Vector3.zero
+    Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+
+    local Distance = (Pos.Position - HRP.Position).Magnitude
+    
+    local Speed = 350
+    if Distance < 150 then
+        Speed = 600
+    elseif Distance < 250 then
+        Speed = 450
+    elseif Distance < 500 then
+        Speed = 400
+    elseif Distance < 750 then
+        Speed = 300
+    end
+
+    if ActiveTween then ActiveTween:Cancel() end
+
+    ActiveTween = game:GetService("TweenService"):Create(
+        HRP,
+        TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear),
+        {CFrame = Pos}
+    )
+
+    local isActive = true
+    task.spawn(function()
+        while isActive and ActiveTween and ActiveTween.PlaybackState == Enum.PlaybackState.Playing do
+            SetNoCollide()
+            task.wait(0.001)
+        end
+    end)
+
+    ActiveTween:Play()
+
+    ActiveTween.Completed:Connect(function()
+        isActive = false
+        if Humanoid then
+            SetCollide()
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end)
+    
+    task.delay(0.05, function()
+        if Humanoid then
+            Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end)
+end
+
+local function StopTween()
+    if ActiveTween then
+        ActiveTween:Cancel()
+        ActiveTween = nil
+    end
+    
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local bodyClip = LocalPlayer.Character.HumanoidRootPart:FindFirstChild("BodyClip")
+        if bodyClip then bodyClip:Destroy() end
+    end
+end
+
+
+local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
+local RegisterHit = Net:WaitForChild("RE/RegisterHit")
+local RemoteSeed = Net:FindFirstChild("seed")
+
+local State = {
+    FoundRemote = nil,
+    FoundRemoteId = nil,
+    LastAttack = 0
+}
+
+
+if FastAttackSettings.AutoScanRemotes then
+    task.spawn(function()
+        local folders = {
+            ReplicatedStorage:FindFirstChild("Util"),
+            ReplicatedStorage:FindFirstChild("Common"),
+            ReplicatedStorage:FindFirstChild("Remotes"),
+            ReplicatedStorage:FindFirstChild("Assets"),
+            ReplicatedStorage:FindFirstChild("FX"),
+        }
+
+        local function checkChild(child)
+            if child:IsA("RemoteEvent") and child:GetAttribute("Id") then
+                State.FoundRemoteId = child:GetAttribute("Id")
+                State.FoundRemote = child
+            end
+        end
+
+        for _, folder in ipairs(folders) do
+            if folder then
+                for _, child in ipairs(folder:GetChildren()) do checkChild(child) end
+                folder.ChildAdded:Connect(checkChild)
+            end
+        end
+    end)
+end
+
+local function GetTargets()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return {} end
+
+    local targets = {}
+    local myPos = root.Position
+    
+    
+    local folders = {workspace:FindFirstChild("Enemies"), workspace:FindFirstChild("Characters")}
+    
+    for _, folder in ipairs(folders) do
+        if not folder then continue end
+        for _, model in ipairs(folder:GetChildren()) do
+            if model == char then continue end
+            
+            local tRoot = model:FindFirstChild("HumanoidRootPart")
+            local tHum = model:FindFirstChild("Humanoid")
+            
+            if tRoot and tHum and tHum.Health > 0 then
+                local dist = (tRoot.Position - myPos).Magnitude
+                if dist <= FastAttackSettings.Range then
+                    table.insert(targets, {
+                        Model = model,
+                        Root = tRoot,
+                        Head = model:FindFirstChild("Head") or tRoot
+                    })
+                end
+            end
+        end
+    end
+    return targets
+end
+
+
+local function PerformAttack()
+    local char = LocalPlayer.Character
+    if not char then return end
+
+    
+    local hasTool = char:FindFirstChildOfClass("Tool") or char:FindFirstChild("EquippedWeapon")
+    if not hasTool then return end
+
+    local targets = GetTargets()
+    if #targets == 0 then return end
+
+   
+    local mainTarget = targets[1]
+    local hitList = {}
+    for i, target in ipairs(targets) do
+       
+        table.insert(hitList, {target.Model, target.Root})
+    end
+
+   
+    RegisterAttack:FireServer()
+
+    
+    local fakeHash = tostring(LocalPlayer.UserId):sub(2,4) .. tostring(math.random(10000, 99999))
+    pcall(function()
+        RegisterHit:FireServer(
+            mainTarget.Head,
+            hitList,
+            {},
+            fakeHash
+        )
+    end)
+
+   
+    if State.FoundRemote and State.FoundRemoteId then
+        pcall(function()
+            local seedValue = RemoteSeed and RemoteSeed:InvokeServer() or 1
+            local encryptedId = bit32.bxor(State.FoundRemoteId + 909090, seedValue * 2)
+            
+            -- 这里保留原有的加密字符串逻辑
+            local rawName = "RE/RegisterHit"
+            local timestamp = math.floor(workspace:GetServerTimeNow() / 10 % 10) + 1
+            local encryptedName = string.gsub(rawName, ".", function(c)
+                return string.char(bit32.bxor(string.byte(c), timestamp))
+            end)
+
+            State.FoundRemote:FireServer(encryptedName, encryptedId, mainTarget.Head, hitList)
+        end)
+    end
+end
+
+
+task.spawn(function()
+    while true do
+        local startTime = tick()
+        
+        if _G.FastAttack then
+            local success, err = pcall(PerformAttack)
+            if not success then
+                warn("Attack Cycle Error: " .. tostring(err))
+            end
+        end
+        
+     
+        local elapsed = tick() - startTime
+        local waitTime = math.max(FastAttackSettings.AttackSpeed - elapsed, 0.001)
+        task.wait(waitTime)
+    end
+end)
+
+--====================================================
+-- 自动武装色及种族技能 (Auto Haki / V3 / V4)
+--====================================================
+local function startAutoHakiLoop()
+    task.spawn(function()
+        local remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
+        local commF = remotes and remotes:WaitForChild("CommF_", 5)
+        
+        while true do
+            task.wait(2) 
+            if _G.AutoHaki and commF then
+                local Character = LocalPlayer.Character
+                if Character and not Character:FindFirstChild("HasBuso") then
+                    pcall(function()
+                        commF:InvokeServer("Buso")
+                    end)
+                end
+            end
+        end
+    end)
+end
+
+local function handleAbility(abilityType)
+    task.spawn(function()
+        while true do
+            if _G["Auto" .. abilityType] then
+                if abilityType == "V4" then
+                    -- 【修复】死亡后，角色和背包会重新生成，所以必须同时检查 Backpack 和 Character 里的 Awakening
+                    local Awakening = nil
+                    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Awakening") then
+                        Awakening = LocalPlayer.Character:FindFirstChild("Awakening")
+                    elseif LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChild("Awakening") then
+                        Awakening = LocalPlayer.Backpack:FindFirstChild("Awakening")
+                    end
+                    
+                    if Awakening and Awakening:FindFirstChild("RemoteFunction") then
+                        pcall(function() Awakening.RemoteFunction:InvokeServer(true) end)
+                    end
+                elseif abilityType == "V3" then
+                    -- 【修复】虽然 Remotes 在 ReplicatedStorage 里不会随死亡销毁，但这里加个防错处理
+                    local CommE = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("CommE")
+                    if CommE then
+                        pcall(function() CommE:FireServer("ActivateAbility") end)
+                    end
+                end
+            end
+            task.wait(1)
+        end
+    end)
+end
+
+-- 启动循环
+startAutoHakiLoop()
+handleAbility("V3")
+handleAbility("V4")
+
+--====================================================
+-- 全局状态标志位（必须放在两个循环上面）
+--====================================================
+local previousAutoBird = false
+local previousBringMob = false
+_G.isHuntingBird = false -- 改为全局变量，确保不同线程/循环间能够共享和拦截
+
+--====================================================
+-- 自动控制循环 (刷怪 共享逻辑)
+--====================================================
+local FarmConnection = nil
+local rightSpawnCFrame = CFrame.new(-16538.543, 74.8822479, -353.176544, 0.942829669, 2.85748261e-08, -0.333274961, -1.46747183e-08, 1, 4.42249402e-08, 0.333274961, -3.68058721e-08, 0.942829669)
+local leftSpawnCFrame = CFrame.new(-16647.9375, 163.243622, 1365.65027, 0.0498976, 4.11380086e-08, -0.998754323, 4.56860789e-08, 1, 4.34717862e-08, 0.998754323, -4.77983093e-08, 0.0498976)
+
+local hasReachedSpawn = false -- 标志位：是否已经到达了设定的刷新点
+
+local LeftMobs = {
+    ["Isle Champion"] = true,
+    ["Serpent Hunter"] = true,
+    ["Skull Slayer"] = true,
+    ["Sun-kissed Warrior"] = true
+}
+
+local RightMobs = {
+    ["Island Boy"] = true,
+    ["Isle Outlaw"] = true
+}
+
+local function GetFarmTarget()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = character.HumanoidRootPart.Position
+
+    local enemiesFolder = workspace:FindFirstChild("Enemies")
+    if not enemiesFolder then return nil end
+
+    -- 如果 _G.AutoBird 开启，优先无视 FarmLocation 去寻找鸟王
+    if _G.AutoBird then
+        for _, mob in ipairs(enemiesFolder:GetChildren()) do
+            if mob.Name == "Tyrant of the Skies" then
+                local root = mob:FindFirstChild("HumanoidRootPart")
+                local hum = mob:FindFirstChild("Humanoid")
+                -- 检查存活并且血量不能是 0 (有时候假怪血量会显示异常)
+                if root and hum and hum.Health > 0 and mob.PrimaryPart ~= nil then
+                    return mob
+                end
+            end
+        end
+    end
+
+    -- 否则按左边/右边寻找普通怪
+    local targetMobs = _G.FarmLocation == "左边" and LeftMobs or RightMobs
+    local nearestMob = nil
+    local minDistance = math.huge
+
+    for _, mob in ipairs(enemiesFolder:GetChildren()) do
+        if targetMobs[mob.Name] then
+            local root = mob:FindFirstChild("HumanoidRootPart")
+            local hum = mob:FindFirstChild("Humanoid")
+            -- 检查存活，并加上 PrimaryPart 检查以防假怪
+            if root and hum and hum.Health > 0 and mob.PrimaryPart ~= nil then
+                local dist = (root.Position - myPos).Magnitude
+                -- 如果怪离得太远(超过 5000)，通常是没渲染好或者是假坐标，过滤掉
+                if dist < minDistance and dist < 5000 then
+                    minDistance = dist
+                    nearestMob = mob
+                end
+            end
+        end
+    end
+    
+    return nearestMob
+end
+
+--====================================================
+-- 聚怪逻辑 (Bring Mob)
+--====================================================
+local sethiddenproperty_called = false
+task.spawn(function()
+    while task.wait(5) do
+        if _G.BringMob then
+            pcall(function()
+                sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
+                sethiddenproperty_called = true
+            end)
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.BringMob then
+            pcall(function()
+                local character = LocalPlayer.Character
+                if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+                
+                local myPos = character.HumanoidRootPart.Position
+                local enemiesFolder = workspace:FindFirstChild("Enemies")
+                if not enemiesFolder then return end
+                
+                local targetMob = GetFarmTarget()
+                local targetRoot = targetMob and targetMob:FindFirstChild("HumanoidRootPart")
+                local BringPos = targetRoot and targetRoot.CFrame or (character.HumanoidRootPart.CFrame * CFrame.new(0, -25, 0))
+                
+                for _, mob in ipairs(enemiesFolder:GetChildren()) do
+                    if not string.find(mob.Name, "Boss") and mob.Name ~= "Tyrant of the Skies" then
+                        local root = mob:FindFirstChild("HumanoidRootPart")
+                        local hum = mob:FindFirstChild("Humanoid")
+                        
+                        -- 判断距离
+                        if root and hum and hum.Health > 0 and (root.Position - myPos).Magnitude <= 350 then
+                            
+                            -- 将怪物的 CFrame 锁定到 BringPos
+                            root.CFrame = BringPos
+                            
+                            -- 【优化】只有当怪物物理属性没被修改时，才去修改它们。避免每秒重复写导致底层引擎大量重算
+                            if hum.WalkSpeed ~= 0 then hum.WalkSpeed = 0 end
+                            if hum.JumpPower ~= 0 then hum.JumpPower = 0 end
+                            if root.Transparency ~= 1 then root.Transparency = 1 end
+                            if root.CanCollide then root.CanCollide = false end
+                            
+                            if mob:FindFirstChild("Head") and mob.Head.CanCollide then
+                                mob.Head.CanCollide = false
+                            end
+                            
+                            if hum:FindFirstChild("Animator") then
+                                hum.Animator:Destroy()
+                            end
+                            
+                            if not root:FindFirstChild("Lock") then
+                                local bv = Instance.new("BodyVelocity")
+                                bv.Parent = root
+                                bv.Name = "Lock"
+                                bv.MaxForce = Vector3.new(100000, 100000, 100000)
+                                bv.Velocity = Vector3.new(0, 0, 0)
+                            end
+                            
+                            -- 强制状态转换 (11 = Seated)
+                            if hum:GetState() ~= Enum.HumanoidStateType.Seated then
+                                hum:ChangeState(11)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+
+--====================================================
+-- 鹰眼检测与 Boss 召唤逻辑
+--====================================================
+local lastPrintTime = 0
+local function checkEagleEye() 
+    local islandModel = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("TikiOutpost") and workspace.Map.TikiOutpost:FindFirstChild("IslandModel")
+    
+    -- 每隔 3 秒才打印一次，防止刷屏导致游戏卡顿
+    local shouldPrint = false
+    if tick() - lastPrintTime > 3 then
+        shouldPrint = true
+        lastPrintTime = tick()
+    end
+
+    if not islandModel then 
+        if shouldPrint then print("[调试-鹰眼] 错误: 找不到 IslandModel 路径") end
+        return false 
+    end
+    
+    local targetEyes = { 
+        Eye1 = false, 
+        Eye2 = false, 
+        Eye3 = false, 
+        Eye4 = false 
+    }
+    
+    local foundAnyEye = false
+    local debugStrs = {}
+    
+    -- 【重要修复】之前用 GetChildren() 只能找下一级，但眼睛在 IslandChunks.E 下面，必须用 GetDescendants() 深度查找
+    for _, v in ipairs(islandModel:GetDescendants()) do 
+        if string.match(v.Name, "^Eye%d$") and targetEyes[v.Name] ~= nil then 
+            foundAnyEye = true
+            local t = tonumber(v.Transparency)
+            if t == 0 then 
+                targetEyes[v.Name] = true 
+            end 
+            
+            if shouldPrint then
+                local colorStr = "N/A"
+                if v:IsA("BasePart") then
+                    colorStr = tostring(math.floor(v.Color.R*255)) .. "," .. tostring(math.floor(v.Color.G*255)) .. "," .. tostring(math.floor(v.Color.B*255))
+                end
+                table.insert(debugStrs, string.format("%s(T:%s,C:%s)", v.Name, tostring(t), colorStr))
+            end
+        end 
+    end 
+    
+    if shouldPrint then
+        if not foundAnyEye then
+            print("[调试-鹰眼] 警告: 在 IslandModel 下没找到任何名为 Eye1~4 的部件！请检查是不是不在这个岛上")
+        else
+            print("[调试-鹰眼] 找到眼睛状态: " .. table.concat(debugStrs, " | "))
+        end
+    end
+    
+    for eyeName, found in pairs(targetEyes) do 
+        if not found then 
+            if shouldPrint and foundAnyEye then
+                print("[调试-鹰眼] 检测未通过，还有眼睛未亮起: " .. eyeName)
+            end
+            return false 
+        end 
+    end 
+    
+    if shouldPrint then
+        print("[调试-鹰眼] 成功！4个鹰眼已全部激活 (Transparency == 0)!")
+    end
+    return true 
+end
+
+local lastTreePrintTime = 0
+local function getNearestTree()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = character.HumanoidRootPart.Position
+
+    local shouldPrint = false
+    if tick() - lastTreePrintTime > 3 then
+        shouldPrint = true
+        lastTreePrintTime = tick()
+    end
+
+    -- 深度查找 EagleBossArena，防止中间某一层加载慢或名称有细微差别
+    local islandModel = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("TikiOutpost") and workspace.Map.TikiOutpost:FindFirstChild("IslandModel")
+    if not islandModel then 
+        if shouldPrint then print("[调试-找树] 错误: 找不到 IslandModel") end
+        return nil 
+    end
+
+    local arena = nil
+    for _, v in ipairs(islandModel:GetDescendants()) do
+        if v.Name == "EagleBossArena" then
+            arena = v
+            break
+        end
+    end
+
+    if not arena then 
+        if shouldPrint then print("[调试-找树] 错误: 找不到 EagleBossArena (使用 GetDescendants 也没找到)") end
+        return nil 
+    end
+
+    local nearestTree = nil
+    local minDistance = math.huge
+    local treeCount = 0
+
+    -- 深度查找所有叫 tree 的部件/模型
+    for _, obj in ipairs(arena:GetDescendants()) do
+        if string.lower(obj.Name) == "tree" then
+            treeCount = treeCount + 1
+            if obj:IsA("Model") and obj.PrimaryPart then
+                local dist = (obj.PrimaryPart.Position - myPos).Magnitude
+                if dist < minDistance then
+                    minDistance = dist
+                    nearestTree = obj
+                end
+            elseif obj:IsA("BasePart") then
+                local dist = (obj.Position - myPos).Magnitude
+                if dist < minDistance then
+                    minDistance = dist
+                    nearestTree = obj
+                end
+            end
+        end
+    end
+
+    if shouldPrint then
+        if nearestTree then
+            print("[调试-找树] 成功！找到 " .. treeCount .. " 棵树，最近的距离: " .. math.floor(minDistance))
+        else
+            print("[调试-找树] 警告: EagleBossArena 里面没有叫 tree 的东西！")
+        end
+    end
+
+    return nearestTree
+end
+
+local function fireSkullGuitar(targetPos)
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    local guitar = character:FindFirstChild("Skull Guitar")
+    if not guitar then
+        -- 尝试从背包装备
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if backpack and backpack:FindFirstChild("Skull Guitar") then
+            local humanoid = character:FindFirstChild("Humanoid")
+            if humanoid then
+                humanoid:EquipTool(backpack["Skull Guitar"])
+                task.wait(0.2)
+            end
+        end
+    end
+    
+    guitar = character:FindFirstChild("Skull Guitar")
+    if guitar and guitar:FindFirstChild("RemoteEvent") then
+        local args = {
+            "TAP",
+            targetPos -- 传入树的实际 Vector3 坐标
+        }
+        pcall(function()
+            guitar.RemoteEvent:FireServer(unpack(args))
+        end)
+    end
+end
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if _G.AutoBird then
+            if not FarmConnection then
+                FarmConnection = RunService.Stepped:Connect(function()
+                    if not _G.AutoBird then
+                        if FarmConnection then
+                            FarmConnection:Disconnect()
+                            FarmConnection = nil
+                        end
+                        return
+                    end
+                    
+                    local character = LocalPlayer.Character
+                    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+                    local myRoot = character.HumanoidRootPart
+                    
+                    -- 获取当前设定的刷新点坐标
+                    local spawnCFrame = _G.FarmLocation == "左边" and leftSpawnCFrame or rightSpawnCFrame
+                    local distToSpawn = (myRoot.Position - spawnCFrame.Position).Magnitude
+                    
+                    -- 【绝对前置条件】不管有没有怪，只要没到达过刷新点，就必须先飞过去
+                    if not hasReachedSpawn then
+                        forceNoclip()
+                        if distToSpawn > 5 then
+                            topos(spawnCFrame)
+                            return -- 没到位置，直接中断下面的找怪逻辑
+                        else
+                            StopTween()
+                            myRoot.CFrame = spawnCFrame
+                            hasReachedSpawn = true -- 标记为已经到达
+                        end
+                    end
+                    
+                    -- 【核心优先级判断】
+                    -- 如果正在打鸟王/打树 (isHuntingBird 为 true)，绝对不执行日常打怪逻辑
+                    if _G.isHuntingBird then 
+                        -- 如果正在打树/鸟王，确保不会去吸怪
+                        return 
+                    end
+                    
+                    -- 只有在 hasReachedSpawn == true 时，才会执行下面的找怪和打怪
+                    local targetMob = GetFarmTarget()
+                    
+                    if targetMob and targetMob:FindFirstChild("HumanoidRootPart") then
+                        -- 保证挂机/跑图时强制穿墙，防止被打飞或卡建筑物
+                        forceNoclip()
+                        
+                        -- 传送到小怪的绝对Y轴上方25个单位（而不是小怪头上相对坐标，防止小怪倒下导致偏离）
+                        local targetCFrame = CFrame.new(targetMob.HumanoidRootPart.Position + Vector3.new(0, 25, 0))
+                        
+                        local dist = (myRoot.Position - targetCFrame.Position).Magnitude
+                        if dist > 5 then
+                            topos(targetCFrame)
+                        else
+                            StopTween()
+                            myRoot.CFrame = targetCFrame
+                        end
+                    else
+                        -- 如果没有怪，检查自己是否在刷新点，如果不在则飞过去
+                        forceNoclip()
+                        if _G.FarmLocation == "右边" then
+                            -- 右边等待刷新点
+                            local dist = (myRoot.Position - rightSpawnCFrame.Position).Magnitude
+                            if dist > 5 then
+                                topos(rightSpawnCFrame)
+                            else
+                                StopTween()
+                                myRoot.CFrame = rightSpawnCFrame
+                            end
+                        elseif _G.FarmLocation == "左边" then
+                            -- 左边等待刷新点
+                            local dist = (myRoot.Position - leftSpawnCFrame.Position).Magnitude
+                            if dist > 5 then
+                                topos(leftSpawnCFrame)
+                            else
+                                StopTween()
+                                myRoot.CFrame = leftSpawnCFrame
+                            end
+                        end
+                    end
+                end)
+            end
+        else
+            if FarmConnection then
+                FarmConnection:Disconnect()
+                FarmConnection = nil
+                hasReachedSpawn = false -- 关闭开关时重置标志位，下次开启需重新前往刷新点
+            end
+            if not _G.AutoBird then
+                StopTween()
+            end
+        end
+    end
+end)
+
+--====================================================
+-- 自动鸟王鹰眼与召唤检测循环
+--====================================================
+task.spawn(function()
+    while task.wait(0.5) do
+        -- 把自动鸟王和自动刷怪绑定在同一个开关 _G.AutoBird 上
+        if _G.AutoBird then
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                local myRoot = character.HumanoidRootPart
+                
+                -- 首先看鸟王(Tyrant of the Skies)是不是已经存在了（被召唤出来了）
+                local birdAlive = false
+                local targetBirdMob = nil
+                local enemiesFolder = workspace:FindFirstChild("Enemies")
+                
+                if enemiesFolder then
+                    for _, mob in ipairs(enemiesFolder:GetChildren()) do
+                        if mob.Name == "Tyrant of the Skies" then
+                            local hum = mob:FindFirstChild("Humanoid")
+                            if hum and hum.Health > 0 then
+                                birdAlive = true
+                                targetBirdMob = mob
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- 当鹰眼变红（检测通过）或者鸟王存活时，我们进入“专心狩猎鸟王”的状态
+                -- 注意：如果鸟王存活，就不要去检测鹰眼了，防止一边打鸟王一边跑去打树
+                local eagleEyeActive = false
+                if not birdAlive then
+                    eagleEyeActive = checkEagleEye() -- Check eagle eye status
+                end
+                
+                if birdAlive or eagleEyeActive then
+                    if not _G.isHuntingBird then
+                        -- 记录当前状态，并强行关闭日常刷怪和聚怪
+                        _G.isHuntingBird = true
+                        
+                        -- 【优先级：打树和打鸟王高于刷怪】
+                        -- 如果担心 return 拦截失败，我们双重保险：直接断开日常刷怪的连接
+                        if FarmConnection then
+                            FarmConnection:Disconnect()
+                            FarmConnection = nil
+                        end
+                    end
+                else
+                    -- 既没有鸟王，鹰眼也没亮（鸟王死了，或者刚开始挂机还没触发）
+                    if _G.isHuntingBird then
+                        -- 狩猎结束，恢复原来的状态
+                        _G.isHuntingBird = false
+                    end
+                end
+                
+                -- 更新全局目标，供高频循环使用
+                if _G.isHuntingBird then
+                    if birdAlive and targetBirdMob then
+                        _G.HuntingTarget = targetBirdMob
+                        _G.HuntingType = "Bird"
+                    elseif eagleEyeActive then
+                        _G.HuntingTarget = getNearestTree()
+                        _G.HuntingType = "Tree"
+                    end
+                else
+                    _G.HuntingTarget = nil
+                    _G.HuntingType = nil
+                end
+            end
+        else
+            if _G.isHuntingBird then
+                _G.isHuntingBird = false
+                _G.HuntingTarget = nil
+                _G.HuntingType = nil
+            end
+        end
+    end
+end)
+
+--====================================================
+-- 高频追踪循环 (用于紧密吸附鸟王或树)
+--====================================================
+local HuntingConnection = nil
+task.spawn(function()
+    while task.wait(1) do
+        if _G.AutoBird then
+            if not HuntingConnection then
+                HuntingConnection = RunService.Stepped:Connect(function()
+                    if not _G.AutoBird or not _G.isHuntingBird or not _G.HuntingTarget then return end
+                    
+                    local character = LocalPlayer.Character
+                    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+                    local myRoot = character.HumanoidRootPart
+                    
+                    forceNoclip()
+                    
+                    if _G.HuntingType == "Bird" then
+                        local targetRoot = _G.HuntingTarget:FindFirstChild("HumanoidRootPart")
+                        if targetRoot then
+                            -- 鸟王的绝对Y轴上方25个单位
+                            local targetCFrame = CFrame.new(targetRoot.Position + Vector3.new(0, 25, 0))
+                            local dist = (myRoot.Position - targetCFrame.Position).Magnitude
+                            if dist > 5 then
+                                topos(targetCFrame)
+                            else
+                                StopTween()
+                                myRoot.CFrame = targetCFrame
+                            end
+                        end
+                    elseif _G.HuntingType == "Tree" then
+                        local targetTree = _G.HuntingTarget
+                        local treePos = targetTree:IsA("Model") and targetTree.PrimaryPart and targetTree.PrimaryPart.CFrame or targetTree.CFrame
+                        if treePos then
+                            local dist = (myRoot.Position - treePos.Position).Magnitude
+                            if dist > 5 then
+                                topos(treePos)
+                            else
+                                StopTween()
+                                myRoot.CFrame = treePos
+                            end
+                        end
+                    end
+                end)
+            end
+        else
+            if HuntingConnection then
+                HuntingConnection:Disconnect()
+                HuntingConnection = nil
+            end
+        end
+    end
+end)
+
+--====================================================
+-- 打树专属射击线程 (避免在 Stepped 中触发导致掉帧和线程爆炸)
+--====================================================
+task.spawn(function()
+    while task.wait(0.2) do
+        if _G.AutoBird and _G.isHuntingBird and _G.HuntingType == "Tree" and _G.HuntingTarget then
+            pcall(function()
+                local character = LocalPlayer.Character
+                if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+                
+                local targetTree = _G.HuntingTarget
+                local treePos = targetTree:IsA("Model") and targetTree.PrimaryPart and targetTree.PrimaryPart.CFrame or targetTree.CFrame
+                
+                if treePos then
+                    local dist = (character.HumanoidRootPart.Position - treePos.Position).Magnitude
+                    if dist <= 5 then
+                        fireSkullGuitar(treePos.Position)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+--====================================================
+-- 自动装备武器逻辑
+--====================================================
+local function GetWeapon()
+    if not LocalPlayer then return nil end
+    
+    local targetType = _G.WeaponType or "Melee"
+
+    -- 检查背包
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") and item.ToolTip == targetType then
+                return item
+            end
+        end
+    end
+    
+    -- 检查角色（是否已经装备）
+    local character = LocalPlayer.Character
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item:IsA("Tool") and item.ToolTip == targetType then
+                return item
+            end
+        end
+    end
+    
+    return nil
+end
+
+
+task.spawn(function()
+    while task.wait(0.1) do
+        -- 【重要修复】仅在打树时 (HuntingType == "Tree") 暂停自动装备主要武器，
+        -- 防止把刚拿出来的 Skull Guitar 给顶替掉；如果是在打鸟王 (HuntingType == "Bird") 或刷怪，则正常装备
+        if _G.AutoEquipWeapon and _G.HuntingType ~= "Tree" then
+            pcall(function()
+                local character = LocalPlayer.Character
+                local humanoid = character and character:FindFirstChild("Humanoid")
+                
+                if not character or not humanoid or humanoid.Health <= 0 then
+                    return
+                end
+                
+                local weapon = GetWeapon()
+                
+                if weapon and weapon.Parent ~= character then
+                    humanoid:EquipTool(weapon)
+                end
+            end)
+        end
+    end
+end)
+
+--====================================================
+-- FPS 优化逻辑 (删除粒子/特效)
+--====================================================
+task.spawn(function()
+    while task.wait(5) do
+        if _G.OptimizeFPS then
+            pcall(function()
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
+                        obj:Destroy()
+                    end
+                end
+                
+                -- 如果需要极致优化，可以连带光照效果一起关掉（取消注释）
+                -- game:GetService("Lighting").GlobalShadows = false
+                -- game:GetService("Lighting").FogEnd = 9e9
+            end)
+        end
+    end
+end)
+
+WindUI:SetNotificationLower(true)
+WindUI:SetFont("rbxassetid://12187366846")
+
+local Window = WindUI:CreateWindow({
+    Title = "人挤人自动鸟王 | 定制",
+    Author = "by kismile",
+    Folder = "AutoBirdBossConfig",
+    Size = UDim2.fromOffset(480, 360),
+    Theme = "Dark",
+    SideBarWidth = 150,
+    HideSearchBar = true,
+    ScrollBarEnabled = false
+})
+
+local Tabs = {
+    ["菜单"] = Window:Section({
+        Title = "功能",
+        Opened = true
+    }),
+    ["设置"] = Window:Section({
+        Title = "设置",
+        Opened = true
+    }),
+}
+local RJR = {
+    ["自动"] = Tabs["菜单"]:Tab({
+        Title = "主要功能",
+    }),
+    ["10"] = Tabs["设置"]:Tab({
+        Title = "窗口设置",
+    }),
+}
+
+RJR["自动"]:Divider()
+
+local StartFragments = 0
+pcall(function()
+    StartFragments = LocalPlayer.Data.Fragments.Value
+end)
+
+local StartTime = tick()
+
+local FragmentsParagraph = RJR["自动"]:Paragraph({
+    Title = "统计信息",
+    Desc = "运行时间: 0时 0分 0秒\n初始f: " .. tostring(StartFragments) .. " | 当前f: " .. tostring(StartFragments) .. " | 增加碎片: 0"
+})
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            local elapsed = tick() - StartTime
+            local hours = math.floor(elapsed / 3600)
+            local minutes = math.floor((elapsed % 3600) / 60)
+            local seconds = math.floor(elapsed % 60)
+            local timeStr = string.format("%d时 %d分 %d秒", hours, minutes, seconds)
+            
+            if LocalPlayer.Data and LocalPlayer.Data:FindFirstChild("Fragments") then
+                local currentFrag = LocalPlayer.Data.Fragments.Value
+                local gained = currentFrag - StartFragments
+                FragmentsParagraph:SetDesc("运行时间: " .. timeStr .. "\n初始f: " .. tostring(StartFragments) .. " | 当前f: " .. tostring(currentFrag) .. " | 增加f: " .. tostring(gained))
+            else
+                FragmentsParagraph:SetDesc("运行时间: " .. timeStr .. "\n获取f信息失败")
+            end
+        end)
+    end
+end)
+RJR["自动"]:Toggle({
+    Title = "开启聚怪",
+    Default = false,
+    Callback = function(v)
+        _G.BringMob = v
+    end
+})
+
+RJR["自动"]:Dropdown({
+    Title = "选择刷怪地点",
+    Values = {"左边", "右边"},
+    Value = "左边",
+    Callback = function(v)
+        _G.FarmLocation = v
+    end
+})
+
+RJR["自动"]:Toggle({
+    Title = "开启自动刷怪与鸟王",
+    Default = false,
+    Callback = function(v)
+        _G.AutoBird = v
+    end
+})
+
+RJR["自动"]:Dropdown({
+    Title = "选择主要武器",
+    Values = {"Melee", "Sword", "Blox Fruit"},
+    Value = "Melee",
+    Callback = function(v)
+        _G.WeaponType = v
+    end
+})
+
+RJR["自动"]:Toggle({
+    Title = "自动装备武器",
+    Default = false,
+    Callback = function(v)
+        _G.AutoEquipWeapon = v
+    end
+})
+
+RJR["自动"]:Toggle({
+    Title = "自动武装色",
+    Default = true,
+    Callback = function(v)
+        _G.AutoHaki = v
+    end
+})
+
+RJR["自动"]:Toggle({
+    Title = "自动 V3",
+    Default = false,
+    Callback = function(v)
+        _G.AutoV3 = v
+    end
+})
+
+RJR["自动"]:Toggle({
+    Title = "自动 V4",
+    Default = false,
+    Callback = function(v)
+        _G.AutoV4 = v
+    end
+})
+
+RJR["自动"]:Toggle({
+    Title = "快速攻击",
+    Default = false,
+    Callback = function(v)
+        _G.FastAttack = v
+    end
+})
+
+
+
+RJR["自动"]:Divider()
+
+RJR["10"]:Toggle({
+    Title = "白屏",
+    Desc = "",
+    Default = false,
+    Callback = function(state)
+        pcall(function()
+            game:GetService("RunService"):Set3dRenderingEnabled(not state)
+        end)
+    end
+})
+
+RJR["10"]:Toggle({
+    Title = "删除特效 (优化FPS)",
+    Desc = "",
+    Default = _G.OptimizeFPS,
+    Callback = function(state)
+        _G.OptimizeFPS = state
+    end
+})
+
+
+
+RJR["10"]:Keybind({
+    Title = "窗口切换键",
+    Desc = "切换窗口显示状态",
+    Value = "G",
+    Callback = function(v)
+        Window:SetToggleKey(Enum.KeyCode[v])
+    end
+})
