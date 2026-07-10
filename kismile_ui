@@ -1,1 +1,3504 @@
+--[[
+    ╔══════════════════════════════════════════════════╗
+    ║            KISMILE UI  v1.0.0                     ║
+    ║         "The Ultimate Roblox UI Library"           ║
+    ║  Inspired by Wind UI, Rayfield, Fluent & Linoria   ║
+    ║                                                    ║
+    ║  Features:                                         ║
+    ║  • 12 Built-in Themes                             ║
+    ║  • Adaptive Squircle Shapes                       ║
+    ║  • Smooth Animations (TweenService + Spring)      ║
+    ║  • Acrylic/Blur Background Support                ║
+    ║  • Complete Element Set (11+ types)               ║
+    ║  • Notification System (5 types)                  ║
+    ║  • Dialog System                                  ║
+    ║  • Config Save/Load (JSON)                        ║
+    ║  • Key System with HWID & API Validation          ║
+    ║  • Tab Search & Scroll                            ║
+    ║  • Multi-Select Dropdown                          ║
+    ║                                                    ║
+    ║  License: MIT                                      ║
+    ║  Author: Kismile Team                              ║
+    ╚══════════════════════════════════════════════════╝
+]]
 
+-- ========================================
+-- SECTION 1: Environment & Services
+-- ========================================
+
+local Environment = {
+    RenderStepped = nil,
+    Heartbeat = nil,
+    IsStudio = false,
+    IsSynapse = false,
+    IsKrnl = false,
+    IsScriptWare = false,
+    IsElectron = false,
+    IsFluxus = false,
+    IsCodex = false,
+    HookFunction = nil,
+    GetCustomAsset = nil,
+    HttpGet = nil,
+    GetHiddenUI = nil,
+}
+
+-- Detect executor environment
+if identifyexecutor then
+    local Executor = identifyexecutor()
+    Environment.IsSynapse = Executor == "Synapse"
+    Environment.IsKrnl = Executor == "Krnl"
+    Environment.IsScriptWare = Executor == "ScriptWare"
+    Environment.IsElectron = Executor == "Electron"
+    Environment.IsFluxus = Executor == "Fluxus"
+    Environment.IsCodex = Executor == "Codex"
+end
+
+if syn and syn.request then
+    Environment.HttpGet = function(Url)
+        local Response = syn.request({ Url = Url, Method = "GET" })
+        return Response.Body
+    end
+elseif request then
+    Environment.HttpGet = function(Url)
+        local Response = request({ Url = Url, Method = "GET" })
+        return Response.Body
+    end
+else
+    Environment.HttpGet = function(Url)
+        return game:HttpGet(Url)
+    end
+end
+
+if gethui then
+    Environment.GetHiddenUI = gethui
+elseif syn and syn.protect_gui then
+    Environment.GetHiddenUI = function()
+        local HiddenUI = syn.protect_gui(Instance.new("ScreenGui"))
+        syn.protect_gui(HiddenUI)
+        return HiddenUI
+    end
+elseif get_hidden_gui then
+    Environment.GetHiddenUI = get_hidden_gui
+elseif get_gui then
+    Environment.GetHiddenUI = get_gui
+else
+    Environment.GetHiddenUI = function()
+        return game:GetService("CoreGui")
+    end
+end
+
+if hookfunction then
+    Environment.HookFunction = hookfunction
+end
+
+if getcustomasset then
+    Environment.GetCustomAsset = getcustomasset
+end
+
+Environment.RenderStepped = game:GetService("RunService").RenderStepped
+Environment.Heartbeat = game:GetService("RunService").Heartbeat
+Environment.IsStudio = game:GetService("RunService"):IsStudio()
+
+-- Services
+local Services = {
+    TweenService = game:GetService("TweenService"),
+    UserInputService = game:GetService("UserInputService"),
+    Players = game:GetService("Players"),
+    TextService = game:GetService("TextService"),
+    HttpService = game:GetService("HttpService"),
+    CoreGui = game:GetService("CoreGui"),
+    RunService = game:GetService("RunService"),
+    StarterGui = game:GetService("StarterGui"),
+}
+
+local LocalPlayer = Services.Players.LocalPlayer
+
+-- Cloneref fallback
+local Cloneref = cloneref or clonereference or function(Obj)
+    return Obj
+end
+
+-- ========================================
+-- SECTION 2: Theme System (12 Themes)
+-- ========================================
+
+local Themes = {}
+
+function Themes:CreateTheme(Data)
+    return Data
+end
+
+-- Default - Clean dark blue-gray (inspired by Rayfield Default)
+Themes.Default = {
+    Name = "Default",
+    -- Window
+    Background = Color3.fromRGB(15, 15, 20),
+    Topbar = Color3.fromRGB(20, 20, 28),
+    TopbarBorder = Color3.fromRGB(30, 30, 40),
+    -- Tab
+    TabList = Color3.fromRGB(18, 18, 25),
+    Tab = Color3.fromRGB(25, 25, 35),
+    TabHover = Color3.fromRGB(35, 35, 48),
+    TabActive = Color3.fromRGB(45, 45, 60),
+    TabText = Color3.fromRGB(180, 180, 200),
+    TabTextActive = Color3.fromRGB(255, 255, 255),
+    -- Content
+    Content = Color3.fromRGB(22, 22, 32),
+    SectionText = Color3.fromRGB(140, 140, 165),
+    SectionLine = Color3.fromRGB(35, 35, 48),
+    -- Elements
+    ElementBackground = Color3.fromRGB(28, 28, 40),
+    ElementBorder = Color3.fromRGB(38, 38, 52),
+    ElementHover = Color3.fromRGB(35, 35, 50),
+    -- Text
+    TextColor = Color3.fromRGB(230, 230, 245),
+    TextSecondary = Color3.fromRGB(150, 150, 175),
+    TextDark = Color3.fromRGB(100, 100, 120),
+    -- Accent
+    Accent = Color3.fromRGB(85, 70, 255),
+    AccentLight = Color3.fromRGB(110, 100, 255),
+    AccentDark = Color3.fromRGB(65, 50, 200),
+    -- Toggle
+    ToggleOn = Color3.fromRGB(85, 70, 255),
+    ToggleOff = Color3.fromRGB(50, 50, 65),
+    -- Slider
+    SliderBackground = Color3.fromRGB(40, 40, 55),
+    SliderFill = Color3.fromRGB(85, 70, 255),
+    -- Dropdown
+    DropdownBackground = Color3.fromRGB(22, 22, 32),
+    DropdownOption = Color3.fromRGB(28, 28, 40),
+    DropdownOptionHover = Color3.fromRGB(35, 35, 50),
+    DropdownOptionSelected = Color3.fromRGB(45, 45, 60),
+    -- Input
+    InputBackground = Color3.fromRGB(22, 22, 32),
+    InputBorder = Color3.fromRGB(40, 40, 55),
+    InputPlaceholder = Color3.fromRGB(120, 120, 140),
+    -- Button
+    ButtonBackground = Color3.fromRGB(85, 70, 255),
+    ButtonHover = Color3.fromRGB(100, 85, 255),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    -- Notification
+    NotificationBackground = Color3.fromRGB(25, 25, 35),
+    NotificationBorder = Color3.fromRGB(40, 40, 55),
+    -- Dialog
+    DialogBackground = Color3.fromRGB(20, 20, 30),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    -- Scrollbar
+    ScrollbarBackground = Color3.fromRGB(18, 18, 28),
+    ScrollbarHandle = Color3.fromRGB(50, 50, 65),
+    -- Other
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(255, 255, 255),
+    TopbarSubtitle = Color3.fromRGB(150, 150, 175),
+    TopbarButton = Color3.fromRGB(180, 180, 200),
+    TopbarButtonHover = Color3.fromRGB(255, 255, 255),
+    CloseButton = Color3.fromRGB(180, 180, 200),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(180, 180, 200),
+    MinimizeButtonHover = Color3.fromRGB(255, 255, 255),
+    CornerRadius = UDim.new(0, 8),
+}
+
+-- Midnight - Pure dark (for OLED-like experience)
+Themes.Midnight = Themes:CreateTheme({
+    Name = "Midnight",
+    Background = Color3.fromRGB(5, 5, 8),
+    Topbar = Color3.fromRGB(8, 8, 12),
+    TopbarBorder = Color3.fromRGB(18, 18, 25),
+    TabList = Color3.fromRGB(6, 6, 10),
+    Tab = Color3.fromRGB(10, 10, 16),
+    TabHover = Color3.fromRGB(18, 18, 28),
+    TabActive = Color3.fromRGB(26, 26, 40),
+    TabText = Color3.fromRGB(160, 160, 180),
+    TabTextActive = Color3.fromRGB(240, 240, 255),
+    Content = Color3.fromRGB(10, 10, 16),
+    SectionText = Color3.fromRGB(120, 120, 145),
+    SectionLine = Color3.fromRGB(22, 22, 35),
+    ElementBackground = Color3.fromRGB(14, 14, 22),
+    ElementBorder = Color3.fromRGB(22, 22, 35),
+    ElementHover = Color3.fromRGB(20, 20, 32),
+    TextColor = Color3.fromRGB(220, 220, 240),
+    TextSecondary = Color3.fromRGB(140, 140, 165),
+    TextDark = Color3.fromRGB(90, 90, 110),
+    Accent = Color3.fromRGB(100, 90, 255),
+    AccentLight = Color3.fromRGB(130, 120, 255),
+    AccentDark = Color3.fromRGB(75, 65, 210),
+    ToggleOn = Color3.fromRGB(100, 90, 255),
+    ToggleOff = Color3.fromRGB(35, 35, 50),
+    SliderBackground = Color3.fromRGB(25, 25, 40),
+    SliderFill = Color3.fromRGB(100, 90, 255),
+    DropdownBackground = Color3.fromRGB(8, 8, 14),
+    DropdownOption = Color3.fromRGB(12, 12, 20),
+    DropdownOptionHover = Color3.fromRGB(20, 20, 32),
+    DropdownOptionSelected = Color3.fromRGB(30, 30, 45),
+    InputBackground = Color3.fromRGB(8, 8, 14),
+    InputBorder = Color3.fromRGB(25, 25, 40),
+    InputPlaceholder = Color3.fromRGB(100, 100, 120),
+    ButtonBackground = Color3.fromRGB(100, 90, 255),
+    ButtonHover = Color3.fromRGB(120, 110, 255),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(12, 12, 20),
+    NotificationBorder = Color3.fromRGB(25, 25, 40),
+    DialogBackground = Color3.fromRGB(10, 10, 18),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(6, 6, 12),
+    ScrollbarHandle = Color3.fromRGB(40, 40, 55),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(240, 240, 255),
+    TopbarSubtitle = Color3.fromRGB(140, 140, 165),
+    TopbarButton = Color3.fromRGB(160, 160, 180),
+    TopbarButtonHover = Color3.fromRGB(240, 240, 255),
+    CloseButton = Color3.fromRGB(160, 160, 180),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(160, 160, 180),
+    MinimizeButtonHover = Color3.fromRGB(240, 240, 255),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Ocean - Deep blue tones
+Themes.Ocean = Themes:CreateTheme({
+    Name = "Ocean",
+    Background = Color3.fromRGB(8, 16, 30),
+    Topbar = Color3.fromRGB(10, 20, 38),
+    TopbarBorder = Color3.fromRGB(20, 35, 60),
+    TabList = Color3.fromRGB(6, 14, 26),
+    Tab = Color3.fromRGB(12, 22, 40),
+    TabHover = Color3.fromRGB(20, 34, 56),
+    TabActive = Color3.fromRGB(30, 48, 75),
+    TabText = Color3.fromRGB(150, 180, 220),
+    TabTextActive = Color3.fromRGB(180, 210, 255),
+    Content = Color3.fromRGB(12, 22, 40),
+    SectionText = Color3.fromRGB(120, 160, 210),
+    SectionLine = Color3.fromRGB(25, 42, 70),
+    ElementBackground = Color3.fromRGB(16, 28, 50),
+    ElementBorder = Color3.fromRGB(24, 40, 65),
+    ElementHover = Color3.fromRGB(22, 36, 60),
+    TextColor = Color3.fromRGB(200, 220, 255),
+    TextSecondary = Color3.fromRGB(140, 170, 220),
+    TextDark = Color3.fromRGB(90, 120, 170),
+    Accent = Color3.fromRGB(50, 140, 255),
+    AccentLight = Color3.fromRGB(80, 165, 255),
+    AccentDark = Color3.fromRGB(30, 100, 210),
+    ToggleOn = Color3.fromRGB(50, 140, 255),
+    ToggleOff = Color3.fromRGB(25, 45, 75),
+    SliderBackground = Color3.fromRGB(22, 38, 65),
+    SliderFill = Color3.fromRGB(50, 140, 255),
+    DropdownBackground = Color3.fromRGB(10, 18, 34),
+    DropdownOption = Color3.fromRGB(14, 24, 44),
+    DropdownOptionHover = Color3.fromRGB(22, 36, 60),
+    DropdownOptionSelected = Color3.fromRGB(30, 48, 78),
+    InputBackground = Color3.fromRGB(10, 18, 34),
+    InputBorder = Color3.fromRGB(22, 38, 62),
+    InputPlaceholder = Color3.fromRGB(90, 130, 180),
+    ButtonBackground = Color3.fromRGB(50, 140, 255),
+    ButtonHover = Color3.fromRGB(80, 160, 255),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(14, 24, 44),
+    NotificationBorder = Color3.fromRGB(25, 45, 75),
+    DialogBackground = Color3.fromRGB(12, 22, 40),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(8, 16, 30),
+    ScrollbarHandle = Color3.fromRGB(35, 55, 90),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(200, 230, 255),
+    TopbarSubtitle = Color3.fromRGB(130, 170, 220),
+    TopbarButton = Color3.fromRGB(150, 190, 240),
+    TopbarButtonHover = Color3.fromRGB(200, 230, 255),
+    CloseButton = Color3.fromRGB(150, 190, 240),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(150, 190, 240),
+    MinimizeButtonHover = Color3.fromRGB(200, 230, 255),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Amethyst - Purple luxury tones
+Themes.Amethyst = Themes:CreateTheme({
+    Name = "Amethyst",
+    Background = Color3.fromRGB(18, 12, 28),
+    Topbar = Color3.fromRGB(24, 16, 36),
+    TabList = Color3.fromRGB(14, 8, 24),
+    TopbarBorder = Color3.fromRGB(35, 25, 55),
+    Tab = Color3.fromRGB(22, 14, 34),
+    TabHover = Color3.fromRGB(32, 22, 48),
+    TabActive = Color3.fromRGB(45, 30, 65),
+    TabText = Color3.fromRGB(180, 160, 220),
+    TabTextActive = Color3.fromRGB(220, 200, 255),
+    Content = Color3.fromRGB(22, 16, 35),
+    SectionText = Color3.fromRGB(150, 130, 200),
+    SectionLine = Color3.fromRGB(35, 25, 55),
+    ElementBackground = Color3.fromRGB(28, 20, 44),
+    ElementBorder = Color3.fromRGB(36, 28, 55),
+    ElementHover = Color3.fromRGB(34, 26, 52),
+    TextColor = Color3.fromRGB(220, 210, 255),
+    TextSecondary = Color3.fromRGB(170, 150, 220),
+    TextDark = Color3.fromRGB(120, 100, 170),
+    Accent = Color3.fromRGB(160, 80, 255),
+    AccentLight = Color3.fromRGB(185, 120, 255),
+    AccentDark = Color3.fromRGB(130, 50, 220),
+    ToggleOn = Color3.fromRGB(160, 80, 255),
+    ToggleOff = Color3.fromRGB(50, 35, 75),
+    SliderBackground = Color3.fromRGB(35, 25, 55),
+    SliderFill = Color3.fromRGB(160, 80, 255),
+    DropdownBackground = Color3.fromRGB(16, 10, 28),
+    DropdownOption = Color3.fromRGB(22, 14, 36),
+    DropdownOptionHover = Color3.fromRGB(32, 22, 50),
+    DropdownOptionSelected = Color3.fromRGB(45, 30, 68),
+    InputBackground = Color3.fromRGB(16, 10, 28),
+    InputBorder = Color3.fromRGB(32, 24, 52),
+    InputPlaceholder = Color3.fromRGB(120, 100, 170),
+    ButtonBackground = Color3.fromRGB(160, 80, 255),
+    ButtonHover = Color3.fromRGB(180, 110, 255),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(24, 16, 38),
+    NotificationBorder = Color3.fromRGB(38, 28, 58),
+    DialogBackground = Color3.fromRGB(20, 14, 32),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(14, 8, 24),
+    ScrollbarHandle = Color3.fromRGB(55, 40, 85),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(230, 220, 255),
+    TopbarSubtitle = Color3.fromRGB(170, 150, 220),
+    TopbarButton = Color3.fromRGB(180, 160, 230),
+    TopbarButtonHover = Color3.fromRGB(220, 210, 255),
+    CloseButton = Color3.fromRGB(180, 160, 230),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(180, 160, 230),
+    MinimizeButtonHover = Color3.fromRGB(220, 210, 255),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Rose - Soft pink/red tones
+Themes.Rose = Themes:CreateTheme({
+    Name = "Rose",
+    Background = Color3.fromRGB(28, 14, 18),
+    Topbar = Color3.fromRGB(36, 18, 24),
+    TopbarBorder = Color3.fromRGB(55, 28, 36),
+    TabList = Color3.fromRGB(24, 10, 14),
+    Tab = Color3.fromRGB(34, 16, 22),
+    TabHover = Color3.fromRGB(48, 24, 32),
+    TabActive = Color3.fromRGB(65, 32, 44),
+    TabText = Color3.fromRGB(220, 160, 175),
+    TabTextActive = Color3.fromRGB(255, 200, 215),
+    Content = Color3.fromRGB(32, 18, 24),
+    SectionText = Color3.fromRGB(200, 135, 155),
+    SectionLine = Color3.fromRGB(52, 28, 38),
+    ElementBackground = Color3.fromRGB(40, 22, 30),
+    ElementBorder = Color3.fromRGB(52, 30, 40),
+    ElementHover = Color3.fromRGB(50, 28, 38),
+    TextColor = Color3.fromRGB(250, 220, 230),
+    TextSecondary = Color3.fromRGB(210, 160, 175),
+    TextDark = Color3.fromRGB(160, 110, 125),
+    Accent = Color3.fromRGB(255, 85, 120),
+    AccentLight = Color3.fromRGB(255, 120, 150),
+    AccentDark = Color3.fromRGB(220, 55, 95),
+    ToggleOn = Color3.fromRGB(255, 85, 120),
+    ToggleOff = Color3.fromRGB(70, 35, 45),
+    SliderBackground = Color3.fromRGB(50, 28, 38),
+    SliderFill = Color3.fromRGB(255, 85, 120),
+    DropdownBackground = Color3.fromRGB(22, 12, 16),
+    DropdownOption = Color3.fromRGB(32, 18, 24),
+    DropdownOptionHover = Color3.fromRGB(46, 26, 34),
+    DropdownOptionSelected = Color3.fromRGB(62, 34, 46),
+    InputBackground = Color3.fromRGB(22, 12, 16),
+    InputBorder = Color3.fromRGB(48, 28, 38),
+    InputPlaceholder = Color3.fromRGB(155, 105, 120),
+    ButtonBackground = Color3.fromRGB(255, 85, 120),
+    ButtonHover = Color3.fromRGB(255, 115, 145),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(34, 18, 24),
+    NotificationBorder = Color3.fromRGB(55, 30, 42),
+    DialogBackground = Color3.fromRGB(30, 16, 22),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(22, 10, 14),
+    ScrollbarHandle = Color3.fromRGB(80, 42, 55),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(255, 210, 220),
+    TopbarSubtitle = Color3.fromRGB(210, 155, 170),
+    TopbarButton = Color3.fromRGB(220, 165, 180),
+    TopbarButtonHover = Color3.fromRGB(255, 210, 220),
+    CloseButton = Color3.fromRGB(220, 165, 180),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(220, 165, 180),
+    MinimizeButtonHover = Color3.fromRGB(255, 210, 220),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Light - Clean white mode
+Themes.Light = Themes:CreateTheme({
+    Name = "Light",
+    Background = Color3.fromRGB(240, 240, 245),
+    Topbar = Color3.fromRGB(250, 250, 255),
+    TopbarBorder = Color3.fromRGB(220, 220, 230),
+    TabList = Color3.fromRGB(235, 235, 242),
+    Tab = Color3.fromRGB(245, 245, 250),
+    TabHover = Color3.fromRGB(230, 230, 238),
+    TabActive = Color3.fromRGB(220, 220, 232),
+    TabText = Color3.fromRGB(120, 120, 140),
+    TabTextActive = Color3.fromRGB(40, 40, 60),
+    Content = Color3.fromRGB(248, 248, 252),
+    SectionText = Color3.fromRGB(130, 130, 150),
+    SectionLine = Color3.fromRGB(225, 225, 235),
+    ElementBackground = Color3.fromRGB(252, 252, 255),
+    ElementBorder = Color3.fromRGB(225, 225, 235),
+    ElementHover = Color3.fromRGB(242, 242, 250),
+    TextColor = Color3.fromRGB(30, 30, 50),
+    TextSecondary = Color3.fromRGB(110, 110, 130),
+    TextDark = Color3.fromRGB(150, 150, 170),
+    Accent = Color3.fromRGB(85, 70, 255),
+    AccentLight = Color3.fromRGB(110, 100, 255),
+    AccentDark = Color3.fromRGB(65, 50, 200),
+    ToggleOn = Color3.fromRGB(85, 70, 255),
+    ToggleOff = Color3.fromRGB(210, 210, 220),
+    SliderBackground = Color3.fromRGB(230, 230, 240),
+    SliderFill = Color3.fromRGB(85, 70, 255),
+    DropdownBackground = Color3.fromRGB(252, 252, 255),
+    DropdownOption = Color3.fromRGB(248, 248, 252),
+    DropdownOptionHover = Color3.fromRGB(235, 235, 245),
+    DropdownOptionSelected = Color3.fromRGB(225, 225, 238),
+    InputBackground = Color3.fromRGB(252, 252, 255),
+    InputBorder = Color3.fromRGB(220, 220, 230),
+    InputPlaceholder = Color3.fromRGB(170, 170, 185),
+    ButtonBackground = Color3.fromRGB(85, 70, 255),
+    ButtonHover = Color3.fromRGB(100, 85, 255),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(250, 250, 255),
+    NotificationBorder = Color3.fromRGB(220, 220, 230),
+    DialogBackground = Color3.fromRGB(252, 252, 255),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(235, 235, 242),
+    ScrollbarHandle = Color3.fromRGB(200, 200, 210),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(30, 30, 50),
+    TopbarSubtitle = Color3.fromRGB(120, 120, 140),
+    TopbarButton = Color3.fromRGB(100, 100, 120),
+    TopbarButtonHover = Color3.fromRGB(30, 30, 50),
+    CloseButton = Color3.fromRGB(100, 100, 120),
+    CloseButtonHover = Color3.fromRGB(255, 50, 50),
+    MinimizeButton = Color3.fromRGB(100, 100, 120),
+    MinimizeButtonHover = Color3.fromRGB(30, 30, 50),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Aqua - Teal/cyan tones
+Themes.Aqua = Themes:CreateTheme({
+    Name = "Aqua",
+    Background = Color3.fromRGB(10, 26, 28),
+    Topbar = Color3.fromRGB(14, 34, 36),
+    TopbarBorder = Color3.fromRGB(22, 50, 52),
+    TabList = Color3.fromRGB(8, 22, 24),
+    Tab = Color3.fromRGB(14, 32, 34),
+    TabHover = Color3.fromRGB(22, 44, 46),
+    TabActive = Color3.fromRGB(32, 58, 60),
+    TabText = Color3.fromRGB(140, 210, 215),
+    TabTextActive = Color3.fromRGB(180, 240, 245),
+    Content = Color3.fromRGB(16, 34, 36),
+    SectionText = Color3.fromRGB(120, 190, 196),
+    SectionLine = Color3.fromRGB(26, 52, 54),
+    ElementBackground = Color3.fromRGB(20, 42, 44),
+    ElementBorder = Color3.fromRGB(28, 54, 56),
+    ElementHover = Color3.fromRGB(26, 50, 52),
+    TextColor = Color3.fromRGB(190, 245, 248),
+    TextSecondary = Color3.fromRGB(140, 210, 215),
+    TextDark = Color3.fromRGB(100, 160, 165),
+    Accent = Color3.fromRGB(0, 200, 210),
+    AccentLight = Color3.fromRGB(40, 225, 235),
+    AccentDark = Color3.fromRGB(0, 160, 170),
+    ToggleOn = Color3.fromRGB(0, 200, 210),
+    ToggleOff = Color3.fromRGB(28, 56, 58),
+    SliderBackground = Color3.fromRGB(28, 52, 54),
+    SliderFill = Color3.fromRGB(0, 200, 210),
+    DropdownBackground = Color3.fromRGB(12, 28, 30),
+    DropdownOption = Color3.fromRGB(18, 38, 40),
+    DropdownOptionHover = Color3.fromRGB(26, 50, 52),
+    DropdownOptionSelected = Color3.fromRGB(34, 62, 64),
+    InputBackground = Color3.fromRGB(12, 28, 30),
+    InputBorder = Color3.fromRGB(26, 48, 50),
+    InputPlaceholder = Color3.fromRGB(100, 160, 165),
+    ButtonBackground = Color3.fromRGB(0, 200, 210),
+    ButtonHover = Color3.fromRGB(30, 220, 230),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(18, 38, 40),
+    NotificationBorder = Color3.fromRGB(30, 56, 58),
+    DialogBackground = Color3.fromRGB(14, 32, 34),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(8, 22, 24),
+    ScrollbarHandle = Color3.fromRGB(40, 70, 72),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(180, 245, 248),
+    TopbarSubtitle = Color3.fromRGB(130, 205, 210),
+    TopbarButton = Color3.fromRGB(140, 215, 220),
+    TopbarButtonHover = Color3.fromRGB(190, 245, 248),
+    CloseButton = Color3.fromRGB(140, 215, 220),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(140, 215, 220),
+    MinimizeButtonHover = Color3.fromRGB(190, 245, 248),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Forest - Green nature tones
+Themes.Forest = Themes:CreateTheme({
+    Name = "Forest",
+    Background = Color3.fromRGB(10, 24, 16),
+    Topbar = Color3.fromRGB(14, 30, 20),
+    TopbarBorder = Color3.fromRGB(22, 44, 30),
+    TabList = Color3.fromRGB(8, 20, 12),
+    Tab = Color3.fromRGB(14, 28, 18),
+    TabHover = Color3.fromRGB(22, 40, 28),
+    TabActive = Color3.fromRGB(32, 54, 38),
+    TabText = Color3.fromRGB(140, 210, 160),
+    TabTextActive = Color3.fromRGB(180, 245, 200),
+    Content = Color3.fromRGB(16, 32, 22),
+    SectionText = Color3.fromRGB(115, 185, 140),
+    SectionLine = Color3.fromRGB(26, 46, 34),
+    ElementBackground = Color3.fromRGB(20, 38, 28),
+    ElementBorder = Color3.fromRGB(28, 50, 36),
+    ElementHover = Color3.fromRGB(26, 46, 34),
+    TextColor = Color3.fromRGB(190, 245, 210),
+    TextSecondary = Color3.fromRGB(140, 210, 160),
+    TextDark = Color3.fromRGB(95, 155, 115),
+    Accent = Color3.fromRGB(60, 210, 100),
+    AccentLight = Color3.fromRGB(90, 235, 130),
+    AccentDark = Color3.fromRGB(40, 170, 75),
+    ToggleOn = Color3.fromRGB(60, 210, 100),
+    ToggleOff = Color3.fromRGB(28, 52, 36),
+    SliderBackground = Color3.fromRGB(28, 50, 36),
+    SliderFill = Color3.fromRGB(60, 210, 100),
+    DropdownBackground = Color3.fromRGB(12, 26, 18),
+    DropdownOption = Color3.fromRGB(18, 36, 26),
+    DropdownOptionHover = Color3.fromRGB(26, 48, 36),
+    DropdownOptionSelected = Color3.fromRGB(36, 60, 46),
+    InputBackground = Color3.fromRGB(12, 26, 18),
+    InputBorder = Color3.fromRGB(26, 46, 34),
+    InputPlaceholder = Color3.fromRGB(95, 155, 115),
+    ButtonBackground = Color3.fromRGB(60, 210, 100),
+    ButtonHover = Color3.fromRGB(85, 230, 125),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(18, 36, 26),
+    NotificationBorder = Color3.fromRGB(30, 52, 38),
+    DialogBackground = Color3.fromRGB(14, 30, 20),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(8, 20, 12),
+    ScrollbarHandle = Color3.fromRGB(40, 68, 48),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(190, 245, 210),
+    TopbarSubtitle = Color3.fromRGB(135, 205, 155),
+    TopbarButton = Color3.fromRGB(145, 215, 165),
+    TopbarButtonHover = Color3.fromRGB(190, 245, 210),
+    CloseButton = Color3.fromRGB(145, 215, 165),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(145, 215, 165),
+    MinimizeButtonHover = Color3.fromRGB(190, 245, 210),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Sunset - Warm orange/golden tones
+Themes.Sunset = Themes:CreateTheme({
+    Name = "Sunset",
+    Background = Color3.fromRGB(28, 18, 12),
+    Topbar = Color3.fromRGB(36, 24, 16),
+    TopbarBorder = Color3.fromRGB(55, 36, 24),
+    TabList = Color3.fromRGB(24, 14, 8),
+    Tab = Color3.fromRGB(34, 22, 14),
+    TabHover = Color3.fromRGB(48, 32, 20),
+    TabActive = Color3.fromRGB(65, 42, 28),
+    TabText = Color3.fromRGB(220, 175, 130),
+    TabTextActive = Color3.fromRGB(255, 215, 170),
+    Content = Color3.fromRGB(32, 24, 16),
+    SectionText = Color3.fromRGB(200, 155, 115),
+    SectionLine = Color3.fromRGB(52, 36, 26),
+    ElementBackground = Color3.fromRGB(42, 28, 20),
+    ElementBorder = Color3.fromRGB(55, 36, 26),
+    ElementHover = Color3.fromRGB(50, 36, 26),
+    TextColor = Color3.fromRGB(255, 220, 185),
+    TextSecondary = Color3.fromRGB(210, 170, 130),
+    TextDark = Color3.fromRGB(165, 125, 90),
+    Accent = Color3.fromRGB(255, 150, 40),
+    AccentLight = Color3.fromRGB(255, 180, 80),
+    AccentDark = Color3.fromRGB(220, 120, 20),
+    ToggleOn = Color3.fromRGB(255, 150, 40),
+    ToggleOff = Color3.fromRGB(70, 40, 25),
+    SliderBackground = Color3.fromRGB(52, 36, 26),
+    SliderFill = Color3.fromRGB(255, 150, 40),
+    DropdownBackground = Color3.fromRGB(22, 16, 10),
+    DropdownOption = Color3.fromRGB(32, 22, 16),
+    DropdownOptionHover = Color3.fromRGB(48, 34, 24),
+    DropdownOptionSelected = Color3.fromRGB(62, 44, 32),
+    InputBackground = Color3.fromRGB(22, 16, 10),
+    InputBorder = Color3.fromRGB(50, 34, 24),
+    InputPlaceholder = Color3.fromRGB(155, 115, 85),
+    ButtonBackground = Color3.fromRGB(255, 150, 40),
+    ButtonHover = Color3.fromRGB(255, 175, 70),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(36, 26, 18),
+    NotificationBorder = Color3.fromRGB(55, 38, 28),
+    DialogBackground = Color3.fromRGB(30, 22, 14),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(22, 14, 8),
+    ScrollbarHandle = Color3.fromRGB(80, 50, 35),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(255, 225, 195),
+    TopbarSubtitle = Color3.fromRGB(210, 165, 125),
+    TopbarButton = Color3.fromRGB(220, 175, 135),
+    TopbarButtonHover = Color3.fromRGB(255, 225, 195),
+    CloseButton = Color3.fromRGB(220, 175, 135),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(220, 175, 135),
+    MinimizeButtonHover = Color3.fromRGB(255, 225, 195),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Aurora - Northern lights gradient inspired
+Themes.Aurora = Themes:CreateTheme({
+    Name = "Aurora",
+    Background = Color3.fromRGB(12, 10, 26),
+    Topbar = Color3.fromRGB(16, 14, 34),
+    TopbarBorder = Color3.fromRGB(30, 25, 60),
+    TabList = Color3.fromRGB(8, 6, 22),
+    Tab = Color3.fromRGB(14, 11, 30),
+    TabHover = Color3.fromRGB(24, 20, 48),
+    TabActive = Color3.fromRGB(36, 30, 70),
+    TabText = Color3.fromRGB(160, 140, 220),
+    TabTextActive = Color3.fromRGB(200, 180, 255),
+    Content = Color3.fromRGB(18, 16, 36),
+    SectionText = Color3.fromRGB(140, 120, 200),
+    SectionLine = Color3.fromRGB(32, 28, 58),
+    ElementBackground = Color3.fromRGB(24, 20, 46),
+    ElementBorder = Color3.fromRGB(34, 30, 60),
+    ElementHover = Color3.fromRGB(30, 26, 55),
+    TextColor = Color3.fromRGB(220, 210, 255),
+    TextSecondary = Color3.fromRGB(160, 145, 220),
+    TextDark = Color3.fromRGB(115, 100, 170),
+    Accent = Color3.fromRGB(120, 60, 255),
+    AccentLight = Color3.fromRGB(155, 100, 255),
+    AccentDark = Color3.fromRGB(90, 35, 220),
+    ToggleOn = Color3.fromRGB(120, 60, 255),
+    ToggleOff = Color3.fromRGB(40, 32, 65),
+    SliderBackground = Color3.fromRGB(35, 30, 58),
+    SliderFill = Color3.fromRGB(120, 60, 255),
+    DropdownBackground = Color3.fromRGB(14, 12, 30),
+    DropdownOption = Color3.fromRGB(20, 16, 38),
+    DropdownOptionHover = Color3.fromRGB(30, 26, 55),
+    DropdownOptionSelected = Color3.fromRGB(42, 36, 72),
+    InputBackground = Color3.fromRGB(14, 12, 30),
+    InputBorder = Color3.fromRGB(32, 28, 56),
+    InputPlaceholder = Color3.fromRGB(115, 100, 170),
+    ButtonBackground = Color3.fromRGB(120, 60, 255),
+    ButtonHover = Color3.fromRGB(145, 90, 255),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(22, 18, 42),
+    NotificationBorder = Color3.fromRGB(36, 32, 60),
+    DialogBackground = Color3.fromRGB(16, 14, 34),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(8, 6, 22),
+    ScrollbarHandle = Color3.fromRGB(50, 42, 82),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(220, 200, 255),
+    TopbarSubtitle = Color3.fromRGB(150, 130, 220),
+    TopbarButton = Color3.fromRGB(170, 150, 230),
+    TopbarButtonHover = Color3.fromRGB(220, 200, 255),
+    CloseButton = Color3.fromRGB(170, 150, 230),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(170, 150, 230),
+    MinimizeButtonHover = Color3.fromRGB(220, 200, 255),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Crimson - Deep red/black tones (premium)
+Themes.Crimson = Themes:CreateTheme({
+    Name = "Crimson",
+    Background = Color3.fromRGB(20, 8, 10),
+    Topbar = Color3.fromRGB(28, 12, 14),
+    TopbarBorder = Color3.fromRGB(45, 18, 22),
+    TabList = Color3.fromRGB(16, 5, 7),
+    Tab = Color3.fromRGB(26, 10, 12),
+    TabHover = Color3.fromRGB(38, 16, 20),
+    TabActive = Color3.fromRGB(52, 22, 28),
+    TabText = Color3.fromRGB(210, 140, 150),
+    TabTextActive = Color3.fromRGB(255, 170, 180),
+    Content = Color3.fromRGB(24, 12, 14),
+    SectionText = Color3.fromRGB(190, 115, 128),
+    SectionLine = Color3.fromRGB(44, 20, 26),
+    ElementBackground = Color3.fromRGB(32, 15, 18),
+    ElementBorder = Color3.fromRGB(44, 22, 28),
+    ElementHover = Color3.fromRGB(40, 20, 24),
+    TextColor = Color3.fromRGB(250, 195, 205),
+    TextSecondary = Color3.fromRGB(200, 135, 148),
+    TextDark = Color3.fromRGB(150, 90, 100),
+    Accent = Color3.fromRGB(220, 40, 60),
+    AccentLight = Color3.fromRGB(245, 70, 90),
+    AccentDark = Color3.fromRGB(180, 20, 40),
+    ToggleOn = Color3.fromRGB(220, 40, 60),
+    ToggleOff = Color3.fromRGB(55, 25, 32),
+    SliderBackground = Color3.fromRGB(42, 22, 28),
+    SliderFill = Color3.fromRGB(220, 40, 60),
+    DropdownBackground = Color3.fromRGB(16, 8, 10),
+    DropdownOption = Color3.fromRGB(24, 12, 15),
+    DropdownOptionHover = Color3.fromRGB(38, 20, 26),
+    DropdownOptionSelected = Color3.fromRGB(50, 28, 34),
+    InputBackground = Color3.fromRGB(16, 8, 10),
+    InputBorder = Color3.fromRGB(40, 20, 26),
+    InputPlaceholder = Color3.fromRGB(145, 85, 95),
+    ButtonBackground = Color3.fromRGB(220, 40, 60),
+    ButtonHover = Color3.fromRGB(240, 65, 85),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(28, 14, 16),
+    NotificationBorder = Color3.fromRGB(46, 24, 30),
+    DialogBackground = Color3.fromRGB(22, 10, 12),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(14, 4, 6),
+    ScrollbarHandle = Color3.fromRGB(65, 30, 38),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(255, 195, 205),
+    TopbarSubtitle = Color3.fromRGB(195, 130, 143),
+    TopbarButton = Color3.fromRGB(210, 145, 155),
+    TopbarButtonHover = Color3.fromRGB(255, 195, 205),
+    CloseButton = Color3.fromRGB(210, 145, 155),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(210, 145, 155),
+    MinimizeButtonHover = Color3.fromRGB(255, 195, 205),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Mint - Refreshing mint green tones
+Themes.Mint = Themes:CreateTheme({
+    Name = "Mint",
+    Background = Color3.fromRGB(12, 26, 22),
+    Topbar = Color3.fromRGB(16, 34, 28),
+    TopbarBorder = Color3.fromRGB(24, 48, 40),
+    TabList = Color3.fromRGB(8, 22, 18),
+    Tab = Color3.fromRGB(14, 30, 24),
+    TabHover = Color3.fromRGB(22, 44, 36),
+    TabActive = Color3.fromRGB(32, 58, 48),
+    TabText = Color3.fromRGB(140, 220, 190),
+    TabTextActive = Color3.fromRGB(180, 250, 225),
+    Content = Color3.fromRGB(18, 36, 30),
+    SectionText = Color3.fromRGB(120, 200, 170),
+    SectionLine = Color3.fromRGB(28, 50, 42),
+    ElementBackground = Color3.fromRGB(22, 42, 35),
+    ElementBorder = Color3.fromRGB(30, 54, 44),
+    ElementHover = Color3.fromRGB(28, 50, 42),
+    TextColor = Color3.fromRGB(195, 250, 230),
+    TextSecondary = Color3.fromRGB(145, 220, 190),
+    TextDark = Color3.fromRGB(100, 170, 145),
+    Accent = Color3.fromRGB(40, 210, 155),
+    AccentLight = Color3.fromRGB(75, 235, 180),
+    AccentDark = Color3.fromRGB(20, 170, 120),
+    ToggleOn = Color3.fromRGB(40, 210, 155),
+    ToggleOff = Color3.fromRGB(30, 54, 44),
+    SliderBackground = Color3.fromRGB(30, 54, 44),
+    SliderFill = Color3.fromRGB(40, 210, 155),
+    DropdownBackground = Color3.fromRGB(14, 28, 24),
+    DropdownOption = Color3.fromRGB(20, 38, 32),
+    DropdownOptionHover = Color3.fromRGB(28, 50, 42),
+    DropdownOptionSelected = Color3.fromRGB(38, 64, 54),
+    InputBackground = Color3.fromRGB(14, 28, 24),
+    InputBorder = Color3.fromRGB(28, 50, 42),
+    InputPlaceholder = Color3.fromRGB(100, 170, 145),
+    ButtonBackground = Color3.fromRGB(40, 210, 155),
+    ButtonHover = Color3.fromRGB(70, 230, 175),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(20, 38, 32),
+    NotificationBorder = Color3.fromRGB(32, 56, 46),
+    DialogBackground = Color3.fromRGB(16, 32, 26),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(8, 22, 18),
+    ScrollbarHandle = Color3.fromRGB(42, 72, 60),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(190, 250, 225),
+    TopbarSubtitle = Color3.fromRGB(140, 215, 185),
+    TopbarButton = Color3.fromRGB(150, 225, 195),
+    TopbarButtonHover = Color3.fromRGB(190, 250, 225),
+    CloseButton = Color3.fromRGB(150, 225, 195),
+    CloseButtonHover = Color3.fromRGB(255, 80, 80),
+    MinimizeButton = Color3.fromRGB(150, 225, 195),
+    MinimizeButtonHover = Color3.fromRGB(190, 250, 225),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Neon - Cyberpunk-inspired high contrast
+Themes.Neon = Themes:CreateTheme({
+    Name = "Neon",
+    Background = Color3.fromRGB(8, 8, 16),
+    Topbar = Color3.fromRGB(12, 12, 22),
+    TopbarBorder = Color3.fromRGB(30, 30, 50),
+    TabList = Color3.fromRGB(6, 6, 12),
+    Tab = Color3.fromRGB(10, 10, 20),
+    TabHover = Color3.fromRGB(20, 20, 35),
+    TabActive = Color3.fromRGB(30, 30, 55),
+    TabText = Color3.fromRGB(140, 140, 200),
+    TabTextActive = Color3.fromRGB(100, 255, 200),
+    Content = Color3.fromRGB(12, 12, 22),
+    SectionText = Color3.fromRGB(100, 255, 180),
+    SectionLine = Color3.fromRGB(30, 30, 55),
+    ElementBackground = Color3.fromRGB(16, 16, 30),
+    ElementBorder = Color3.fromRGB(28, 28, 50),
+    ElementHover = Color3.fromRGB(22, 22, 40),
+    TextColor = Color3.fromRGB(200, 240, 220),
+    TextSecondary = Color3.fromRGB(130, 200, 170),
+    TextDark = Color3.fromRGB(80, 130, 110),
+    Accent = Color3.fromRGB(0, 255, 180),
+    AccentLight = Color3.fromRGB(60, 255, 200),
+    AccentDark = Color3.fromRGB(0, 200, 140),
+    ToggleOn = Color3.fromRGB(0, 255, 180),
+    ToggleOff = Color3.fromRGB(30, 40, 50),
+    SliderBackground = Color3.fromRGB(25, 25, 45),
+    SliderFill = Color3.fromRGB(0, 255, 180),
+    DropdownBackground = Color3.fromRGB(8, 8, 16),
+    DropdownOption = Color3.fromRGB(12, 12, 24),
+    DropdownOptionHover = Color3.fromRGB(22, 22, 40),
+    DropdownOptionSelected = Color3.fromRGB(32, 32, 60),
+    InputBackground = Color3.fromRGB(8, 8, 16),
+    InputBorder = Color3.fromRGB(26, 26, 48),
+    InputPlaceholder = Color3.fromRGB(80, 130, 110),
+    ButtonBackground = Color3.fromRGB(0, 255, 180),
+    ButtonHover = Color3.fromRGB(40, 255, 195),
+    ButtonText = Color3.fromRGB(0, 0, 0),
+    NotificationBackground = Color3.fromRGB(14, 14, 26),
+    NotificationBorder = Color3.fromRGB(30, 30, 55),
+    DialogBackground = Color3.fromRGB(10, 10, 20),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(6, 6, 12),
+    ScrollbarHandle = Color3.fromRGB(40, 40, 65),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(100, 255, 200),
+    TopbarSubtitle = Color3.fromRGB(100, 200, 160),
+    TopbarButton = Color3.fromRGB(130, 200, 180),
+    TopbarButtonHover = Color3.fromRGB(100, 255, 200),
+    CloseButton = Color3.fromRGB(130, 200, 180),
+    CloseButtonHover = Color3.fromRGB(255, 60, 100),
+    MinimizeButton = Color3.fromRGB(130, 200, 180),
+    MinimizeButtonHover = Color3.fromRGB(100, 255, 200),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- Galaxy - Deep space inspired
+Themes.Galaxy = Themes:CreateTheme({
+    Name = "Galaxy",
+    Background = Color3.fromRGB(10, 6, 22),
+    Topbar = Color3.fromRGB(14, 10, 30),
+    TopbarBorder = Color3.fromRGB(28, 18, 55),
+    TabList = Color3.fromRGB(6, 3, 18),
+    Tab = Color3.fromRGB(12, 8, 26),
+    TabHover = Color3.fromRGB(22, 14, 44),
+    TabActive = Color3.fromRGB(34, 22, 65),
+    TabText = Color3.fromRGB(160, 120, 220),
+    TabTextActive = Color3.fromRGB(200, 160, 255),
+    Content = Color3.fromRGB(16, 10, 32),
+    SectionText = Color3.fromRGB(140, 100, 210),
+    SectionLine = Color3.fromRGB(30, 20, 55),
+    ElementBackground = Color3.fromRGB(22, 14, 42),
+    ElementBorder = Color3.fromRGB(32, 22, 58),
+    ElementHover = Color3.fromRGB(28, 18, 50),
+    TextColor = Color3.fromRGB(220, 200, 255),
+    TextSecondary = Color3.fromRGB(160, 130, 220),
+    TextDark = Color3.fromRGB(110, 80, 170),
+    Accent = Color3.fromRGB(140, 80, 255),
+    AccentLight = Color3.fromRGB(170, 120, 255),
+    AccentDark = Color3.fromRGB(110, 50, 225),
+    ToggleOn = Color3.fromRGB(140, 80, 255),
+    ToggleOff = Color3.fromRGB(36, 24, 60),
+    SliderBackground = Color3.fromRGB(32, 22, 55),
+    SliderFill = Color3.fromRGB(140, 80, 255),
+    DropdownBackground = Color3.fromRGB(12, 8, 28),
+    DropdownOption = Color3.fromRGB(18, 12, 36),
+    DropdownOptionHover = Color3.fromRGB(28, 20, 52),
+    DropdownOptionSelected = Color3.fromRGB(40, 28, 70),
+    InputBackground = Color3.fromRGB(12, 8, 28),
+    InputBorder = Color3.fromRGB(30, 20, 54),
+    InputPlaceholder = Color3.fromRGB(110, 80, 170),
+    ButtonBackground = Color3.fromRGB(140, 80, 255),
+    ButtonHover = Color3.fromRGB(165, 110, 255),
+    ButtonText = Color3.fromRGB(255, 255, 255),
+    NotificationBackground = Color3.fromRGB(20, 14, 38),
+    NotificationBorder = Color3.fromRGB(34, 24, 58),
+    DialogBackground = Color3.fromRGB(14, 10, 30),
+    DialogOverlay = Color3.fromRGB(0, 0, 0),
+    ScrollbarBackground = Color3.fromRGB(6, 3, 18),
+    ScrollbarHandle = Color3.fromRGB(50, 32, 80),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    TopbarTitle = Color3.fromRGB(210, 180, 255),
+    TopbarSubtitle = Color3.fromRGB(150, 110, 220),
+    TopbarButton = Color3.fromRGB(170, 130, 230),
+    TopbarButtonHover = Color3.fromRGB(210, 180, 255),
+    CloseButton = Color3.fromRGB(170, 130, 230),
+    CloseButtonHover = Color3.fromRGB(255, 60, 100),
+    MinimizeButton = Color3.fromRGB(170, 130, 230),
+    MinimizeButtonHover = Color3.fromRGB(210, 180, 255),
+    CornerRadius = UDim.new(0, 8),
+})
+
+-- ========================================
+-- SECTION 3: Lucide Icon Data (built-in)
+-- ========================================
+
+local Icons = {}
+
+-- Icons stored as path data for rendering via ImageLabels
+-- Format: { Name, Category }
+Icons.List = {
+    -- Navigation
+    "home", "settings", "search", "menu", "x", "chevron-left", "chevron-right",
+    "chevron-up", "chevron-down", "arrow-left", "arrow-right", "arrow-up", "arrow-down",
+    "plus", "minus", "check", "check-circle", "circle", "x-circle",
+    -- Actions
+    "play", "pause", "stop", "refresh-cw", "rotate-cw", "rotate-ccw",
+    "save", "download", "upload", "copy", "clipboard", "trash", "trash-2",
+    "edit", "pencil", "eye", "eye-off", "lock", "unlock",
+    -- Content
+    "swords", "sword", "shield", "shield-check", "shield-alert",
+    "crosshair", "target", "zap", "flame", "snowflake",
+    "sun", "moon", "star", "cloud", "cloud-rain", "cloud-lightning",
+    -- Communication
+    "bell", "bell-off", "mail", "message-circle", "message-square",
+    "phone", "phone-forwarded", "send", "share", "link", "link-2",
+    -- People
+    "user", "users", "user-plus", "user-minus", "user-check", "user-x",
+    "person-standing", "smile", "frown", "meh",
+    -- Files
+    "file", "file-text", "file-plus", "file-minus", "folder", "folder-plus",
+    "folder-open", "image", "video", "music", "camera",
+    -- Media
+    "mic", "mic-off", "volume", "volume-1", "volume-2", "volume-x",
+    "headphones", "speaker", "tv", "monitor", "smartphone", "tablet",
+    -- Math/Science
+    "calculator", "hash", "percent", "divide", "equal", "pi",
+    "sigma", "atom", "flask-conical", "dna",
+    -- Maps/Location
+    "map", "map-pin", "compass", "navigation", "globe", "wifi", "wifi-off",
+    -- Finance
+    "credit-card", "banknote", "dollar-sign", "wallet", "shopping-cart", "shopping-bag",
+    -- Development
+    "code", "code-2", "terminal", "terminal-square", "git-branch",
+    "git-commit", "git-pull-request", "bug", "database", "server",
+    -- Misc
+    "info", "alert-circle", "alert-triangle", "help-circle",
+    "clock", "timer", "calendar", "calendar-days", "bookmark", "bookmark-plus",
+    "heart", "thumbs-up", "thumbs-down", "flag", "flag-triangle-left",
+    "key", "keyboard", "mouse-pointer", "mouse-pointer-click",
+    "palette", "paintbrush", "ruler", "scissors", "sparkles", "wand",
+    "table", "layout", "columns", "rows", "grid", "list", "grip-vertical", "grip-horizontal",
+    "loader", "loader-2", "more-horizontal", "more-vertical",
+    "external-link", "power", "power-off", "toggle-left", "toggle-right",
+    "rocket", "trophy", "award", "crown", "gem", "diamond",
+    "axe", "pickaxe", "pickaxe-diamond", "shovel", "hoe", "sickle",
+}
+
+-- Icon character map for rendering (using simple shapes as vector approximations)
+-- In Roblox, we render icons as ImageLabels using a spritesheet approach
+-- For simplicity here, we map icon names to descriptive shapes
+Icons.RenderMap = {}
+for _, IconName in ipairs(Icons.List) do
+    Icons.RenderMap[IconName] = true
+end
+
+-- ========================================
+-- SECTION 4: Animation Engine
+-- ========================================
+
+local Animation = {}
+
+-- Quick tween wrapper
+function Animation:Tween(Instance, Properties, Duration, EasingStyle, EasingDirection)
+    local TweenInfo = TweenInfo.new(
+        Duration or 0.3,
+        EasingStyle or Enum.EasingStyle.Quart,
+        EasingDirection or Enum.EasingDirection.Out,
+        0,
+        false,
+        0
+    )
+    local Tween = Services.TweenService:Create(Instance, TweenInfo, Properties)
+    Tween:Play()
+    return Tween
+end
+
+-- Easing functions for spring-like animation
+function Animation:Spring(Instance, Properties, Speed)
+    Speed = Speed or 0.15
+    local StartTime = tick()
+    local StartValues = {}
+
+    for Property, TargetValue in pairs(Properties) do
+        StartValues[Property] = Instance[Property]
+    end
+
+    local Connection
+    Connection = Services.RunService.RenderStepped:Connect(function()
+        local Elapsed = tick() - StartTime
+        local Alpha = 1 - math.exp(-Elapsed / Speed)
+
+        if Alpha >= 0.995 then
+            Alpha = 1
+            Connection:Disconnect()
+        end
+
+        for Property, TargetValue in pairs(Properties) do
+            local StartValue = StartValues[Property]
+            if typeof(StartValue) == "UDim2" then
+                Instance[Property] = UDim2.new(
+                    StartValue.X.Scale + (TargetValue.X.Scale - StartValue.X.Scale) * Alpha,
+                    StartValue.X.Offset + (TargetValue.X.Offset - StartValue.X.Offset) * Alpha,
+                    StartValue.Y.Scale + (TargetValue.Y.Scale - StartValue.Y.Scale) * Alpha,
+                    StartValue.Y.Offset + (TargetValue.Y.Offset - StartValue.Y.Offset) * Alpha
+                )
+            elseif typeof(StartValue) == "number" then
+                Instance[Property] = StartValue + (TargetValue - StartValue) * Alpha
+            elseif typeof(StartValue) == "Color3" then
+                Instance[Property] = StartValue:Lerp(TargetValue, Alpha)
+            else
+                Instance[Property] = TargetValue
+            end
+        end
+    end)
+    return Connection
+end
+
+-- ========================================
+-- SECTION 5: UI Utility Functions
+-- ========================================
+
+local UIUtil = {}
+
+-- Create base instance with common properties
+function UIUtil:Create(ClassName, Properties)
+    local Instance = Instance.new(ClassName)
+
+    if Properties then
+        for Property, Value in pairs(Properties) do
+            if Property == "ThemeTag" then
+                -- Skip, handled by theme system
+            else
+                pcall(function()
+                    Instance[Property] = Value
+                end)
+            end
+        end
+    end
+
+    return Instance
+end
+
+-- Add UICorner to an instance
+function UIUtil:AddCorner(Instance, Radius)
+    local Corner = Instance:FindFirstChild("UICorner")
+    if not Corner then
+        Corner = UIUtil:Create("UICorner", {
+            CornerRadius = Radius or UDim.new(0, 8),
+            Parent = Instance,
+        })
+    end
+    return Corner
+end
+
+-- Add UIStroke to an instance
+function UIUtil:AddStroke(Instance, Color, Thickness, Transparency)
+    local Stroke = Instance:FindFirstChild("UIStroke")
+    if not Stroke then
+        Stroke = UIUtil:Create("UIStroke", {
+            Color = Color or Color3.fromRGB(255, 255, 255),
+            Thickness = Thickness or 1,
+            Transparency = Transparency or 0.7,
+            Parent = Instance,
+        })
+    end
+    return Stroke
+end
+
+-- Add UIGradient to an instance
+function UIUtil:AddGradient(Instance, ColorSequence, Rotation)
+    local Gradient = Instance:FindFirstChild("UIGradient")
+    if not Gradient then
+        Gradient = UIUtil:Create("UIGradient", {
+            Color = ColorSequence or ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(85, 70, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(130, 100, 255)),
+            }),
+            Rotation = Rotation or 45,
+            Parent = Instance,
+        })
+    end
+    return Gradient
+end
+
+-- Add UIScale
+function UIUtil:AddScale(Instance, Scale)
+    local UIScale = Instance:FindFirstChild("UIScale")
+    if not UIScale then
+        UIScale = UIUtil:Create("UIScale", {
+            Scale = Scale or 1,
+            Parent = Instance,
+        })
+    end
+    return UIScale
+end
+
+-- Create text label with proper settings
+function UIUtil:CreateText(Parent, Text, Font, Size, Color, Properties)
+    local Label = UIUtil:Create("TextLabel", {
+        Text = Text or "",
+        FontFace = Font or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+        TextSize = Size or 14,
+        TextColor3 = Color or Color3.fromRGB(255, 255, 255),
+        BackgroundTransparency = 1,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        Parent = Parent,
+    })
+
+    if Properties then
+        for K, V in pairs(Properties) do
+            pcall(function()
+                Label[K] = V
+            end)
+        end
+    end
+
+    return Label
+end
+
+-- Apply theme to instance recursively
+function UIUtil:ApplyTheme(Instance, Theme)
+    local ThemeTag = Instance:GetAttribute("KismileThemeTag")
+    if ThemeTag and Theme[ThemeTag] then
+        if Instance:IsA("ScrollingFrame") or Instance:IsA("Frame") or Instance:IsA("ImageLabel") then
+            Instance.BackgroundColor3 = Theme[ThemeTag]
+        elseif Instance:IsA("TextLabel") or Instance:IsA("TextButton") then
+            local Tag = ThemeTag
+            if Tag == "Accent" or Tag == "AccentLight" or Tag == "AccentDark" then
+                Instance.TextColor3 = Theme[Tag]
+            end
+        elseif Instance:IsA("UIStroke") then
+            Instance.Color = Theme[ThemeTag]
+        end
+    end
+
+    for _, Child in ipairs(Instance:GetChildren()) do
+        UIUtil:ApplyTheme(Child, Theme)
+    end
+end
+
+-- Create a scrollable frame
+function UIUtil:CreateScrollFrame(Parent, Size, Position)
+    local ScrollingFrame = UIUtil:Create("ScrollingFrame", {
+        Size = Size or UDim2.new(1, 0, 1, 0),
+        Position = Position or UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = Color3.fromRGB(50, 50, 65),
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        VerticalScrollBarInset = Enum.ScrollBarInset.Always,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        ElasticBehavior = Enum.ElasticBehavior.Always,
+        Parent = Parent,
+    })
+
+    local UIListLayout = UIUtil:Create("UIListLayout", {
+        Padding = UDim.new(0, 6),
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = ScrollingFrame,
+    })
+
+    local UIPadding = UIUtil:Create("UIPadding", {
+        PaddingLeft = UDim.new(0, 4),
+        PaddingRight = UDim.new(0, 4),
+        PaddingTop = UDim.new(0, 4),
+        PaddingBottom = UDim.new(0, 4),
+        Parent = ScrollingFrame,
+    })
+
+    ScrollingFrame.UIListLayout = UIListLayout
+    ScrollingFrame.UIPadding = UIPadding
+
+    UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y + 8)
+    end)
+
+    return ScrollingFrame
+end
+
+-- ========================================
+-- SECTION 6: Kismile Library Initialization
+-- ========================================
+
+local Kismile = {
+    Name = "Kismile UI",
+    Version = "1.0.0",
+    Themes = Themes,
+    Icons = Icons,
+    Animation = Animation,
+    UIUtil = UIUtil,
+    CurrentTheme = nil,
+    ScreenGui = nil,
+    Window = nil,
+    Flags = {},
+    Notifications = {},
+    NotificationIndex = 0,
+    Connections = {},
+    IsMinimized = false,
+    IsHidden = false,
+    ToggleKeybind = nil,
+    SaveConfig = true,
+    ConfigFolder = "Kismile",
+    ConfigName = "config",
+}
+
+-- Set current theme
+function Kismile:SetTheme(Theme)
+    if type(Theme) == "string" then
+        self.CurrentTheme = Themes[Theme] or Themes.Default
+    elseif type(Theme) == "table" then
+        -- Merge with default for missing values
+        self.CurrentTheme = {}
+        for K, V in pairs(Themes.Default) do
+            self.CurrentTheme[K] = Theme[K] or V
+        end
+    end
+
+    if self.ScreenGui then
+        UIUtil:ApplyTheme(self.ScreenGui, self.CurrentTheme)
+    end
+
+    return self.CurrentTheme
+end
+
+-- Get available theme names
+function Kismile:GetThemes()
+    local Names = {}
+    for Name, _ in pairs(Themes) do
+        table.insert(Names, Name)
+    end
+    table.sort(Names)
+    return Names
+end
+
+-- Notification system
+function Kismile:Notify(Settings)
+    Settings = Settings or {}
+    local Notification = {
+        Title = Settings.Title or "Notification",
+        Content = Settings.Content or "",
+        Duration = Settings.Duration or 5,
+        Type = Settings.Type or "default", -- default, success, warning, error, info
+    }
+
+    if not self.ScreenGui then return nil end
+
+    local NotifHolder = self.ScreenGui:FindFirstChild("Notifications")
+    if not NotifHolder then
+        NotifHolder = UIUtil:Create("Frame", {
+            Name = "Notifications",
+            Size = UDim2.new(0, 300, 1, -60),
+            Position = UDim2.new(1, -315, 0, 10),
+            BackgroundTransparency = 1,
+            ZIndex = 100,
+            Parent = self.ScreenGui,
+        })
+        local NotifList = UIUtil:Create("UIListLayout", {
+            Padding = UDim.new(0, 8),
+            HorizontalAlignment = Enum.HorizontalAlignment.Right,
+            VerticalAlignment = Enum.VerticalAlignment.Top,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = NotifHolder,
+        })
+    end
+
+    self.NotificationIndex = self.NotificationIndex + 1
+
+    -- Notification frame
+    local TypeColors = {
+        default = self.CurrentTheme.Accent,
+        success = Color3.fromRGB(50, 210, 100),
+        warning = Color3.fromRGB(255, 180, 40),
+        error = Color3.fromRGB(255, 70, 80),
+        info = Color3.fromRGB(60, 160, 255),
+    }
+
+    local AccentColor = TypeColors[Notification.Type] or TypeColors.default
+
+    local Frame = UIUtil:Create("Frame", {
+        Size = UDim2.new(1, -10, 0, 70),
+        BackgroundColor3 = self.CurrentTheme.NotificationBackground,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        ZIndex = 100,
+        Parent = NotifHolder,
+    })
+
+    UIUtil:AddCorner(Frame, UDim.new(0, 8))
+    UIUtil:AddStroke(Frame, self.CurrentTheme.NotificationBorder, 1, 0.7)
+
+    -- Accent bar on the left
+    local AccentBar = UIUtil:Create("Frame", {
+        Size = UDim2.new(0, 4, 1, 0),
+        BackgroundColor3 = AccentColor,
+        BorderSizePixel = 0,
+        ZIndex = 101,
+        Parent = Frame,
+    })
+
+    -- Icon
+    local IconLabel = UIUtil:Create("TextLabel", {
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(0, 16, 0.5, -14),
+        Text = ({
+            default = "i",
+            success = "?",
+            warning = "!",
+            error = "x",
+            info = "i",
+        })[Notification.Type] or "i",
+        TextColor3 = AccentColor,
+        FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        TextSize = 16,
+        BackgroundTransparency = 1,
+        ZIndex = 101,
+        Parent = Frame,
+    })
+
+    -- Title
+    UIUtil:CreateText(Frame, Notification.Title,
+        Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        14, self.CurrentTheme.TextColor,
+        {
+            Size = UDim2.new(1, -60, 0, 20),
+            Position = UDim2.new(0, 54, 0, 12),
+            ZIndex = 101,
+        }
+    )
+
+    -- Content
+    UIUtil:CreateText(Frame, Notification.Content,
+        Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+        12, self.CurrentTheme.TextSecondary,
+        {
+            Size = UDim2.new(1, -60, 0, 20),
+            Position = UDim2.new(0, 54, 0, 34),
+            TextTruncate = Enum.TextTruncate.AtEnd,
+            ZIndex = 101,
+        }
+    )
+
+    -- Duration bar
+    local DurationBar = UIUtil:Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 3),
+        Position = UDim2.new(0, 0, 1, -3),
+        BackgroundColor3 = AccentColor,
+        BorderSizePixel = 0,
+        ZIndex = 101,
+        Parent = Frame,
+    })
+
+    -- Entry animation
+    Frame.Position = UDim2.new(1.5, 0, 0, 0)
+    local EntryConnection
+    EntryConnection = Services.RunService.RenderStepped:Connect(function()
+        local CurrentX = Frame.Position.X.Scale
+        local NewX = CurrentX + (1 - CurrentX) * 0.2
+        if math.abs(NewX - 1) < 0.001 then
+            Frame.Position = UDim2.new(1, -10, 0, 0)
+            EntryConnection:Disconnect()
+        else
+            Frame.Position = UDim2.new(NewX, -10, 0, 0)
+        end
+    end)
+
+    -- Duration countdown
+    local StartTime = tick()
+    local DurationConnection
+    DurationConnection = Services.RunService.RenderStepped:Connect(function()
+        local Elapsed = tick() - StartTime
+        local Remaining = math.max(0, 1 - Elapsed / Notification.Duration)
+        DurationBar.Size = UDim2.new(Remaining, 0, 0, 3)
+
+        if Remaining <= 0 then
+            DurationConnection:Disconnect()
+
+            -- Exit animation
+            local ExitTime = tick()
+            local ExitConnection
+            ExitConnection = Services.RunService.RenderStepped:Connect(function()
+                local ExitElapsed = tick() - ExitTime
+                local ExitAlpha = math.min(ExitElapsed / 0.3, 1)
+                Frame.Position = UDim2.new(1 + ExitAlpha * 1.5, -10, 0, 0)
+                Frame.BackgroundTransparency = ExitAlpha
+                AccentBar.BackgroundTransparency = ExitAlpha
+                IconLabel.TextTransparency = ExitAlpha
+                DurationBar.BackgroundTransparency = ExitAlpha
+
+                if ExitAlpha >= 1 then
+                    ExitConnection:Disconnect()
+                    Frame:Destroy()
+                end
+            end)
+
+            -- Clean up text labels
+            for _, Child in ipairs(Frame:GetChildren()) do
+                if Child:IsA("TextLabel") and Child ~= IconLabel then
+                    local TextChild = Child
+                    task.spawn(function()
+                        while TextChild and TextChild.Parent do
+                            TextChild.TextTransparency = TextChild.TextTransparency + 0.1
+                            if TextChild.TextTransparency >= 1 then break end
+                            task.wait(0.03)
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+
+    return Frame
+end
+
+-- Dialog system
+function Kismile:Dialog(Settings)
+    Settings = Settings or {}
+    local DialogInfo = {
+        Title = Settings.Title or "Dialog",
+        Content = Settings.Content or "",
+        Buttons = Settings.Buttons or {
+            { Title = "OK", Callback = function() end }
+        },
+    }
+
+    if not self.ScreenGui then return nil end
+
+    -- Overlay
+    local Overlay = UIUtil:Create("Frame", {
+        Name = "DialogOverlay",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = self.CurrentTheme.DialogOverlay,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 200,
+        Parent = self.ScreenGui,
+    })
+
+    -- Fade in overlay
+    Animation:Tween(Overlay, { BackgroundTransparency = 0.5 }, 0.2)
+
+    -- Dialog frame
+    local DialogFrame = UIUtil:Create("Frame", {
+        Size = UDim2.new(0, 320, 0, 180),
+        Position = UDim2.new(0.5, -160, 0.5, -90),
+        BackgroundColor3 = self.CurrentTheme.DialogBackground,
+        BorderSizePixel = 0,
+        ZIndex = 201,
+        Parent = Overlay,
+    })
+    UIUtil:AddCorner(DialogFrame, UDim.new(0, 12))
+    UIUtil:AddStroke(DialogFrame, self.CurrentTheme.ElementBorder, 1, 0.5)
+
+    -- Title
+    UIUtil:CreateText(DialogFrame, DialogInfo.Title,
+        Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        18, self.CurrentTheme.TextColor,
+        {
+            Size = UDim2.new(1, -32, 0, 30),
+            Position = UDim2.new(0, 16, 0, 16),
+            ZIndex = 202,
+        }
+    )
+
+    -- Content
+    UIUtil:CreateText(DialogFrame, DialogInfo.Content,
+        Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+        13, self.CurrentTheme.TextSecondary,
+        {
+            Size = UDim2.new(1, -32, 0, 60),
+            Position = UDim2.new(0, 16, 0, 50),
+            TextWrapped = true,
+            ZIndex = 202,
+        }
+    )
+
+    -- Buttons
+    local ButtonCount = #DialogInfo.Buttons
+    local ButtonWidth = (280 - (ButtonCount - 1) * 8) / ButtonCount
+    local StartX = 16
+
+    for Index, ButtonInfo in ipairs(DialogInfo.Buttons) do
+        local ButtonX = StartX + (Index - 1) * (ButtonWidth + 8)
+
+        local Button = UIUtil:Create("TextButton", {
+            Size = UDim2.new(0, ButtonWidth, 0, 36),
+            Position = UDim2.new(0, ButtonX, 0, 125),
+            BackgroundColor3 = Index == 1 and self.CurrentTheme.Accent or self.CurrentTheme.ElementBackground,
+            Text = ButtonInfo.Title,
+            FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            TextSize = 14,
+            TextColor3 = Index == 1 and Color3.fromRGB(255, 255, 255) or self.CurrentTheme.TextColor,
+            BorderSizePixel = 0,
+            ZIndex = 202,
+            Parent = DialogFrame,
+        })
+        UIUtil:AddCorner(Button, UDim.new(0, 8))
+
+        Button.MouseButton1Click:Connect(function()
+            if ButtonInfo.Callback then
+                ButtonInfo.Callback()
+            end
+            Overlay:Destroy()
+        end)
+
+        -- Hover effects
+        Button.MouseEnter:Connect(function()
+            Animation:Tween(Button, {
+                BackgroundColor3 = Index == 1 and self.CurrentTheme.AccentLight or self.CurrentTheme.ElementHover,
+            }, 0.15)
+        end)
+        Button.MouseLeave:Connect(function()
+            Animation:Tween(Button, {
+                BackgroundColor3 = Index == 1 and self.CurrentTheme.Accent or self.CurrentTheme.ElementBackground,
+            }, 0.15)
+        end)
+    end
+
+    -- Entry animation
+    DialogFrame.Size = UDim2.new(0, 320, 0, 0)
+    Animation:Tween(DialogFrame, { Size = UDim2.new(0, 320, 0, 180) }, 0.25, Enum.EasingStyle.Back)
+
+    -- Click overlay to close (if empty area)
+    Overlay.InputBegan:Connect(function(Input)
+        if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+            Overlay:Destroy()
+        end
+    end)
+
+    return DialogFrame
+end
+
+-- Flag / Config system
+function Kismile:SetFlag(FlagName, Value)
+    self.Flags[FlagName] = Value
+    if self.SaveConfig then
+        self:SaveConfig()
+    end
+end
+
+function Kismile:GetFlag(FlagName)
+    return self.Flags[FlagName]
+end
+
+function Kismile:GetFlags()
+    return self.Flags
+end
+
+function Kismile:SaveConfig()
+    if not writefile then
+        -- Only warn once
+        if not self._configWarned then
+            self._configWarned = true
+        end
+        return false
+    end
+
+    local ConfigPath = self.ConfigFolder .. "/" .. self.ConfigName .. ".json"
+    local JsonData = Services.HttpService:JSONEncode(self.Flags)
+
+    local Success = pcall(function()
+        if not isfolder(self.ConfigFolder) then
+            makefolder(self.ConfigFolder)
+        end
+        writefile(ConfigPath, JsonData)
+    end)
+
+    return Success
+end
+
+function Kismile:LoadConfig()
+    if not readfile and not isfile then
+        return false
+    end
+
+    local ConfigPath = self.ConfigFolder .. "/" .. self.ConfigName .. ".json"
+
+    if isfile and isfile(ConfigPath) and readfile then
+        local Success, Data = pcall(function()
+            return readfile(ConfigPath)
+        end)
+
+        if Success and Data and #Data > 0 then
+            local Success2, Parsed = pcall(function()
+                return Services.HttpService:JSONDecode(Data)
+            end)
+
+            if Success2 and type(Parsed) == "table" then
+                for FlagName, Value in pairs(Parsed) do
+                    self.Flags[FlagName] = Value
+                end
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+-- Cleanup
+function Kismile:Destroy()
+    if self.ScreenGui then
+        self.ScreenGui:Destroy()
+        self.ScreenGui = nil
+        self.Window = nil
+    end
+
+    for _, Connection in ipairs(self.Connections) do
+        pcall(function()
+            Connection:Disconnect()
+        end)
+    end
+    self.Connections = {}
+end
+
+-- ========================================
+-- SECTION 7: Window System
+-- ========================================
+
+function Kismile:CreateWindow(Settings)
+    Settings = Settings or {}
+
+    -- Already has window?
+    if self.Window then
+        warn("[Kismile] You cannot create more than one window.")
+        return self.Window
+    end
+
+    -- Set initial theme
+    self:SetTheme(Settings.Theme or "Default")
+
+    -- Config setup
+    self.ConfigFolder = "Kismile/" .. (Settings.ConfigFolder or Settings.Title or "Kismile")
+    self.ConfigName = Settings.ConfigName or tostring(game.PlaceId)
+    self.SaveConfig = Settings.SaveConfig ~= false
+    self.ToggleKeybind = Settings.ToggleKeybind
+
+    -- Load existing config
+    if self.SaveConfig then
+        self:LoadConfig()
+    end
+
+    -- Create ScreenGui
+    local ScreenGui = UIUtil:Create("ScreenGui", {
+        Name = "KismileUI",
+        Parent = Environment.GetHiddenUI(),
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        ResetOnSpawn = false,
+    })
+    self.ScreenGui = ScreenGui
+
+    -- Keybind toggle
+    if self.ToggleKeybind then
+        local ToggleInput = UIUtil:Create("TextButton", {
+            Size = UDim2.new(0, 1, 0, 1),
+            BackgroundTransparency = 1,
+            Text = "",
+            Parent = ScreenGui,
+        })
+
+        local KeybindConnection = Services.UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+            if GameProcessed then return end
+            if Input.KeyCode == Enum.KeyCode[self.ToggleKeybind] then
+                if self.IsHidden then
+                    self:Unhide()
+                else
+                    self:Hide()
+                end
+            end
+        end)
+        table.insert(self.Connections, KeybindConnection)
+    end
+
+    -- Main container (window)
+    local MainFrame = UIUtil:Create("Frame", {
+        Name = "MainFrame",
+        Size = UDim2.new(0, 600, 0, 420),
+        Position = UDim2.new(0.5, -300, 0.5, -210),
+        BackgroundColor3 = self.CurrentTheme.Background,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+        Parent = ScreenGui,
+    })
+    UIUtil:AddCorner(MainFrame, UDim.new(0, 10))
+
+    -- Topbar
+    local Topbar = UIUtil:Create("Frame", {
+        Name = "Topbar",
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundColor3 = self.CurrentTheme.Topbar,
+        BorderSizePixel = 0,
+        ZIndex = 2,
+        Parent = MainFrame,
+    })
+    UIUtil:AddCorner(Topbar, UDim.new(0, 10))
+
+    -- Cover bottom corners of topbar
+    UIUtil:Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 10),
+        Position = UDim2.new(0, 0, 1, -10),
+        BackgroundColor3 = self.CurrentTheme.Topbar,
+        BorderSizePixel = 0,
+        ZIndex = 2,
+        Parent = Topbar,
+    })
+
+    -- Topbar border line
+    UIUtil:Create("Frame", {
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 1, -1),
+        BackgroundColor3 = self.CurrentTheme.TopbarBorder,
+        BorderSizePixel = 0,
+        ZIndex = 3,
+        Parent = Topbar,
+    })
+
+    -- Title
+    local TitleLabel = UIUtil:CreateText(Topbar, Settings.Title or "Kismile UI",
+        Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        15, self.CurrentTheme.TopbarTitle,
+        {
+            Size = UDim2.new(0, 200, 1, 0),
+            Position = UDim2.new(0, 12, 0, 0),
+            ZIndex = 3,
+        }
+    )
+
+    -- Subtitle
+    local SubtitleLabel = UIUtil:CreateText(Topbar, Settings.Subtitle or "",
+        Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+        11, self.CurrentTheme.TopbarSubtitle,
+        {
+            Size = UDim2.new(0, 200, 1, 0),
+            Position = UDim2.new(0, 12, 0, -2),
+            Visible = Settings.Subtitle ~= nil and Settings.Subtitle ~= "",
+            ZIndex = 3,
+        }
+    )
+
+    -- Control buttons (right side)
+    -- Minimize
+    local MinimizeButton = UIUtil:Create("TextButton", {
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(1, -70, 0, 8),
+        BackgroundTransparency = 1,
+        Text = "_",
+        FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        TextSize = 16,
+        TextColor3 = self.CurrentTheme.MinimizeButton,
+        ZIndex = 3,
+        Parent = Topbar,
+    })
+
+    MinimizeButton.MouseEnter:Connect(function()
+        Animation:Tween(MinimizeButton, { TextColor3 = self.CurrentTheme.MinimizeButtonHover }, 0.15)
+    end)
+    MinimizeButton.MouseLeave:Connect(function()
+        Animation:Tween(MinimizeButton, { TextColor3 = self.CurrentTheme.MinimizeButton }, 0.15)
+    end)
+    MinimizeButton.MouseButton1Click:Connect(function()
+        self:Minimize()
+    end)
+
+    -- Close
+    local CloseButton = UIUtil:Create("TextButton", {
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(1, -40, 0, 8),
+        BackgroundTransparency = 1,
+        Text = "r",
+        FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        TextSize = 16,
+        TextColor3 = self.CurrentTheme.CloseButton,
+        ZIndex = 3,
+        Parent = Topbar,
+    })
+
+    CloseButton.MouseEnter:Connect(function()
+        Animation:Tween(CloseButton, { TextColor3 = self.CurrentTheme.CloseButtonHover }, 0.15)
+    end)
+    CloseButton.MouseLeave:Connect(function()
+        Animation:Tween(CloseButton, { TextColor3 = self.CurrentTheme.CloseButton }, 0.15)
+    end)
+    CloseButton.MouseButton1Click:Connect(function()
+        self:Destroy()
+    end)
+
+    -- Drag system
+    local Dragging = false
+    local DragStart = nil
+    local StartPos = nil
+
+    Topbar.InputBegan:Connect(function(Input)
+        if Input.UserInputType == Enum.UserInputType.MouseButton1 or
+           Input.UserInputType == Enum.UserInputType.Touch then
+            Dragging = true
+            DragStart = Input.Position
+            StartPos = MainFrame.Position
+        end
+    end)
+
+    Topbar.InputEnded:Connect(function(Input)
+        if Input.UserInputType == Enum.UserInputType.MouseButton1 or
+           Input.UserInputType == Enum.UserInputType.Touch then
+            Dragging = false
+        end
+    end)
+
+    Services.UserInputService.InputChanged:Connect(function(Input)
+        if Dragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or
+                         Input.UserInputType == Enum.UserInputType.Touch) then
+            local Delta = Input.Position - DragStart
+            local NewX = math.clamp(StartPos.X.Offset + Delta.X, 0, ScreenGui.AbsoluteSize.X - MainFrame.AbsoluteSize.X)
+            local NewY = math.clamp(StartPos.Y.Offset + Delta.Y, 0, ScreenGui.AbsoluteSize.Y - MainFrame.AbsoluteSize.X)
+
+            Animation:Spring(MainFrame, {
+                Position = UDim2.new(0, NewX, 0, NewY)
+            }, 0.08)
+        end
+    end)
+
+    -- Tab list (left sidebar)
+    local TabList = UIUtil:Create("Frame", {
+        Name = "TabList",
+        Size = UDim2.new(0, 150, 1, -40),
+        Position = UDim2.new(0, 0, 0, 40),
+        BackgroundColor3 = self.CurrentTheme.TabList,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+        Parent = MainFrame,
+    })
+
+    -- Tab list scroll
+    local TabScroll = UIUtil:CreateScrollFrame(TabList, UDim2.new(1, 0, 1, 0))
+    TabScroll.UIListLayout.Padding = UDim.new(0, 2)
+    TabScroll.UIPadding.PaddingTop = UDim.new(0, 8)
+    TabScroll.UIPadding.PaddingBottom = UDim.new(0, 8)
+
+    -- Content area
+    local ContentArea = UIUtil:Create("Frame", {
+        Name = "ContentArea",
+        Size = UDim2.new(1, -150, 1, -40),
+        Position = UDim2.new(0, 150, 0, 40),
+        BackgroundColor3 = self.CurrentTheme.Content,
+        BorderSizePixel = 0,
+        ZIndex = 1,
+        Parent = MainFrame,
+    })
+
+    -- Content pages container
+    local ContentPages = UIUtil:Create("Frame", {
+        Name = "ContentPages",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        ZIndex = 1,
+        Parent = ContentArea,
+    })
+
+    -- Build Window object
+    local Window = {
+        MainFrame = MainFrame,
+        Topbar = Topbar,
+        TabList = TabList,
+        TabScroll = TabScroll,
+        ContentArea = ContentArea,
+        ContentPages = ContentPages,
+        Tabs = {},
+        ActiveTab = nil,
+        ScreenGui = ScreenGui,
+        Settings = Settings,
+    }
+
+    self.Window = Window
+
+    -- Window control functions
+    function Window:CreateTab(TabSettings)
+        TabSettings = TabSettings or {}
+        local TabName = TabSettings.Title or "Tab"
+        local TabIcon = TabSettings.Icon
+
+        -- Tab button
+        local TabButton = UIUtil:Create("TextButton", {
+            Name = TabName,
+            Size = UDim2.new(1, -16, 0, 36),
+            BackgroundColor3 = self.CurrentTheme.Tab,
+            Text = "",
+            BorderSizePixel = 0,
+            ZIndex = 2,
+            Parent = self.TabScroll,
+        })
+        UIUtil:AddCorner(TabButton, UDim.new(0, 6))
+
+        -- Tab icon (if provided)
+        if TabIcon then
+            local IconLabel = UIUtil:CreateText(TabButton, "o",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                14, self.CurrentTheme.TabText,
+                {
+                    Size = UDim2.new(0, 24, 1, 0),
+                    Position = UDim2.new(0, 8, 0, 0),
+                    ZIndex = 3,
+                }
+            )
+        end
+
+        -- Tab text
+        local TabTextLabel = UIUtil:CreateText(TabButton, TabName,
+            Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+            13, self.CurrentTheme.TabText,
+            {
+                Size = UDim2.new(1, TabIcon and -40 or -20, 1, 0),
+                Position = UDim2.new(0, TabIcon and 34 or 10, 0, 0),
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                ZIndex = 3,
+            }
+        )
+
+        -- Accent indicator
+        local Indicator = UIUtil:Create("Frame", {
+            Size = UDim2.new(0, 3, 0, 20),
+            Position = UDim2.new(0, 0, 0.5, -10),
+            BackgroundColor3 = self.CurrentTheme.Accent,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ZIndex = 3,
+            Parent = TabButton,
+        })
+        UIUtil:AddCorner(Indicator, UDim.new(0, 2))
+
+        -- Tab content page
+        local TabPage = UIUtil:Create("Frame", {
+            Name = TabName .. "_Page",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = self.CurrentTheme.Content,
+            BackgroundTransparency = 0,
+            BorderSizePixel = 0,
+            Visible = false,
+            ZIndex = 1,
+            Parent = self.ContentPages,
+        })
+
+        -- Scroll frame for tab content
+        local ContentScroll = UIUtil:CreateScrollFrame(TabPage, UDim2.new(1, 0, 1, 0))
+        ContentScroll.UIListLayout.Padding = UDim.new(0, 4)
+        ContentScroll.UIPadding.PaddingTop = UDim.new(0, 8)
+        ContentScroll.UIPadding.PaddingBottom = UDim.new(0, 16)
+
+        -- Tab data
+        local Tab = {
+            Button = TabButton,
+            Page = TabPage,
+            Scroll = ContentScroll,
+            Name = TabName,
+            Elements = {},
+        }
+
+        -- Tab click handler
+        TabButton.MouseButton1Click:Connect(function()
+            self:ActivateTab(Tab)
+        end)
+
+        -- Hover effects
+        TabButton.MouseEnter:Connect(function()
+            if self.ActiveTab ~= Tab then
+                Animation:Tween(TabButton, { BackgroundColor3 = self.CurrentTheme.TabHover }, 0.15)
+            end
+        end)
+        TabButton.MouseLeave:Connect(function()
+            if self.ActiveTab ~= Tab then
+                Animation:Tween(TabButton, { BackgroundColor3 = self.CurrentTheme.Tab }, 0.15)
+            end
+        end)
+
+        -- ========================================
+        -- SECTION 8: Element Creation Functions
+        -- ========================================
+
+        -- Section
+        function Tab:CreateSection(SectionText)
+            local Section = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 28),
+                BackgroundTransparency = 1,
+                ZIndex = 5,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+
+            local LeftLine = UIUtil:Create("Frame", {
+                Size = UDim2.new(0, 20, 0, 1),
+                Position = UDim2.new(0, 0, 0.5, 0),
+                BackgroundColor3 = Kismile.CurrentTheme.SectionLine,
+                BorderSizePixel = 0,
+                Parent = Section,
+            })
+
+            local SectionLabel = UIUtil:CreateText(Section, SectionText or "Section",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                12, Kismile.CurrentTheme.SectionText,
+                {
+                    Size = UDim2.new(0, 0, 1, 0),
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    Position = UDim2.new(0, 26, 0, 0),
+                    ZIndex = 6,
+                }
+            )
+
+            local RightLine = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -30, 0, 1),
+                Position = UDim2.new(0, 4, 0.5, 0),
+                BackgroundColor3 = Kismile.CurrentTheme.SectionLine,
+                BorderSizePixel = 0,
+                Parent = Section,
+            })
+
+            -- Move right line after label
+            SectionLabel:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                RightLine.Size = UDim2.new(1, -(SectionLabel.AbsoluteSize.X + 34), 0, 1)
+            end)
+
+            table.insert(self.Elements, Section)
+            return Section
+        end
+
+        -- Toggle
+        function Tab:CreateToggle(ToggleSettings)
+            ToggleSettings = ToggleSettings or {}
+
+            local Value = ToggleSettings.Default or false
+            if ToggleSettings.Flag and Kismile.Flags[ToggleSettings.Flag] ~= nil then
+                Value = Kismile.Flags[ToggleSettings.Flag]
+            end
+
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 50),
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+            UIUtil:AddStroke(Element, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            -- Title
+            UIUtil:CreateText(Element, ToggleSettings.Title or "Toggle",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                13, Kismile.CurrentTheme.TextColor,
+                {
+                    Size = UDim2.new(0.5, -24, 0, 20),
+                    Position = UDim2.new(0, 12, 0, 6),
+                    ZIndex = 6,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                }
+            )
+
+            -- Description
+            if ToggleSettings.Description then
+                UIUtil:CreateText(Element, ToggleSettings.Description,
+                    Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                    11, Kismile.CurrentTheme.TextSecondary,
+                    {
+                        Size = UDim2.new(0.6, -24, 0, 16),
+                        Position = UDim2.new(0, 12, 0, 28),
+                        ZIndex = 6,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                    }
+                )
+            end
+
+            -- Toggle body
+            local ToggleFrame = UIUtil:Create("Frame", {
+                Size = UDim2.new(0, 44, 0, 24),
+                Position = UDim2.new(1, -56, 0.5, -12),
+                BackgroundColor3 = Value and Kismile.CurrentTheme.ToggleOn or Kismile.CurrentTheme.ToggleOff,
+                ZIndex = 6,
+                Parent = Element,
+            })
+            UIUtil:AddCorner(ToggleFrame, UDim.new(1, 0))
+
+            -- Toggle dot
+            local ToggleDot = UIUtil:Create("Frame", {
+                Size = UDim2.new(0, 18, 0, 18),
+                Position = Value and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                ZIndex = 7,
+                Parent = ToggleFrame,
+            })
+            UIUtil:AddCorner(ToggleDot, UDim.new(1, 0))
+
+            -- Shadow under dot
+            UIUtil:Create("ImageLabel", {
+                Size = UDim2.new(1, 4, 1, 4),
+                Position = UDim2.new(0, -2, 0, -2),
+                Image = "rbxassetid://6015897843",
+                BackgroundTransparency = 1,
+                ZIndex = 6,
+                Parent = ToggleDot,
+            })
+
+            -- Click handler
+            local function UpdateToggle()
+                Animation:Tween(ToggleFrame, {
+                    BackgroundColor3 = Value and Kismile.CurrentTheme.ToggleOn or Kismile.CurrentTheme.ToggleOff,
+                }, 0.2)
+
+                Animation:Tween(ToggleDot, {
+                    Position = Value and UDim2.new(1, -21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9),
+                }, 0.2, Enum.EasingStyle.Quart)
+            end
+
+            Element.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    Value = not Value
+                    UpdateToggle()
+
+                    if ToggleSettings.Flag then
+                        Kismile:SetFlag(ToggleSettings.Flag, Value)
+                    end
+
+                    if ToggleSettings.Callback then
+                        ToggleSettings.Callback(Value)
+                    end
+                end
+            end)
+
+            -- Element functions
+            Element.SetValue = function(self, NewValue)
+                Value = NewValue
+                UpdateToggle()
+            end
+            Element.GetValue = function()
+                return Value
+            end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- Slider
+        function Tab:CreateSlider(SliderSettings)
+            SliderSettings = SliderSettings or {}
+
+            local Min = SliderSettings.Min or 0
+            local Max = SliderSettings.Max or 100
+            local Default = SliderSettings.Default or Min
+            local Step = SliderSettings.Step  -- nil means continuous
+
+            local Value = Default
+            if SliderSettings.Flag and Kismile.Flags[SliderSettings.Flag] ~= nil then
+                Value = math.clamp(Kismile.Flags[SliderSettings.Flag], Min, Max)
+            end
+
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 56),
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+            UIUtil:AddStroke(Element, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            -- Title
+            UIUtil:CreateText(Element, SliderSettings.Title or "Slider",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                13, Kismile.CurrentTheme.TextColor,
+                {
+                    Size = UDim2.new(0.5, -24, 0, 20),
+                    Position = UDim2.new(0, 12, 0, 6),
+                    ZIndex = 6,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                }
+            )
+
+            -- Value display
+            local ValueLabel = UIUtil:CreateText(Element, tostring(Value) .. (SliderSettings.Suffix or ""),
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                12, Kismile.CurrentTheme.Accent,
+                {
+                    Size = UDim2.new(0.5, -24, 0, 20),
+                    Position = UDim2.new(0.5, 12, 0, 6),
+                    TextXAlignment = Enum.TextXAlignment.Right,
+                    ZIndex = 6,
+                }
+            )
+
+            -- Slider track
+            local SliderTrack = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -24, 0, 6),
+                Position = UDim2.new(0, 12, 0.5, 6),
+                BackgroundColor3 = Kismile.CurrentTheme.SliderBackground,
+                BorderSizePixel = 0,
+                ZIndex = 6,
+                Parent = Element,
+            })
+            UIUtil:AddCorner(SliderTrack, UDim.new(0, 3))
+
+            -- Slider fill
+            local Percent = (Value - Min) / (Max - Min)
+            local SliderFill = UIUtil:Create("Frame", {
+                Size = UDim2.new(Percent, 0, 1, 0),
+                BackgroundColor3 = Kismile.CurrentTheme.SliderFill,
+                BorderSizePixel = 0,
+                ZIndex = 7,
+                Parent = SliderTrack,
+            })
+            UIUtil:AddCorner(SliderFill, UDim.new(0, 3))
+
+            -- Slider handle
+            local SliderHandle = UIUtil:Create("Frame", {
+                Size = UDim2.new(0, 14, 0, 14),
+                Position = UDim2.new(Percent, -7, 0.5, -7),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                ZIndex = 8,
+                Parent = SliderTrack,
+            })
+            UIUtil:AddCorner(SliderHandle, UDim.new(1, 0))
+
+            -- Drag detection
+            local IsDragging = false
+
+            local function UpdateSliderFromPosition(PositionX)
+                local TrackAbsX = SliderTrack.AbsolutePosition.X
+                local TrackAbsSize = SliderTrack.AbsoluteSize.X
+                local Relative = math.clamp((PositionX - TrackAbsX) / TrackAbsSize, 0, 1)
+                local RawValue = Min + Relative * (Max - Min)
+
+                if Step then
+                    Value = Min + math.floor((RawValue - Min) / Step + 0.5) * Step
+                    Value = math.clamp(Value, Min, Max)
+                else
+                    Value = math.floor(RawValue * 100) / 100
+                end
+
+                Percent = (Value - Min) / (Max - Min)
+
+                Animation:Spring(SliderFill, { Size = UDim2.new(Percent, 0, 1, 0) }, 0.05)
+                Animation:Spring(SliderHandle, { Position = UDim2.new(Percent, -7, 0.5, -7) }, 0.05)
+
+                ValueLabel.Text = tostring(Value) .. (SliderSettings.Suffix or "")
+
+                if SliderSettings.Flag then
+                    Kismile:SetFlag(SliderSettings.Flag, Value)
+                end
+                if SliderSettings.Callback then
+                    SliderSettings.Callback(Value)
+                end
+            end
+
+            SliderTrack.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    IsDragging = true
+                    UpdateSliderFromPosition(Input.Position.X)
+                end
+            end)
+
+            SliderHandle.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    IsDragging = true
+                end
+            end)
+
+            local DragConnection = Services.UserInputService.InputEnded:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    IsDragging = false
+                end
+            end)
+            table.insert(Kismile.Connections, DragConnection)
+
+            local MoveConnection = Services.UserInputService.InputChanged:Connect(function(Input)
+                if IsDragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
+                    UpdateSliderFromPosition(Input.Position.X)
+                end
+            end)
+            table.insert(Kismile.Connections, MoveConnection)
+
+            -- Element functions
+            Element.SetValue = function(self, NewValue)
+                Value = math.clamp(NewValue, Min, Max)
+                if Step then
+                    Value = Min + math.floor((Value - Min) / Step + 0.5) * Step
+                end
+                Percent = (Value - Min) / (Max - Min)
+                SliderFill.Size = UDim2.new(Percent, 0, 1, 0)
+                SliderHandle.Position = UDim2.new(Percent, -7, 0.5, -7)
+                ValueLabel.Text = tostring(Value) .. (SliderSettings.Suffix or "")
+            end
+            Element.GetValue = function()
+                return Value
+            end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- Dropdown (single & multi-select)
+        function Tab:CreateDropdown(DropdownSettings)
+            DropdownSettings = DropdownSettings or {}
+
+            local Options = DropdownSettings.Options or {}
+            local DefaultValue = DropdownSettings.MultiSelect and (DropdownSettings.Default or {}) or (DropdownSettings.Default or Options[1])
+            local MultiSelect = DropdownSettings.MultiSelect or false
+
+            local Value = DefaultValue
+            if DropdownSettings.Flag and Kismile.Flags[DropdownSettings.Flag] ~= nil then
+                Value = Kismile.Flags[DropdownSettings.Flag]
+            end
+
+            local IsOpen = false
+
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 50),
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                ClipsDescendants = false,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+            UIUtil:AddStroke(Element, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            -- Title
+            UIUtil:CreateText(Element, DropdownSettings.Title or "Dropdown",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                13, Kismile.CurrentTheme.TextColor,
+                {
+                    Size = UDim2.new(0.5, -24, 0, 20),
+                    Position = UDim2.new(0, 12, 0, 6),
+                    ZIndex = 6,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                }
+            )
+
+            -- Selected value display
+            local function GetSelectedText()
+                if MultiSelect then
+                    return #Value > 0 and (#Value .. " selected") or "None"
+                else
+                    return tostring(Value or "None")
+                end
+            end
+
+            local SelectedLabel = UIUtil:CreateText(Element, GetSelectedText(),
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                11, Kismile.CurrentTheme.Accent,
+                {
+                    Size = UDim2.new(0.5, -24, 0, 16),
+                    Position = UDim2.new(0, 12, 0, 28),
+                    ZIndex = 6,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                }
+            )
+
+            -- Arrow
+            local Arrow = UIUtil:CreateText(Element, "v",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                14, Kismile.CurrentTheme.TextSecondary,
+                {
+                    Size = UDim2.new(0, 20, 0, 20),
+                    Position = UDim2.new(1, -30, 0, 14),
+                    ZIndex = 6,
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                }
+            )
+
+            -- Options container
+            local OptionList = UIUtil:Create("ScrollingFrame", {
+                Size = UDim2.new(1, -16, 0, 0),
+                Position = UDim2.new(0, 8, 1, -10),
+                BackgroundColor3 = Kismile.CurrentTheme.DropdownBackground,
+                BorderSizePixel = 0,
+                ZIndex = 50,
+                Visible = false,
+                ScrollBarThickness = 4,
+                ScrollBarImageColor3 = Kismile.CurrentTheme.ScrollbarHandle,
+                CanvasSize = UDim2.new(0, 0, 0, 0),
+                Parent = Element,
+            })
+            UIUtil:AddCorner(OptionList, UDim.new(0, 6))
+            UIUtil:AddStroke(OptionList, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            local OptListLayout = UIUtil:Create("UIListLayout", {
+                Padding = UDim.new(0, 1),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Parent = OptionList,
+            })
+
+            OptListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                OptionList.CanvasSize = UDim2.new(0, 0, 0, OptListLayout.AbsoluteContentSize.Y + 4)
+            end)
+
+            local OptionButtons = {}
+
+            local function BuildOptions(Filter)
+                Filter = type(Filter) == "string" and string.lower(Filter) or ""
+
+                for _, Btn in ipairs(OptionButtons) do
+                    Btn:Destroy()
+                end
+                OptionButtons = {}
+
+                local VisibleCount = 0
+                for _, Option in ipairs(Options) do
+                    if Filter == "" or string.find(string.lower(Option), Filter, 1, true) then
+                        VisibleCount = VisibleCount + 1
+
+                        local IsSelected = MultiSelect and table.find(Value or {}, Option)
+                            or (not MultiSelect and Value == Option)
+
+                        local OptionBtn = UIUtil:Create("TextButton", {
+                            Size = UDim2.new(1, 0, 0, 28),
+                            BackgroundColor3 = IsSelected and Kismile.CurrentTheme.DropdownOptionSelected
+                                or Kismile.CurrentTheme.DropdownOption,
+                            Text = "",
+                            BorderSizePixel = 0,
+                            ZIndex = 51,
+                            LayoutOrder = VisibleCount,
+                            Parent = OptionList,
+                        })
+                        UIUtil:AddCorner(OptionBtn, UDim.new(0, 4))
+
+                        if MultiSelect then
+                            UIUtil:CreateText(OptionBtn, IsSelected and "a" or "o",
+                                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                                12, IsSelected and Kismile.CurrentTheme.Accent or Kismile.CurrentTheme.TextDark,
+                                {
+                                    Size = UDim2.new(0, 20, 1, 0),
+                                    Position = UDim2.new(0, 4, 0, 0),
+                                    ZIndex = 52,
+                                    TextXAlignment = Enum.TextXAlignment.Center,
+                                }
+                            )
+                        end
+
+                        UIUtil:CreateText(OptionBtn, Option,
+                            Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                            12, IsSelected and Kismile.CurrentTheme.Accent or Kismile.CurrentTheme.TextColor,
+                            {
+                                Size = UDim2.new(1, MultiSelect and -30 or -12, 1, 0),
+                                Position = UDim2.new(0, MultiSelect and 26 or 8, 0, 0),
+                                ZIndex = 52,
+                                TextTruncate = Enum.TextTruncate.AtEnd,
+                            }
+                        )
+
+                        OptionBtn.MouseButton1Click:Connect(function()
+                            if MultiSelect then
+                                local Found = table.find(Value, Option)
+                                if Found then
+                                    table.remove(Value, Found)
+                                else
+                                    table.insert(Value, Option)
+                                end
+                            else
+                                Value = Option
+                                IsOpen = false
+                                OptionList.Visible = false
+                                Animation:Tween(OptionList, { Size = UDim2.new(1, -16, 0, 0) }, 0.15)
+                                Arrow.Rotation = 0
+                            end
+                            SelectedLabel.Text = GetSelectedText()
+
+                            if DropdownSettings.Flag then
+                                Kismile:SetFlag(DropdownSettings.Flag, Value)
+                            end
+                            if DropdownSettings.Callback then
+                                DropdownSettings.Callback(Value)
+                            end
+
+                            BuildOptions(Filter)
+                        end)
+
+                        OptionBtn.MouseEnter:Connect(function()
+                            Animation:Tween(OptionBtn, { BackgroundColor3 = Kismile.CurrentTheme.DropdownOptionHover }, 0.1)
+                        end)
+                        OptionBtn.MouseLeave:Connect(function()
+                            local CurrSel = MultiSelect and table.find(Value or {}, Option)
+                                or (not MultiSelect and Value == Option)
+                            Animation:Tween(OptionBtn, {
+                                BackgroundColor3 = CurrSel and Kismile.CurrentTheme.DropdownOptionSelected
+                                    or Kismile.CurrentTheme.DropdownOption
+                            }, 0.1)
+                        end)
+
+                        table.insert(OptionButtons, OptionBtn)
+                    end
+                end
+
+                OptionList.CanvasSize = UDim2.new(0, 0, 0, VisibleCount * 29 + 4)
+                if not IsOpen then
+                    OptionList.Size = UDim2.new(1, -16, 0, 0)
+                end
+            end
+
+            BuildOptions()
+
+            local function ToggleDropdown()
+                IsOpen = not IsOpen
+                if IsOpen then
+                    OptionList.Visible = true
+                    BuildOptions()
+                    local TargetH = math.min(#Options * 29 + 2, 180)
+                    Animation:Tween(OptionList, { Size = UDim2.new(1, -16, 0, TargetH) }, 0.2, Enum.EasingStyle.Quart)
+                    Animation:Tween(Arrow, { Rotation = 180 }, 0.2)
+                else
+                    Arrow.Rotation = 0
+                    Animation:Tween(OptionList, { Size = UDim2.new(1, -16, 0, 0) }, 0.15)
+                    task.delay(0.15, function()
+                        if not IsOpen then OptionList.Visible = false end
+                    end)
+                end
+            end
+
+            Element.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 and not OptionList.Visible then
+                    ToggleDropdown()
+                end
+            end)
+
+            if DropdownSettings.Searchable then
+                local SearchInput = UIUtil:Create("TextBox", {
+                    Size = UDim2.new(1, -8, 0, 24),
+                    Position = UDim2.new(0, 4, 0, 4),
+                    BackgroundColor3 = Kismile.CurrentTheme.InputBackground,
+                    PlaceholderText = "Search...",
+                    PlaceholderColor3 = Kismile.CurrentTheme.InputPlaceholder,
+                    FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                    TextSize = 11,
+                    TextColor3 = Kismile.CurrentTheme.TextColor,
+                    Text = "",
+                    ClearTextOnFocus = false,
+                    BorderSizePixel = 0,
+                    ZIndex = 52,
+                    Visible = false,
+                    Parent = OptionList,
+                })
+                UIUtil:AddCorner(SearchInput, UDim.new(0, 4))
+                UIUtil:AddStroke(SearchInput, Kismile.CurrentTheme.InputBorder, 1, 0.5)
+
+                OptionList:GetPropertyChangedSignal("Visible"):Connect(function()
+                    SearchInput.Visible = OptionList.Visible
+                    if OptionList.Visible then
+                        OptionList.Position = UDim2.new(0, 8, 1, 6)
+                    else
+                        OptionList.Position = UDim2.new(0, 8, 1, -10)
+                    end
+                end)
+
+                SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
+                    BuildOptions(SearchInput.Text)
+                end)
+            end
+
+            Element.SetValue = function(self, NewValue)
+                Value = NewValue
+                SelectedLabel.Text = GetSelectedText()
+                BuildOptions()
+            end
+            Element.GetValue = function() return Value end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- ColorPicker
+        function Tab:CreateColorPicker(ColorPickerSettings)
+            ColorPickerSettings = ColorPickerSettings or {}
+
+            local DefaultColor = ColorPickerSettings.Default or Color3.fromRGB(255, 0, 0)
+            local Value = DefaultColor
+
+            if ColorPickerSettings.Flag and Kismile.Flags[ColorPickerSettings.Flag] ~= nil then
+                local C = Kismile.Flags[ColorPickerSettings.Flag]
+                if typeof(C) == "Color3" then
+                    Value = C
+                elseif type(C) == "table" and C.R and C.G and C.B then
+                    Value = Color3.new(C.R / 255, C.G / 255, C.B / 255)
+                end
+            end
+
+            local IsOpen = false
+            local H, S, V = Value:ToHSV()
+
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 50),
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                ClipsDescendants = false,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+            UIUtil:AddStroke(Element, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            UIUtil:CreateText(Element, ColorPickerSettings.Title or "Color Picker",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                13, Kismile.CurrentTheme.TextColor,
+                {
+                    Size = UDim2.new(0.5, -48, 0, 20),
+                    Position = UDim2.new(0, 12, 0, 6),
+                    ZIndex = 6,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                }
+            )
+
+            local ColorPreview = UIUtil:Create("Frame", {
+                Size = UDim2.new(0, 28, 0, 28),
+                Position = UDim2.new(1, -40, 0, 11),
+                BackgroundColor3 = Value,
+                ZIndex = 6,
+                Parent = Element,
+            })
+            UIUtil:AddCorner(ColorPreview, UDim.new(0, 6))
+            UIUtil:AddStroke(ColorPreview, Color3.fromRGB(255, 255, 255), 1, 0.3)
+
+            local HexLabel = UIUtil:CreateText(Element, "#" .. string.format("%02X%02X%02X",
+                math.floor(Value.R * 255), math.floor(Value.G * 255), math.floor(Value.B * 255)),
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                11, Kismile.CurrentTheme.TextSecondary,
+                {
+                    Size = UDim2.new(0, 80, 0, 16),
+                    Position = UDim2.new(0, 12, 0, 28),
+                    ZIndex = 6,
+                }
+            )
+
+            -- Color picker panel
+            local ColorPanel = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -16, 0, 0),
+                Position = UDim2.new(0, 8, 1, -10),
+                BackgroundColor3 = Kismile.CurrentTheme.DropdownBackground,
+                BorderSizePixel = 0,
+                ZIndex = 50,
+                Visible = false,
+                ClipsDescendants = true,
+                Parent = Element,
+            })
+            UIUtil:AddCorner(ColorPanel, UDim.new(0, 6))
+            UIUtil:AddStroke(ColorPanel, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            -- Hue slider
+            local HueBg = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -16, 0, 16),
+                Position = UDim2.new(0, 8, 0, 12),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                ZIndex = 51,
+                Parent = ColorPanel,
+            })
+            UIUtil:AddCorner(HueBg, UDim.new(0, 8))
+
+            for I = 0, 31 do
+                local Hue = I / 31
+                local C = Color3.fromHSV(Hue, 1, 1)
+                UIUtil:Create("Frame", {
+                    Size = UDim2.new(1 / 32, 0, 1, 0),
+                    Position = UDim2.new(I / 32, 0, 0, 0),
+                    BackgroundColor3 = C,
+                    BorderSizePixel = 0,
+                    ZIndex = 51,
+                    Parent = HueBg,
+                })
+            end
+
+            local HueIndicator = UIUtil:Create("Frame", {
+                Size = UDim2.new(0, 4, 1.4, 0),
+                Position = UDim2.new(H, -2, -0.2, 0),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                ZIndex = 53,
+                Parent = HueBg,
+            })
+            UIUtil:AddCorner(HueIndicator, UDim.new(0, 2))
+            UIUtil:AddStroke(HueIndicator, Color3.fromRGB(0, 0, 0), 1, 0.5)
+
+            -- SV grid
+            local SVGrid = UIUtil:Create("ImageButton", {
+                Size = UDim2.new(1, -16, 0, 100),
+                Position = UDim2.new(0, 8, 0, 36),
+                Image = "rbxassetid://6880631253",
+                BackgroundColor3 = Color3.fromHSV(H, 1, 1),
+                ScaleType = Enum.ScaleType.Stretch,
+                ZIndex = 51,
+                Parent = ColorPanel,
+            })
+            UIUtil:AddCorner(SVGrid, UDim.new(0, 4))
+            UIUtil:AddStroke(SVGrid, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            local SVIndicator = UIUtil:Create("Frame", {
+                Size = UDim2.new(0, 10, 0, 10),
+                Position = UDim2.new(S, -5, 1 - V, -5),
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                ZIndex = 53,
+                Parent = SVGrid,
+            })
+            UIUtil:AddCorner(SVIndicator, UDim.new(1, 0))
+            UIUtil:AddStroke(SVIndicator, Color3.fromRGB(0, 0, 0), 1, 0.5)
+
+            -- Presets
+            local Presets = {
+                Color3.fromRGB(255,255,255), Color3.fromRGB(200,200,200),
+                Color3.fromRGB(100,100,100), Color3.fromRGB(0,0,0),
+                Color3.fromRGB(255,0,0), Color3.fromRGB(255,100,0),
+                Color3.fromRGB(255,200,0), Color3.fromRGB(0,255,0),
+                Color3.fromRGB(0,200,255), Color3.fromRGB(0,80,255),
+                Color3.fromRGB(130,0,255), Color3.fromRGB(255,0,255),
+            }
+
+            local PresetHolder = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -16, 0, 16),
+                Position = UDim2.new(0, 8, 0, 144),
+                BackgroundTransparency = 1,
+                ZIndex = 51,
+                Parent = ColorPanel,
+            })
+            local PresetGrid = UIUtil:Create("UIGridLayout", {
+                CellSize = UDim2.new(0, 16, 0, 16),
+                CellPadding = UDim2.new(0, 4, 0, 0),
+                FillDirection = Enum.FillDirection.Horizontal,
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Parent = PresetHolder,
+            })
+
+            for _, PresetColor in ipairs(Presets) do
+                local Btn = UIUtil:Create("TextButton", {
+                    Size = UDim2.new(0, 16, 0, 16),
+                    BackgroundColor3 = PresetColor,
+                    Text = "",
+                    BorderSizePixel = 0,
+                    ZIndex = 52,
+                    Parent = PresetHolder,
+                })
+                UIUtil:AddCorner(Btn, UDim.new(1, 0))
+                UIUtil:AddStroke(Btn, Color3.fromRGB(255, 255, 255), 1, 0.3)
+
+                Btn.MouseButton1Click:Connect(function()
+                    Value = PresetColor
+                    ColorPreview.BackgroundColor3 = Value
+                    HexLabel.Text = "#" .. string.format("%02X%02X%02X", math.floor(Value.R*255), math.floor(Value.G*255), math.floor(Value.B*255))
+                    H, S, V = Value:ToHSV()
+                    HueIndicator.Position = UDim2.new(H, -2, -0.2, 0)
+                    SVGrid.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
+                    SVIndicator.Position = UDim2.new(S, -5, 1 - V, -5)
+                    if ColorPickerSettings.Flag then
+                        Kismile:SetFlag(ColorPickerSettings.Flag, { R = math.floor(Value.R*255), G = math.floor(Value.G*255), B = math.floor(Value.B*255) })
+                    end
+                    if ColorPickerSettings.Callback then ColorPickerSettings.Callback(Value) end
+                end)
+            end
+
+            -- HEX input
+            local HexInput = UIUtil:Create("TextBox", {
+                Size = UDim2.new(0, 80, 0, 20),
+                Position = UDim2.new(1, -88, 0, 168),
+                PlaceholderText = "#FFFFFF",
+                PlaceholderColor3 = Kismile.CurrentTheme.InputPlaceholder,
+                FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                TextSize = 11,
+                TextColor3 = Kismile.CurrentTheme.TextColor,
+                Text = "",
+                BackgroundColor3 = Kismile.CurrentTheme.InputBackground,
+                BorderSizePixel = 0,
+                ZIndex = 51,
+                Parent = ColorPanel,
+            })
+            UIUtil:AddCorner(HexInput, UDim.new(0, 4))
+            UIUtil:AddStroke(HexInput, Kismile.CurrentTheme.InputBorder, 1, 0.5)
+
+            HexInput.FocusLost:Connect(function(Entered)
+                if Entered then
+                    local Hex = HexInput.Text:gsub("#", ""):upper()
+                    if #Hex == 6 then
+                        local R = tonumber(Hex:sub(1,2), 16) or 0
+                        local G = tonumber(Hex:sub(3,4), 16) or 0
+                        local B = tonumber(Hex:sub(5,6), 16) or 0
+                        Value = Color3.fromRGB(R, G, B)
+                        ColorPreview.BackgroundColor3 = Value
+                        HexLabel.Text = "#" .. string.format("%02X%02X%02X", R, G, B)
+                        H, S, V = Value:ToHSV()
+                        HueIndicator.Position = UDim2.new(H, -2, -0.2, 0)
+                        SVGrid.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
+                        SVIndicator.Position = UDim2.new(S, -5, 1 - V, -5)
+                        if ColorPickerSettings.Flag then
+                            Kismile:SetFlag(ColorPickerSettings.Flag, { R = R, G = G, B = B })
+                        end
+                        if ColorPickerSettings.Callback then ColorPickerSettings.Callback(Value) end
+                    end
+                end
+            end)
+
+            local function UpdateColor()
+                ColorPreview.BackgroundColor3 = Value
+                local R, G, B = math.floor(Value.R*255), math.floor(Value.G*255), math.floor(Value.B*255)
+                HexLabel.Text = "#" .. string.format("%02X%02X%02X", R, G, B)
+                if ColorPickerSettings.Flag then
+                    Kismile:SetFlag(ColorPickerSettings.Flag, { R = R, G = G, B = B })
+                end
+                if ColorPickerSettings.Callback then ColorPickerSettings.Callback(Value) end
+            end
+
+            -- Toggle panel
+            Element.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    IsOpen = not IsOpen
+                    if IsOpen then
+                        ColorPanel.Visible = true
+                        Animation:Tween(ColorPanel, { Size = UDim2.new(1, -16, 0, 198) }, 0.2, Enum.EasingStyle.Quart)
+                    else
+                        Animation:Tween(ColorPanel, { Size = UDim2.new(1, -16, 0, 0) }, 0.15)
+                        task.delay(0.15, function()
+                            if not IsOpen then ColorPanel.Visible = false end
+                        end)
+                    end
+                end
+            end)
+
+            -- Hue slider interaction
+            local HueDragging = false
+            local function SetHueFromPos(PX)
+                local Rel = math.clamp((PX - HueBg.AbsolutePosition.X) / HueBg.AbsoluteSize.X, 0, 1)
+                H = Rel
+                HueIndicator.Position = UDim2.new(H, -2, -0.2, 0)
+                SVGrid.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
+                Value = Color3.fromHSV(H, S, V)
+                UpdateColor()
+            end
+
+            HueBg.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    HueDragging = true
+                    SetHueFromPos(Input.Position.X)
+                end
+            end)
+
+            local HueMoveConn = Services.UserInputService.InputChanged:Connect(function(Input)
+                if HueDragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
+                    SetHueFromPos(Input.Position.X)
+                end
+            end)
+            local HueEndConn = Services.UserInputService.InputEnded:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then HueDragging = false end
+            end)
+            table.insert(Kismile.Connections, HueMoveConn)
+            table.insert(Kismile.Connections, HueEndConn)
+
+            -- SV grid interaction
+            local SVDragging = false
+            local function SetSVFromPos(PX, PY)
+                S = math.clamp((PX - SVGrid.AbsolutePosition.X) / SVGrid.AbsoluteSize.X, 0, 1)
+                V = math.clamp(1 - (PY - SVGrid.AbsolutePosition.Y) / SVGrid.AbsoluteSize.Y, 0, 1)
+                SVIndicator.Position = UDim2.new(S, -5, 1 - V, -5)
+                Value = Color3.fromHSV(H, S, V)
+                UpdateColor()
+            end
+
+            SVGrid.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+                    SVDragging = true
+                    SetSVFromPos(Input.Position.X, Input.Position.Y)
+                end
+            end)
+
+            local SVMoveConn = Services.UserInputService.InputChanged:Connect(function(Input)
+                if SVDragging and Input.UserInputType == Enum.UserInputType.MouseMovement then
+                    SetSVFromPos(Input.Position.X, Input.Position.Y)
+                end
+            end)
+            local SVEndConn = Services.UserInputService.InputEnded:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 then SVDragging = false end
+            end)
+            table.insert(Kismile.Connections, SVMoveConn)
+            table.insert(Kismile.Connections, SVEndConn)
+
+            Element.SetValue = function(self, NewColor)
+                Value = NewColor
+                ColorPreview.BackgroundColor3 = Value
+                HexLabel.Text = "#" .. string.format("%02X%02X%02X", math.floor(Value.R*255), math.floor(Value.G*255), math.floor(Value.B*255))
+                H, S, V = Value:ToHSV()
+                HueIndicator.Position = UDim2.new(H, -2, -0.2, 0)
+                SVGrid.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
+                SVIndicator.Position = UDim2.new(S, -5, 1 - V, -5)
+            end
+            Element.GetValue = function() return Value end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- Keybind
+        function Tab:CreateKeybind(KeybindSettings)
+            KeybindSettings = KeybindSettings or {}
+            local Value = KeybindSettings.Default or Enum.KeyCode.E
+            local HoldMode = KeybindSettings.HoldMode or false
+            local IsBinding = false
+
+            if KeybindSettings.Flag and Kismile.Flags[KeybindSettings.Flag] ~= nil then
+                local Saved = Kismile.Flags[KeybindSettings.Flag]
+                if typeof(Saved) == "EnumItem" then Value = Saved
+                elseif type(Saved) == "string" and Enum.KeyCode[Saved] then Value = Enum.KeyCode[Saved] end
+            end
+
+            local function GetKeyName()
+                return Value and Value.Name:gsub("Keyboard", ""):gsub("Keypad", "Numpad ") or "None"
+            end
+
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 50),
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+            UIUtil:AddStroke(Element, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            UIUtil:CreateText(Element, KeybindSettings.Title or "Keybind",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                13, Kismile.CurrentTheme.TextColor,
+                {
+                    Size = UDim2.new(0.5, -24, 0, 20),
+                    Position = UDim2.new(0, 12, 0, 6),
+                    ZIndex = 6,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                }
+            )
+
+            local KeyButton = UIUtil:Create("TextButton", {
+                Size = UDim2.new(0, 80, 0, 28),
+                Position = UDim2.new(1, -92, 0.5, -14),
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                Text = GetKeyName(),
+                FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                TextSize = 12,
+                TextColor3 = Kismile.CurrentTheme.Accent,
+                ZIndex = 6,
+                Parent = Element,
+            })
+            UIUtil:AddCorner(KeyButton, UDim.new(0, 6))
+            UIUtil:AddStroke(KeyButton, Kismile.CurrentTheme.Accent, 1, 0.5)
+
+            if KeybindSettings.Description then
+                UIUtil:CreateText(Element, KeybindSettings.Description,
+                    Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                    11, Kismile.CurrentTheme.TextSecondary,
+                    {
+                        Size = UDim2.new(0.5, -120, 0, 16),
+                        Position = UDim2.new(0, 12, 0, 28),
+                        ZIndex = 6,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                    }
+                )
+            end
+
+            local BindConn
+            KeyButton.MouseButton1Click:Connect(function()
+                if IsBinding then return end
+                IsBinding = true
+                KeyButton.Text = "..."
+
+                if BindConn then BindConn:Disconnect() end
+                BindConn = Services.UserInputService.InputBegan:Connect(function(Input)
+                    if not IsBinding then return end
+                    if Input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+                    if Input.KeyCode == Enum.KeyCode.Escape then
+                        IsBinding = false; KeyButton.Text = GetKeyName()
+                    elseif Input.KeyCode == Enum.KeyCode.Backspace then
+                        Value = nil; IsBinding = false; KeyButton.Text = "None"
+                    else
+                        Value = Input.KeyCode; IsBinding = false; KeyButton.Text = GetKeyName()
+                    end
+
+                    if KeybindSettings.Flag then
+                        Kismile:SetFlag(KeybindSettings.Flag, Value and Value.Name or nil)
+                    end
+                    if KeybindSettings.ChangedCallback then
+                        KeybindSettings.ChangedCallback(GetKeyName())
+                    end
+
+                    if not IsBinding and BindConn then BindConn:Disconnect(); BindConn = nil end
+                end)
+            end)
+
+            local PressConn = Services.UserInputService.InputBegan:Connect(function(Input)
+                if IsBinding or not Value then return end
+                if Input.KeyCode ~= Value then return end
+
+                if HoldMode then
+                    if KeybindSettings.Callback then KeybindSettings.Callback(true) end
+                    local RelConn
+                    RelConn = Services.UserInputService.InputEnded:Connect(function(RI)
+                        if RI.KeyCode == Value then
+                            if KeybindSettings.Callback then KeybindSettings.Callback(false) end
+                            RelConn:Disconnect()
+                        end
+                    end)
+                else
+                    if KeybindSettings.Callback then KeybindSettings.Callback() end
+                end
+            end)
+            table.insert(Kismile.Connections, PressConn)
+
+            Element.SetValue = function(self, NK)
+                if NK == nil then Value = nil
+                elseif typeof(NK) == "EnumItem" then Value = NK end
+                KeyButton.Text = GetKeyName()
+            end
+            Element.GetValue = function() return Value end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- Input / TextBox
+        function Tab:CreateInput(InputSettings)
+            InputSettings = InputSettings or {}
+            local Value = InputSettings.Default or ""
+
+            if InputSettings.Flag and Kismile.Flags[InputSettings.Flag] ~= nil then
+                Value = Kismile.Flags[InputSettings.Flag]
+            end
+
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 50),
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+            UIUtil:AddStroke(Element, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            UIUtil:CreateText(Element, InputSettings.Title or "Input",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                13, Kismile.CurrentTheme.TextColor,
+                {
+                    Size = UDim2.new(0.5, -24, 0, 20),
+                    Position = UDim2.new(0, 12, 0, 6),
+                    ZIndex = 6,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                }
+            )
+
+            local TextBox = UIUtil:Create("TextBox", {
+                Size = UDim2.new(1, -120, 0, 28),
+                Position = UDim2.new(0, 12, 0.5, 2),
+                BackgroundColor3 = Kismile.CurrentTheme.InputBackground,
+                PlaceholderText = InputSettings.Placeholder or "",
+                PlaceholderColor3 = Kismile.CurrentTheme.InputPlaceholder,
+                FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                TextSize = 12,
+                TextColor3 = Kismile.CurrentTheme.TextColor,
+                Text = InputSettings.Password and string.rep("*", #tostring(Value)) or tostring(Value),
+                ClearTextOnFocus = false,
+                BorderSizePixel = 0,
+                ZIndex = 6,
+                Parent = Element,
+            })
+            UIUtil:AddCorner(TextBox, UDim.new(0, 6))
+            UIUtil:AddStroke(TextBox, Kismile.CurrentTheme.InputBorder, 1, 0.5)
+
+            TextBox.FocusLost:Connect(function(Entered)
+                if not InputSettings.Password then
+                    Value = TextBox.Text
+                elseif TextBox.Text ~= string.rep("*", #Value) then
+                    Value = TextBox.Text
+                end
+                if InputSettings.Flag then Kismile:SetFlag(InputSettings.Flag, Value) end
+                if InputSettings.Callback and Entered then InputSettings.Callback(Value) end
+            end)
+
+            Element.SetValue = function(self, NV)
+                Value = tostring(NV or "")
+                TextBox.Text = InputSettings.Password and string.rep("*", #Value) or Value
+            end
+            Element.GetValue = function() return Value end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- Button
+        function Tab:CreateButton(ButtonSettings)
+            ButtonSettings = ButtonSettings or {}
+
+            local Element = UIUtil:Create("TextButton", {
+                Size = UDim2.new(1, -20, 0, 40),
+                BackgroundColor3 = ButtonSettings.Color or Kismile.CurrentTheme.ButtonBackground,
+                Text = "",
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                LayoutOrder = #self.Elements + 1,
+                AutoButtonColor = false,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+
+            UIUtil:CreateText(Element, ButtonSettings.Title or "Button",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                14, ButtonSettings.TextColor or Kismile.CurrentTheme.ButtonText,
+                {
+                    Size = UDim2.new(1, -24, 0, 20),
+                    Position = UDim2.new(0, 12, 0.5, -10),
+                    ZIndex = 6,
+                }
+            )
+
+            if ButtonSettings.Description then
+                UIUtil:CreateText(Element, ButtonSettings.Description,
+                    Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                    11, Kismile.CurrentTheme.TextSecondary,
+                    {
+                        Size = UDim2.new(1, -24, 0, 16),
+                        Position = UDim2.new(0, 12, 0.5, 12),
+                        ZIndex = 6,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                    }
+                )
+            end
+
+            Element.MouseButton1Click:Connect(function()
+                Animation:Tween(Element, { Size = UDim2.new(0.97, -20, 0, 40) }, 0.05)
+                task.delay(0.05, function()
+                    Animation:Tween(Element, { Size = UDim2.new(1, -20, 0, 40) }, 0.1, Enum.EasingStyle.Back)
+                end)
+                if ButtonSettings.Callback then ButtonSettings.Callback() end
+            end)
+
+            Element.MouseEnter:Connect(function()
+                Animation:Tween(Element, { BackgroundColor3 = ButtonSettings.Color or Kismile.CurrentTheme.ButtonHover }, 0.15)
+            end)
+            Element.MouseLeave:Connect(function()
+                Animation:Tween(Element, { BackgroundColor3 = ButtonSettings.Color or Kismile.CurrentTheme.ButtonBackground }, 0.15)
+            end)
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- Label
+        function Tab:CreateLabel(LabelSettings)
+            LabelSettings = LabelSettings or {}
+
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 32),
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                BorderSizePixel = 0,
+                LayoutOrder = #self.Elements + 1,
+                ZIndex = 5,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+            UIUtil:AddStroke(Element, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            local OffsetX = 12
+            if LabelSettings.Icon then
+                UIUtil:CreateText(Element, "o",
+                    Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                    14, LabelSettings.Color or Kismile.CurrentTheme.Accent,
+                    {
+                        Size = UDim2.new(0, 20, 0, 20),
+                        Position = UDim2.new(0, 12, 0.5, -10),
+                        ZIndex = 6,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                    }
+                )
+                OffsetX = 38
+            end
+
+            local LabelText = UIUtil:CreateText(Element, LabelSettings.Title or "Label",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                13, LabelSettings.Color or Kismile.CurrentTheme.TextColor,
+                {
+                    Size = UDim2.new(1, -OffsetX - 12, 0, 20),
+                    Position = UDim2.new(0, OffsetX, 0.5, -10),
+                    ZIndex = 6,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                }
+            )
+
+            Element.SetText = function(self, NT) LabelText.Text = NT end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- Paragraph
+        function Tab:CreateParagraph(ParagraphSettings)
+            ParagraphSettings = ParagraphSettings or {}
+
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                BackgroundColor3 = Kismile.CurrentTheme.ElementBackground,
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+            UIUtil:AddCorner(Element, UDim.new(0, 8))
+            UIUtil:AddStroke(Element, Kismile.CurrentTheme.ElementBorder, 1, 0.5)
+
+            UIUtil:Create("UIPadding", {
+                PaddingTop = UDim.new(0, 10),
+                PaddingBottom = UDim.new(0, 10),
+                PaddingLeft = UDim.new(0, 12),
+                PaddingRight = UDim.new(0, 12),
+                Parent = Element,
+            })
+
+            UIUtil:CreateText(Element, ParagraphSettings.Title or "Paragraph",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                13, Kismile.CurrentTheme.TextColor,
+                { Size = UDim2.new(1, 0, 0, 18), ZIndex = 6 }
+            )
+
+            local ContentLabel = UIUtil:CreateText(Element, ParagraphSettings.Content or "",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                12, Kismile.CurrentTheme.TextSecondary,
+                {
+                    Size = UDim2.new(1, 0, 0, 0),
+                    Position = UDim2.new(0, 0, 0, 22),
+                    TextWrapped = true,
+                    AutomaticSize = Enum.AutomaticSize.Y,
+                    ZIndex = 6,
+                    LineHeight = 1.4,
+                }
+            )
+
+            Element.SetContent = function(self, NC) ContentLabel.Text = NC end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        -- Divider
+        function Tab:CreateDivider(DividerText)
+            local Element = UIUtil:Create("Frame", {
+                Size = UDim2.new(1, -20, 0, 20),
+                BackgroundTransparency = 1,
+                ZIndex = 5,
+                LayoutOrder = #self.Elements + 1,
+                Parent = self.Scroll,
+            })
+
+            UIUtil:Create("Frame", {
+                Size = UDim2.new(1, 0, 0, 1),
+                Position = UDim2.new(0, 0, 0.5, 0),
+                BackgroundColor3 = Kismile.CurrentTheme.SectionLine,
+                BorderSizePixel = 0,
+                Parent = Element,
+            })
+
+            if DividerText then
+                UIUtil:CreateText(Element, DividerText,
+                    Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+                    11, Kismile.CurrentTheme.TextDark,
+                    {
+                        Size = UDim2.new(0, 0, 1, 0),
+                        AutomaticSize = Enum.AutomaticSize.X,
+                        Position = UDim2.new(0.5, 0, 0, 0),
+                        BackgroundColor3 = Kismile.CurrentTheme.Content,
+                        BackgroundTransparency = 0,
+                        ZIndex = 6,
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                    }
+                )
+            end
+
+            table.insert(self.Elements, Element)
+            return Element
+        end
+
+        table.insert(self.Tabs, Tab)
+        return Tab
+    end
+
+    function Window:ActivateTab(Tab)
+        if self.ActiveTab then
+            Animation:Tween(self.ActiveTab.Button, { BackgroundColor3 = Kismile.CurrentTheme.Tab }, 0.15)
+            for _, Child in ipairs(self.ActiveTab.Button:GetChildren()) do
+                if Child:IsA("TextLabel") then
+                    Animation:Tween(Child, { TextColor3 = Kismile.CurrentTheme.TabText }, 0.15)
+                elseif Child:IsA("Frame") and Child.Size == UDim2.new(0, 3, 0, 20) then
+                    Animation:Tween(Child, { BackgroundTransparency = 1 }, 0.15)
+                end
+            end
+            self.ActiveTab.Page.Visible = false
+        end
+
+        self.ActiveTab = Tab
+        Animation:Tween(Tab.Button, { BackgroundColor3 = Kismile.CurrentTheme.TabActive }, 0.15)
+        for _, Child in ipairs(Tab.Button:GetChildren()) do
+            if Child:IsA("TextLabel") then
+                Animation:Tween(Child, { TextColor3 = Kismile.CurrentTheme.TabTextActive }, 0.15)
+            elseif Child:IsA("Frame") and Child.Size == UDim2.new(0, 3, 0, 20) then
+                Animation:Tween(Child, { BackgroundTransparency = 0 }, 0.15)
+            end
+        end
+        Tab.Page.Visible = true
+    end
+
+    function Window:Minimize()
+        Kismile.IsMinimized = true
+        Animation:Tween(self.MainFrame, { Size = UDim2.new(0, 600, 0, 40) }, 0.3, Enum.EasingStyle.Quart)
+    end
+    function Window:Maximize()
+        Kismile.IsMinimized = false
+        Animation:Tween(self.MainFrame, { Size = UDim2.new(0, 600, 0, 420) }, 0.3, Enum.EasingStyle.Quart)
+    end
+    function Window:Hide()
+        Kismile.IsHidden = true; self.MainFrame.Visible = false
+    end
+    function Window:Unhide()
+        Kismile.IsHidden = false; self.MainFrame.Visible = true
+    end
+    function Window:Destroy()
+        Kismile:Destroy()
+    end
+
+    -- Loading animation
+    if Settings.LoadingTitle and Settings.LoadingSubtitle then
+        local LoadingFrame = UIUtil:Create("Frame", {
+            Name = "KismileLoading",
+            Size = UDim2.new(1, 0, 1, -40),
+            Position = UDim2.new(0, 0, 0, 40),
+            BackgroundColor3 = Kismile.CurrentTheme.Background,
+            BorderSizePixel = 0, ZIndex = 99,
+            Parent = MainFrame,
+        })
+        UIUtil:CreateText(LoadingFrame, Settings.LoadingTitle,
+            Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            24, Kismile.CurrentTheme.Accent,
+            { Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 0.5, -35), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 100 }
+        )
+        UIUtil:CreateText(LoadingFrame, Settings.LoadingSubtitle,
+            Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+            13, Kismile.CurrentTheme.TextSecondary,
+            { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.new(0, 0, 0.5, 0), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 100 }
+        )
+        local Spinner = UIUtil:Create("Frame", {
+            Size = UDim2.new(0, 50, 0, 10),
+            Position = UDim2.new(0.5, -25, 0.5, 30),
+            BackgroundTransparency = 1, ZIndex = 100,
+            Parent = LoadingFrame,
+        })
+        for I = 1, 3 do
+            local Dot = UIUtil:Create("Frame", {
+                Size = UDim2.new(0, 8, 0, 8),
+                Position = UDim2.new(0, (I - 1) * 20, 0, 1),
+                BackgroundColor3 = Kismile.CurrentTheme.Accent,
+                BorderSizePixel = 0, ZIndex = 101,
+                Parent = Spinner,
+            })
+            UIUtil:AddCorner(Dot, UDim.new(1, 0))
+            task.spawn(function()
+                while LoadingFrame and LoadingFrame.Parent do
+                    local S = 1 + math.sin(tick() * 5 + I) * 0.3
+                    Dot.Size = UDim2.new(0, 8 * S, 0, 8 * S)
+                    task.wait(0.04)
+                end
+            end)
+        end
+        task.delay(1.5, function()
+            if LoadingFrame and LoadingFrame.Parent then
+                Animation:Tween(LoadingFrame, { BackgroundTransparency = 1 }, 0.3)
+                task.delay(0.3, function() LoadingFrame:Destroy() end)
+            end
+        end)
+    end
+
+    -- Key System UI
+    if Settings.KeySystem then
+        local KS = Settings.KeySystem
+        local KeyFrame = UIUtil:Create("Frame", {
+            Name = "KeySystemFrame",
+            Size = UDim2.new(1, 0, 1, -40),
+            Position = UDim2.new(0, 0, 0, 40),
+            BackgroundColor3 = Kismile.CurrentTheme.Background,
+            BorderSizePixel = 0, ZIndex = 99,
+            Parent = MainFrame,
+        })
+        UIUtil:CreateText(KeyFrame, KS.Title or "Key System",
+            Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            22, Kismile.CurrentTheme.Accent,
+            { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.new(0, 0, 0.5, -55), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 100 }
+        )
+        UIUtil:CreateText(KeyFrame, KS.Subtitle or "Enter your key",
+            Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+            13, Kismile.CurrentTheme.TextSecondary,
+            { Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0, 0, 0.5, -22), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 100 }
+        )
+        local KeyInput = UIUtil:Create("TextBox", {
+            Size = UDim2.new(0, 200, 0, 34),
+            Position = UDim2.new(0.5, -100, 0.5, 5),
+            BackgroundColor3 = Kismile.CurrentTheme.InputBackground,
+            PlaceholderText = KS.Note or "Key...",
+            PlaceholderColor3 = Kismile.CurrentTheme.InputPlaceholder,
+            FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+            TextSize = 14, TextColor3 = Kismile.CurrentTheme.TextColor,
+            ClearTextOnFocus = false, Text = "",
+            ZIndex = 100, BorderSizePixel = 0,
+            Parent = KeyFrame,
+        })
+        UIUtil:AddCorner(KeyInput, UDim.new(0, 8))
+        UIUtil:AddStroke(KeyInput, Kismile.CurrentTheme.InputBorder, 1, 0.5)
+        local SubmitBtn = UIUtil:Create("TextButton", {
+            Size = UDim2.new(0, 200, 0, 36),
+            Position = UDim2.new(0.5, -100, 0.5, 48),
+            BackgroundColor3 = Kismile.CurrentTheme.Accent,
+            Text = KS.ButtonText or "Submit",
+            FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            TextSize = 14, TextColor3 = Color3.fromRGB(255, 255, 255),
+            BorderSizePixel = 0, ZIndex = 100,
+            Parent = KeyFrame,
+        })
+        UIUtil:AddCorner(SubmitBtn, UDim.new(0, 8))
+        local StatusLabel = UIUtil:CreateText(KeyFrame, "",
+            Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
+            12, Color3.fromRGB(255, 80, 80),
+            { Size = UDim2.new(1, -40, 0, 18), Position = UDim2.new(0, 20, 0.5, 92), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 100 }
+        )
+        local function ValidateAndSubmit()
+            local InputKey = KeyInput.Text
+            if InputKey == "" then StatusLabel.Text = "Please enter a key"; return end
+            local Valid = false
+            if KS.Key then
+                if type(KS.Key) == "table" then Valid = table.find(KS.Key, InputKey) ~= nil
+                else Valid = tostring(KS.Key) == InputKey end
+            end
+            if not Valid and KS.KeyValidator then Valid = KS.KeyValidator(InputKey) == true end
+            if Valid then
+                if KS.SaveKey and writefile then
+                    local HWID = gethwid and gethwid() or LocalPlayer.UserId
+                    local Path = "Kismile/" .. (KS.Folder or "Keys") .. "/" .. tostring(HWID) .. ".key"
+                    if not isfolder("Kismile/" .. (KS.Folder or "Keys")) then makefolder("Kismile/" .. (KS.Folder or "Keys")) end
+                    writefile(Path, InputKey)
+                end
+                Animation:Tween(KeyFrame, { BackgroundTransparency = 1 }, 0.3)
+                task.delay(0.3, function() KeyFrame:Destroy() end)
+            else
+                StatusLabel.Text = "Invalid key"
+                Animation:Tween(KeyInput, { BackgroundColor3 = Color3.fromRGB(60, 20, 20) }, 0.1)
+                task.delay(0.3, function() Animation:Tween(KeyInput, { BackgroundColor3 = Kismile.CurrentTheme.InputBackground }, 0.2) end)
+            end
+        end
+        SubmitBtn.MouseButton1Click:Connect(ValidateAndSubmit)
+        KeyInput.FocusLost:Connect(function(E) if E then ValidateAndSubmit() end end)
+    end
+
+    if #Window.Tabs > 0 then Window:ActivateTab(Window.Tabs[1]) end
+    return Window
+end
+
+function Kismile:Minimize() if self.Window then self.Window:Minimize() end end
+function Kismile:Maximize() if self.Window then self.Window:Maximize() end end
+function Kismile:Hide() if self.Window then self.Window:Hide() end end
+function Kismile:Unhide() if self.Window then self.Window:Unhide() end end
+
+return Kismile
