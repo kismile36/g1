@@ -255,6 +255,12 @@ end
 -- ╚══════════════════════════════════════════════════════════╝
 -- ============================================================
 
+-- Element setter registry (avoids setting .Set on Roblox Instances)
+local ElementSetters = setmetatable({}, { __mode = "k" })
+local function bindElement(elem, fn)
+    ElementSetters[elem] = fn
+end
+
 -- Wind UI's adaptive Squircle system using pre-uploaded asset IDs
 -- These are the actual asset IDs used by Wind UI for smooth shapes
 local Shapes = {
@@ -1042,9 +1048,16 @@ end
 function KismileLibrary:LoadConfigFromFile(fileName)
     if not isfile or not readfile then return false end
     local path = ConfigurationFolder .. "/" .. (fileName or self.ConfigFileName or "config") .. ConfigurationExtension
-    if not callSafely(isfile, path) then return false end
-    local content = callSafely(readfile, path)
+    if not isfile(path) then return false end
+    local content = readfile(path)
+    if not content or #content == 0 then return false end
     return self:LoadConfiguration(content)
+end
+
+-- Set element value programmatically (replaces elem:Set(value) pattern)
+function KismileLibrary:SetElement(elem, ...)
+    local fn = ElementSetters[elem]
+    if fn then fn(...) end
 end
 
 -- ============================================================
@@ -2148,8 +2161,7 @@ function KismileLibrary:CreateWindow(Settings)
                 end
             end)
 
-            elem.Set = setToggle
-            elem.SetValue = setToggle
+            bindElement(elem, setToggle)
 
             table.insert(Tab.Elements, elem)
             return elem
@@ -2255,8 +2267,7 @@ function KismileLibrary:CreateWindow(Settings)
             end)
             elem.Destroying:Connect(function() mv:Disconnect(); ed:Disconnect() end)
 
-            elem.Set = setSlider
-            elem.SetValue = setSlider
+            bindElement(elem, setSlider)
             table.insert(Tab.Elements, elem)
             return elem
         end
@@ -2398,11 +2409,11 @@ function KismileLibrary:CreateWindow(Settings)
                 if i.UserInputType == Enum.UserInputType.MouseButton1 then toggle() end
             end)
 
-            elem.Set = function(v)
+            bindElement(elem, function(v)
                 if Multi then Value = v or {} else Value = v end
                 selLabel.Text = getDisplay()
                 rebuild()
-            end
+            end)
 
             table.insert(Tab.Elements, elem)
             return elem
@@ -2506,7 +2517,7 @@ function KismileLibrary:CreateWindow(Settings)
                 end)
             end)
 
-            elem.Set = function(v) Value = v; keyBtn.Text = Value end
+            bindElement(elem, function(v) Value = v; keyBtn.Text = Value end)
             table.insert(Tab.Elements, elem)
             return elem
         end
@@ -2666,14 +2677,14 @@ function KismileLibrary:CreateWindow(Settings)
                 end
             end)
 
-            elem.Set = function(c)
+            bindElement(elem, function(c)
                 if type(c) == "table" and c.R then c = unpackColor(c) end
                 Value = c; prev.BackgroundColor3 = Value
                 H, S, V = Value:ToHSV()
                 hPtr.Position = UDim2.new(H, -1.5, -0.2, 0)
                 svGrid.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
                 svPtr.Position = UDim2.new(S, -4, 1 - V, -4)
-            end
+            end)
 
             table.insert(Tab.Elements, elem)
             return elem
@@ -2729,7 +2740,7 @@ function KismileLibrary:CreateWindow(Settings)
                 end
             end)
 
-            elem.Set = function(v) tbox.Text = v or "" end
+            bindElement(elem, function(v) tbox.Text = v or "" end)
             table.insert(Tab.Elements, elem)
             return elem
         end
@@ -2766,11 +2777,11 @@ function KismileLibrary:CreateWindow(Settings)
                 { Position = UDim2.new(0, off, 0, 0), Size = UDim2.new(1, -off - 8, 1, 0), TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 6 }
             )
 
-            lbl.Set = function(t)
+            bindElement(lbl, function(t)
                 for _, c in lbl:GetChildren() do
                     if c:IsA("TextLabel") then c.Text = t; break end
                 end
-            end
+            end)
 
             table.insert(Tab.Elements, lbl)
             return lbl
