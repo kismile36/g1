@@ -1083,13 +1083,14 @@ function KismileLibrary:Notify(data)
 
     local offset = 12
     if data.Image then
-        local icon = Instance.new("ImageLabel")
-        icon.Image = "rbxassetid://" .. tostring(data.Image)
-        icon.BackgroundTransparency = 1
-        icon.Size = UDim2.new(0, 22, 0, 22)
-        icon.Position = UDim2.new(0, 12, 0, 14)
-        icon.ImageColor3 = SelectedTheme.TextColor
-        icon.Parent = n
+        -- Use text-based icon instead of remote asset
+        local iconText = "i"
+        if type(data.Image) == "string" then iconText = data.Image end
+        local icon = createText(n, iconText,
+            Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            16, SelectedTheme.TextColor,
+            { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(0, 12, 0, 14), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 101 }
+        )
         offset = 42
     end
 
@@ -1283,15 +1284,11 @@ local function createSearchBar(main, parent)
     addCorner(SearchBg, UDim.new(0, 6))
     addStroke(SearchBg, SelectedTheme.ElementStroke, 1, 0)
 
-    local SearchIcon = Instance.new("ImageLabel")
-    SearchIcon.Name = "SearchIcon"
-    SearchIcon.Size = UDim2.new(0, 16, 0, 16)
-    SearchIcon.Position = UDim2.new(0, 6, 0.5, -8)
-    SearchIcon.Image = "rbxassetid://107097913519456"
-    SearchIcon.BackgroundTransparency = 1
-    SearchIcon.ImageColor3 = SelectedTheme.TextColor
-    SearchIcon.ZIndex = 11
-    SearchIcon.Parent = SearchBg
+    local SearchIcon = createText(SearchBg, "O",
+        Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        14, SelectedTheme.TextColor,
+        { Size = UDim2.new(0, 18, 0, 18), Position = UDim2.new(0, 4, 0.5, -9), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 11 }
+    )
 
     local SearchInput = Instance.new("TextBox")
     SearchInput.Name = "SearchInput"
@@ -1576,32 +1573,17 @@ function KismileLibrary:CreateWindow(Settings)
     DragBarCosmetic.Parent = DragBar
     addCorner(DragBarCosmetic, UDim.new(1, 0))
 
-    -- Main Frame with image-based shape
-    local Main = Instance.new("ImageLabel")
+    -- Main Frame (native Frame + UICorner, no remote asset dependency)
+    local Main = Instance.new("Frame")
     Main.Name = "Main"
-    Main.Image = "rbxassetid://10967984893"
-    Main.ImageColor3 = SelectedTheme.Background
-    Main.ScaleType = Enum.ScaleType.Slice
-    Main.SliceCenter = Rect.new(15, 15, 475, 475)
     Main.Size = UDim2.new(0, 560, 0, 390)
     Main.Position = UDim2.new(0.5, -280, 0.5, -195)
-    Main.BackgroundTransparency = 1
+    Main.BackgroundColor3 = SelectedTheme.Background
+    Main.BorderSizePixel = 0
     Main.ClipsDescendants = true
     Main.ZIndex = 1
     Main.Parent = KismileGui
-
-    -- Shadow
-    local Shadow = Instance.new("ImageLabel")
-    Shadow.Name = "Shadow"
-    Shadow.Image = "rbxassetid://10967984893"
-    Shadow.ImageColor3 = SelectedTheme.Shadow
-    Shadow.ScaleType = Enum.ScaleType.Slice
-    Shadow.SliceCenter = Rect.new(15, 15, 475, 475)
-    Shadow.Size = UDim2.new(1, 20, 1, 20)
-    Shadow.Position = UDim2.new(0, -10, 0, -10)
-    Shadow.BackgroundTransparency = 1
-    Shadow.ZIndex = 0
-    Shadow.Parent = Main
+    addCorner(Main, UDim.new(0, 8))
 
     -- Topbar
     local Topbar = Instance.new("Frame")
@@ -1611,6 +1593,9 @@ function KismileLibrary:CreateWindow(Settings)
     Topbar.BorderSizePixel = 0
     Topbar.ZIndex = 2
     Topbar.Parent = Main
+    -- Topbar needs only top corners rounded
+    local topbarCorner = Instance.new("UICorner", Topbar)
+    topbarCorner.CornerRadius = UDim.new(0, 8)
 
     local TopbarCorner = Instance.new("Frame")
     TopbarCorner.Name = "CornerRepair"
@@ -1621,6 +1606,15 @@ function KismileLibrary:CreateWindow(Settings)
     TopbarCorner.ZIndex = 2
     TopbarCorner.Parent = Topbar
 
+    -- Topbar border line
+    local TopbarLine = Instance.new("Frame")
+    TopbarLine.Size = UDim2.new(1, 0, 0, 1)
+    TopbarLine.Position = UDim2.new(0, 0, 1, -1)
+    TopbarLine.BackgroundColor3 = SelectedTheme.ElementStroke
+    TopbarLine.BorderSizePixel = 0
+    TopbarLine.ZIndex = 3
+    TopbarLine.Parent = Topbar
+
     -- Title
     local TitleLabel = createText(Topbar, Settings.Name or "Kismile UI",
         Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
@@ -1628,58 +1622,78 @@ function KismileLibrary:CreateWindow(Settings)
         { Position = UDim2.new(0, 12, 0, 0), Size = UDim2.new(0, 180, 1, 0), Name = "Title", ZIndex = 3 }
     )
 
-    -- Topbar Buttons: Settings (if applicable), Search, Minimize, Hide
-    local TopbarButtonOffset = -34
+    -- Topbar Buttons (TextButton-based, no remote asset dependency)
+    local TopbarButtonOffset = -35
 
-    -- Hide button
-    local HideBtn = Instance.new("ImageButton")
+    -- Hide button (x)
+    local HideBtn = Instance.new("TextButton")
     HideBtn.Name = "Hide"
-    HideBtn.Size = UDim2.new(0, 22, 0, 22)
+    HideBtn.Size = UDim2.new(0, 26, 0, 22)
     HideBtn.Position = UDim2.new(1, TopbarButtonOffset, 0, 8)
-    HideBtn.Image = "rbxassetid://107473848843970"
     HideBtn.BackgroundTransparency = 1
-    HideBtn.ImageTransparency = 0.8
+    HideBtn.Text = "x"
+    HideBtn.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    HideBtn.TextSize = 16
+    HideBtn.TextColor3 = SelectedTheme.TextColor
+    HideBtn.TextTransparency = 0.6
+    HideBtn.TextXAlignment = Enum.TextXAlignment.Center
+    HideBtn.TextYAlignment = Enum.TextYAlignment.Center
     HideBtn.ZIndex = 3
     HideBtn.Parent = Topbar
     TopbarButtonOffset = TopbarButtonOffset - 26
 
-    -- Minimize/Size button
-    local SizeBtn = Instance.new("ImageButton")
+    -- Minimize button (_)
+    local SizeBtn = Instance.new("TextButton")
     SizeBtn.Name = "ChangeSize"
-    SizeBtn.Size = UDim2.new(0, 22, 0, 22)
+    SizeBtn.Size = UDim2.new(0, 26, 0, 22)
     SizeBtn.Position = UDim2.new(1, TopbarButtonOffset, 0, 8)
-    SizeBtn.Image = "rbxassetid://110540191827594"
     SizeBtn.BackgroundTransparency = 1
-    SizeBtn.ImageTransparency = 0.8
+    SizeBtn.Text = "_"
+    SizeBtn.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    SizeBtn.TextSize = 16
+    SizeBtn.TextColor3 = SelectedTheme.TextColor
+    SizeBtn.TextTransparency = 0.6
+    SizeBtn.TextXAlignment = Enum.TextXAlignment.Center
+    SizeBtn.TextYAlignment = Enum.TextYAlignment.Center
     SizeBtn.ZIndex = 3
     SizeBtn.Parent = Topbar
     TopbarButtonOffset = TopbarButtonOffset - 26
 
-    -- Search button
-    local SearchBtn = Instance.new("ImageButton")
+    -- Search button (O)
+    local SearchBtn = Instance.new("TextButton")
     SearchBtn.Name = "Search"
-    SearchBtn.Size = UDim2.new(0, 22, 0, 22)
+    SearchBtn.Size = UDim2.new(0, 26, 0, 22)
     SearchBtn.Position = UDim2.new(1, TopbarButtonOffset, 0, 8)
-    SearchBtn.Image = "rbxassetid://107097913519456"
     SearchBtn.BackgroundTransparency = 1
-    SearchBtn.ImageTransparency = 0.8
+    SearchBtn.Text = "O"
+    SearchBtn.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    SearchBtn.TextSize = 14
+    SearchBtn.TextColor3 = SelectedTheme.TextColor
+    SearchBtn.TextTransparency = 0.6
+    SearchBtn.TextXAlignment = Enum.TextXAlignment.Center
+    SearchBtn.TextYAlignment = Enum.TextYAlignment.Center
     SearchBtn.ZIndex = 3
     SearchBtn.Parent = Topbar
 
-    -- Settings button (Wind UI TopbarButton style)
+    -- Settings button
     local SettingsBtn = nil
     if Settings.Settings then
-        SettingsBtn = Instance.new("ImageButton")
+        SettingsBtn = Instance.new("TextButton")
         SettingsBtn.Name = "Settings"
-        SettingsBtn.Size = UDim2.new(0, 22, 0, 22)
-        SettingsBtn.Position = UDim2.new(1, -104, 0, 8)
-        SettingsBtn.Image = "rbxassetid://107097914958673"
+        SettingsBtn.Size = UDim2.new(0, 26, 0, 22)
+        SettingsBtn.Position = UDim2.new(1, -105, 0, 8)
         SettingsBtn.BackgroundTransparency = 1
-        SettingsBtn.ImageTransparency = 0.8
+        SettingsBtn.Text = "*"
+        SettingsBtn.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+        SettingsBtn.TextSize = 16
+        SettingsBtn.TextColor3 = SelectedTheme.TextColor
+        SettingsBtn.TextTransparency = 0.6
+        SettingsBtn.TextXAlignment = Enum.TextXAlignment.Center
+        SettingsBtn.TextYAlignment = Enum.TextYAlignment.Center
         SettingsBtn.ZIndex = 3
         SettingsBtn.Parent = Topbar
 
-        -- Divider line
+        -- Divider
         local Divider = Instance.new("Frame")
         Divider.Size = UDim2.new(0, 1, 0, 10)
         Divider.Position = UDim2.new(1, -82, 0.5, -5)
@@ -1825,8 +1839,8 @@ function KismileLibrary:CreateWindow(Settings)
     local topbarBtns = { HideBtn, SizeBtn, SearchBtn }
     if SettingsBtn then table.insert(topbarBtns, SettingsBtn) end
     for _, b in ipairs(topbarBtns) do
-        b.MouseEnter:Connect(function() xtween(b, { ImageTransparency = 0 }, 0.7) end)
-        b.MouseLeave:Connect(function() xtween(b, { ImageTransparency = 0.8 }, 0.7) end)
+        b.MouseEnter:Connect(function() xtween(b, { TextTransparency = 0 }, 0.7) end)
+        b.MouseLeave:Connect(function() xtween(b, { TextTransparency = 0.6 }, 0.7) end)
     end
 
     -- ============================================================
@@ -1894,7 +1908,7 @@ function KismileLibrary:CreateWindow(Settings)
                         xtween(ActiveTab.Button.UIStroke, { Color = SelectedTheme.TabStroke }, 0.5)
                     end
                     if ActiveTab.Button:FindFirstChild("Image") then
-                        xtween(ActiveTab.Button.Image, { ImageColor3 = SelectedTheme.TabTextColor }, 0.7)
+                        if ActiveTab.Button:FindFirstChild("Image") then xtween(ActiveTab.Button.Image, { TextColor3 = SelectedTheme.TabTextColor }, 0.7) end
                     end
                     if ActiveTab.Button:FindFirstChild("Title") then
                         xtween(ActiveTab.Button.Title, { TextColor3 = SelectedTheme.TabTextColor }, 0.7)
@@ -1928,34 +1942,32 @@ function KismileLibrary:CreateWindow(Settings)
 
     -- Wind UI TopbarButton registration
     function Window:CreateTopbarButton(Name, Icon, Callback)
-        local btn = Instance.new("ImageButton")
+        local btn = Instance.new("TextButton")
         btn.Name = Name
-        btn.Size = UDim2.new(0, 22, 0, 22)
+        btn.Size = UDim2.new(0, 26, 0, 22)
         btn.Position = UDim2.new(1, TopbarButtonOffset, 0, 8)
         btn.BackgroundTransparency = 1
-        btn.ImageTransparency = 0.8
+        btn.TextTransparency = 0.6
         btn.ZIndex = 3
         btn.Parent = Topbar
 
-        -- Set icon
-        if type(Icon) == "number" then
-            btn.Image = "rbxassetid://" .. Icon
-        elseif type(Icon) == "string" then
-            btn.Image = Icon
-        else
-            btn.Image = "rbxassetid://107097914958673"
-        end
+        -- Set icon as text
+        if type(Icon) == "string" then btn.Text = Icon
+        elseif type(Icon) == "number" then btn.Text = "#"
+        else btn.Text = "*" end
 
-        btn.MouseEnter:Connect(function() xtween(btn, { ImageTransparency = 0 }, 0.7) end)
-        btn.MouseLeave:Connect(function() xtween(btn, { ImageTransparency = 0.8 }, 0.7) end)
-        if Callback then
-            btn.MouseButton1Click:Connect(Callback)
-        end
+        btn.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+        btn.TextSize = 14
+        btn.TextColor3 = SelectedTheme.TextColor
+        btn.TextXAlignment = Enum.TextXAlignment.Center
+        btn.TextYAlignment = Enum.TextYAlignment.Center
 
-        -- Shift position
+        btn.MouseEnter:Connect(function() xtween(btn, { TextTransparency = 0 }, 0.7) end)
+        btn.MouseLeave:Connect(function() xtween(btn, { TextTransparency = 0.6 }, 0.7) end)
+        if Callback then btn.MouseButton1Click:Connect(Callback) end
+
         TopbarButtonOffset = TopbarButtonOffset - 26
         table.insert(KismileLibrary.TopbarButtons, btn)
-
         return btn
     end
 
@@ -1971,20 +1983,21 @@ function KismileLibrary:CreateWindow(Settings)
         addCorner(TabButton, UDim.new(0, 6))
         addStroke(TabButton, SelectedTheme.TabStroke, 1.5, 0)
 
-        local TabIcon = Instance.new("ImageLabel")
-        TabIcon.Name = "Image"
-        TabIcon.Size = UDim2.new(0, 18, 0, 18)
-        TabIcon.Position = UDim2.new(0, 8, 0.5, -9)
-        TabIcon.Image = Image and type(Image) == "number" and ("rbxassetid://" .. Image) or ""
-        TabIcon.ImageColor3 = SelectedTheme.TabTextColor
-        TabIcon.BackgroundTransparency = 1
-        TabIcon.ZIndex = 3
-        TabIcon.Parent = TabButton
+        local TabIcon
+        local iconOffset = 10
+        if Image then
+            TabIcon = createText(TabButton, type(Image) == "string" and Image or ">",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                14, SelectedTheme.TabTextColor,
+                { Name = "Image", Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 7, 0.5, -10), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 3 }
+            )
+            iconOffset = 32
+        end
 
         local TabTitle = createText(TabButton, Name,
             Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
             12, SelectedTheme.TabTextColor,
-            { Name = "Title", Position = UDim2.new(0, Image and 32 or 10, 0, 0), Size = UDim2.new(1, -(Image and 40 or 18), 1, 0), TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 3 }
+            { Name = "Title", Position = UDim2.new(0, iconOffset, 0, 0), Size = UDim2.new(1, -(iconOffset + 8), 1, 0), TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 3 }
         )
 
         -- Tab page
@@ -2038,7 +2051,7 @@ function KismileLibrary:CreateWindow(Settings)
                         if ActiveTab.Button:FindFirstChild("UIStroke") then
                             xtween(ActiveTab.Button.UIStroke, { Color = SelectedTheme.TabStroke }, 0.5)
                         end
-                        xtween(ActiveTab.Button.Image, { ImageColor3 = SelectedTheme.TabTextColor }, 0.7)
+                        if ActiveTab.Button:FindFirstChild("Image") then xtween(ActiveTab.Button.Image, { TextColor3 = SelectedTheme.TabTextColor }, 0.7) end
                         xtween(ActiveTab.Button.Title, { TextColor3 = SelectedTheme.TabTextColor }, 0.7)
                         ActiveTab.Page.Visible = false
                     end
@@ -2048,7 +2061,7 @@ function KismileLibrary:CreateWindow(Settings)
                     if Tab.Button:FindFirstChild("UIStroke") then
                         xtween(Tab.Button.UIStroke, { Color = SelectedTheme.TabBackgroundSelected }, 0.5)
                     end
-                    xtween(TabIcon, { ImageColor3 = SelectedTheme.SelectedTabTextColor }, 0.7)
+                    if TabIcon then xtween(TabIcon, { TextColor3 = SelectedTheme.SelectedTabTextColor }, 0.7) end
                     xtween(TabTitle, { TextColor3 = SelectedTheme.SelectedTabTextColor }, 0.7)
                     Tab.Page.Visible = true
                     PageLayout:JumpTo(TabPage)
@@ -2312,14 +2325,11 @@ function KismileLibrary:CreateWindow(Settings)
                 { Position = UDim2.new(0.5, 0, 0, 0), Size = UDim2.new(0.5, -30, 1, 0), TextXAlignment = Enum.TextXAlignment.Right, TextTruncate = Enum.TextTruncate.AtEnd, ZIndex = 6 }
             )
 
-            local arrow = Instance.new("ImageLabel")
-            arrow.Image = "rbxassetid://107097914350370"
-            arrow.Size = UDim2.new(0, 16, 0, 16)
-            arrow.Position = UDim2.new(1, -24, 0.5, -8)
-            arrow.BackgroundTransparency = 1
-            arrow.ImageColor3 = SelectedTheme.TextColor
-            arrow.ZIndex = 6
-            arrow.Parent = elem
+            local arrow = createText(elem, "v",
+                Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                16, SelectedTheme.TextColor,
+                { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(1, -26, 0.5, -10), TextXAlignment = Enum.TextXAlignment.Center, TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 6 }
+            )
 
             -- Options
             local optList = Instance.new("ScrollingFrame")
@@ -2760,14 +2770,11 @@ function KismileLibrary:CreateWindow(Settings)
 
             local off = 10
             if Icon and Icon ~= 0 then
-                local icon = Instance.new("ImageLabel")
-                icon.Image = type(Icon) == "number" and ("rbxassetid://" .. Icon) or Icon
-                icon.Size = UDim2.new(0, 18, 0, 18)
-                icon.Position = UDim2.new(0, 8, 0.5, -9)
-                icon.BackgroundTransparency = 1
-                icon.ImageColor3 = IgnoreTheme and (Color or SelectedTheme.TextColor) or SelectedTheme.TextColor
-                icon.ZIndex = 6
-                icon.Parent = lbl
+                createText(lbl, type(Icon) == "string" and Icon or ">",
+                    Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                    14, IgnoreTheme and (Color or SelectedTheme.TextColor) or SelectedTheme.TextColor,
+                    { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 8, 0.5, -10), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 6 }
+                )
                 off = 32
             end
 
@@ -2867,8 +2874,7 @@ function KismileLibrary:CreateWindow(Settings)
         ChangeTheme(Theme)
 
         -- Update main frame
-        if Main then Main.ImageColor3 = SelectedTheme.Background end
-        if Shadow then Shadow.ImageColor3 = SelectedTheme.Shadow end
+        if Main then Main.BackgroundColor3 = SelectedTheme.Background end
         if Topbar then Topbar.BackgroundColor3 = SelectedTheme.Topbar end
         if TopbarCorner then TopbarCorner.BackgroundColor3 = SelectedTheme.Topbar end
         TitleLabel.TextColor3 = SelectedTheme.TextColor
@@ -2906,7 +2912,7 @@ function KismileLibrary:CreateWindow(Settings)
                     xtween(t.Button.UIStroke, { Color = SelectedTheme.TabStroke }, 0.5)
                 end
                 if t.Button:FindFirstChild("Image") then
-                    xtween(t.Button.Image, { ImageColor3 = SelectedTheme.TabTextColor }, 0.5)
+                    if t.Button:FindFirstChild("Image") then xtween(t.Button.Image, { TextColor3 = SelectedTheme.TabTextColor }, 0.5) end
                 end
                 if t.Button:FindFirstChild("Title") then
                     xtween(t.Button.Title, { TextColor3 = SelectedTheme.TabTextColor }, 0.5)
@@ -2919,7 +2925,7 @@ function KismileLibrary:CreateWindow(Settings)
                 xtween(ActiveTab.Button.UIStroke, { Color = SelectedTheme.TabBackgroundSelected }, 0.5)
             end
             if ActiveTab.Button:FindFirstChild("Image") then
-                xtween(ActiveTab.Button.Image, { ImageColor3 = SelectedTheme.SelectedTabTextColor }, 0.5)
+                if ActiveTab.Button:FindFirstChild("Image") then xtween(ActiveTab.Button.Image, { TextColor3 = SelectedTheme.SelectedTabTextColor }, 0.5) end
             end
             if ActiveTab.Button:FindFirstChild("Title") then
                 xtween(ActiveTab.Button.Title, { TextColor3 = SelectedTheme.SelectedTabTextColor }, 0.5)
