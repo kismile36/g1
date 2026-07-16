@@ -416,7 +416,7 @@ end
 -- Bring Mob
 -- 原版效果: 水平微偏移贴目标 + ChangeState(11)
 -- astral: 150 半径防 ghost + 清线速度/角速度，避免聚怪起飞
-local BringRadius = 150
+local BringRadius = 250
 local BringZero = Vector3.new(0, 0, 0)
 local BringSimReady = false
 
