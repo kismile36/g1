@@ -23,9 +23,6 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
 
---====================================================
--- 反挂机 (Anti-AFK) 默认开启
---====================================================
 LocalPlayer.Idled:Connect(function()
     VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
     task.wait(1)
@@ -345,16 +342,12 @@ startAutoHakiLoop()
 handleAbility("V3")
 handleAbility("V4")
 
---====================================================
--- 全局状态标志位（必须放在两个循环上面）
---====================================================
+
 local previousAutoBird = false
 local previousBringMob = false
 _G.isHuntingBird = false -- 改为全局变量，确保不同线程/循环间能够共享和拦截
 
---====================================================
--- 自动控制循环 (刷怪 共享逻辑)
---====================================================
+
 local FarmConnection = nil
 local rightSpawnCFrame = CFrame.new(-16538.543, 74.8822479, -353.176544, 0.942829669, 2.85748261e-08, -0.333274961, -1.46747183e-08, 1, 4.42249402e-08, 0.333274961, -3.68058721e-08, 0.942829669)
 local leftSpawnCFrame = CFrame.new(-16647.9375, 163.243622, 1365.65027, 0.0498976, 4.11380086e-08, -0.998754323, 4.56860789e-08, 1, 4.34717862e-08, 0.998754323, -4.77983093e-08, 0.0498976)
@@ -419,77 +412,79 @@ local function GetFarmTarget()
     return nearestMob
 end
 
---====================================================
--- 聚怪逻辑 (Bring Mob)
---====================================================
-local sethiddenproperty_called = false
-task.spawn(function()
-    while task.wait(5) do
-        if _G.BringMob then
-            pcall(function()
-                sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
-                sethiddenproperty_called = true
-            end)
-        end
-    end
-end)
+
+-- Bring Mob
+-- 原版效果: 水平微偏移贴目标 + ChangeState(11)
+-- astral: 150 半径防 ghost + 清线速度/角速度，避免聚怪起飞
+local BringRadius = 150
+local BringZero = Vector3.new(0, 0, 0)
+local BringSimReady = false
+
+local function BringOffsetXZ()
+    -- 只偏移 X/Z，Y 永远 0
+    return Vector3.new(math.random(-5, 5) / 10, 0, math.random(-5, 5) / 10)
+end
 
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait() do
         if _G.BringMob then
             pcall(function()
                 local character = LocalPlayer.Character
-                if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-                
-                local myPos = character.HumanoidRootPart.Position
+                if not character or not character:FindFirstChild("HumanoidRootPart") then
+                    return
+                end
+
                 local enemiesFolder = workspace:FindFirstChild("Enemies")
-                if not enemiesFolder then return end
-                
+                if not enemiesFolder then
+                    return
+                end
+
                 local targetMob = GetFarmTarget()
                 local targetRoot = targetMob and targetMob:FindFirstChild("HumanoidRootPart")
-                local BringPos = targetRoot and targetRoot.CFrame or (character.HumanoidRootPart.CFrame * CFrame.new(0, -25, 0))
-                
-                for _, mob in ipairs(enemiesFolder:GetChildren()) do
+                local bringPos = targetRoot and targetRoot.CFrame
+                    or (character.HumanoidRootPart.CFrame * CFrame.new(0, -25, 0))
+                local center = bringPos.Position
+
+                if not BringSimReady then
+                    pcall(function()
+                        sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
+                    end)
+                    BringSimReady = true
+                end
+
+                for _, mob in pairs(enemiesFolder:GetChildren()) do
                     if not string.find(mob.Name, "Boss") and mob.Name ~= "Tyrant of the Skies" then
                         local root = mob:FindFirstChild("HumanoidRootPart")
                         local hum = mob:FindFirstChild("Humanoid")
-                        
-                        -- 判断距离
-                        if root and hum and hum.Health > 0 and (root.Position - myPos).Magnitude <= 350 then
-                            
-                            -- 将怪物的 CFrame 锁定到 BringPos
-                            root.CFrame = BringPos
-                            
-                            -- 【优化】只有当怪物物理属性没被修改时，才去修改它们。避免每秒重复写导致底层引擎大量重算
-                            if hum.WalkSpeed ~= 0 then hum.WalkSpeed = 0 end
-                            if hum.JumpPower ~= 0 then hum.JumpPower = 0 end
-                            if root.Transparency ~= 1 then root.Transparency = 1 end
-                            if root.CanCollide then root.CanCollide = false end
-                            
-                            if mob:FindFirstChild("Head") and mob.Head.CanCollide then
-                                mob.Head.CanCollide = false
+                        if root and hum and hum.Health > 0
+                        and (root.Position - center).Magnitude <= BringRadius then
+                            -- 先钉位再清速度，避免 Y 轴残余速度把怪弹飞
+                            root.CFrame = bringPos + BringOffsetXZ()
+                            root.AssemblyLinearVelocity = BringZero
+                            root.AssemblyAngularVelocity = BringZero
+                            root.CanCollide = false
+
+                            local head = mob:FindFirstChild("Head")
+                            if head then
+                                head.CanCollide = false
                             end
-                            
-                            if hum:FindFirstChild("Animator") then
-                                hum.Animator:Destroy()
-                            end
-                            
-                            if not root:FindFirstChild("Lock") then
-                                local bv = Instance.new("BodyVelocity")
-                                bv.Parent = root
-                                bv.Name = "Lock"
-                                bv.MaxForce = Vector3.new(100000, 100000, 100000)
-                                bv.Velocity = Vector3.new(0, 0, 0)
-                            end
-                            
-                            -- 强制状态转换 (11 = Seated)
+
+                            -- Seated 锁住；不使用 Landing(14)，避免起飞
                             if hum:GetState() ~= Enum.HumanoidStateType.Seated then
                                 hum:ChangeState(11)
+                            end
+                            if hum.WalkSpeed ~= 0 then
+                                hum.WalkSpeed = 0
+                            end
+                            if hum.JumpPower ~= 0 then
+                                hum.JumpPower = 0
                             end
                         end
                     end
                 end
             end)
+        else
+            BringSimReady = false
         end
     end
 end)
@@ -975,7 +970,7 @@ end)
 -- FPS 优化逻辑 (删除粒子/特效)
 --====================================================
 task.spawn(function()
-    while task.wait(5) do
+    while task.wait(2) do
         if _G.OptimizeFPS then
             pcall(function()
                 for _, obj in ipairs(workspace:GetDescendants()) do
@@ -983,10 +978,6 @@ task.spawn(function()
                         obj:Destroy()
                     end
                 end
-                
-                -- 如果需要极致优化，可以连带光照效果一起关掉（取消注释）
-                -- game:GetService("Lighting").GlobalShadows = false
-                -- game:GetService("Lighting").FogEnd = 9e9
             end)
         end
     end
@@ -1161,7 +1152,7 @@ RJR["10"]:Toggle({
 RJR["10"]:Keybind({
     Title = "窗口切换键",
     Desc = "切换窗口显示状态",
-    Value = "G",
+    Value = "L",
     Callback = function(v)
         Window:SetToggleKey(Enum.KeyCode[v])
     end
