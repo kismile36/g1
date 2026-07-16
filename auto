@@ -21,20 +21,12 @@ local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
 
 local LocalPlayer = Players.LocalPlayer
-local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
 
 LocalPlayer.Idled:Connect(function()
     VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
     task.wait(1)
     VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
 end)
-
-local FastAttackSettings = {
-    Range = 1000,           
-    AttackSpeed = 0.05,     
-    AutoScanRemotes = true, 
-}
-
 
 local function forceNoclip()
     local character = LocalPlayer.Character
@@ -144,145 +136,132 @@ local function StopTween()
 end
 
 
-local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
-local RegisterHit = Net:WaitForChild("RE/RegisterHit")
-local RemoteSeed = Net:FindFirstChild("seed")
-
-local State = {
-    FoundRemote = nil,
-    FoundRemoteId = nil,
-    LastAttack = 0
+-- Fast Attack (from redz)
+local v1 = next
+local v2 = {
+    game.ReplicatedStorage.Util,
+    game.ReplicatedStorage.Common,
+    game.ReplicatedStorage.Remotes,
+    game.ReplicatedStorage.Assets,
+    game.ReplicatedStorage.FX,
 }
+local v3 = nil
+local u4 = nil
+local u5 = nil
 
+while true do
+    local v6
 
-if FastAttackSettings.AutoScanRemotes then
-    task.spawn(function()
-        local folders = {
-            ReplicatedStorage:FindFirstChild("Util"),
-            ReplicatedStorage:FindFirstChild("Common"),
-            ReplicatedStorage:FindFirstChild("Remotes"),
-            ReplicatedStorage:FindFirstChild("Assets"),
-            ReplicatedStorage:FindFirstChild("FX"),
-        }
+    v3, v6 = v1(v2, v3)
 
-        local function checkChild(child)
-            if child:IsA("RemoteEvent") and child:GetAttribute("Id") then
-                State.FoundRemoteId = child:GetAttribute("Id")
-                State.FoundRemote = child
-            end
+    if v3 == nil then
+        break
+    end
+
+    local v7 = next
+    local v8, v9 = v6:GetChildren()
+
+    while true do
+        local v10
+
+        v9, v10 = v7(v8, v9)
+
+        if v9 == nil then
+            break
         end
+        if v10:IsA('RemoteEvent') and v10:GetAttribute('Id') then
+            u5 = v10:GetAttribute('Id')
+            u4 = v10
+        end
+    end
 
-        for _, folder in ipairs(folders) do
-            if folder then
-                for _, child in ipairs(folder:GetChildren()) do checkChild(child) end
-                folder.ChildAdded:Connect(checkChild)
-            end
+    v6.ChildAdded:Connect(function(p11)
+        if p11:IsA('RemoteEvent') and p11:GetAttribute('Id') then
+            u5 = p11:GetAttribute('Id')
+            u4 = p11
         end
     end)
 end
-
-local function GetTargets()
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return {} end
-
-    local targets = {}
-    local myPos = root.Position
-    
-    
-    local folders = {workspace:FindFirstChild("Enemies"), workspace:FindFirstChild("Characters")}
-    
-    for _, folder in ipairs(folders) do
-        if not folder then continue end
-        for _, model in ipairs(folder:GetChildren()) do
-            if model == char then continue end
-            
-            local tRoot = model:FindFirstChild("HumanoidRootPart")
-            local tHum = model:FindFirstChild("Humanoid")
-            
-            if tRoot and tHum and tHum.Health > 0 then
-                local dist = (tRoot.Position - myPos).Magnitude
-                if dist <= FastAttackSettings.Range then
-                    table.insert(targets, {
-                        Model = model,
-                        Root = tRoot,
-                        Head = model:FindFirstChild("Head") or tRoot
-                    })
-                end
-            end
-        end
-    end
-    return targets
-end
-
-
-local function PerformAttack()
-    local char = LocalPlayer.Character
-    if not char then return end
-
-    
-    local hasTool = char:FindFirstChildOfClass("Tool") or char:FindFirstChild("EquippedWeapon")
-    if not hasTool then return end
-
-    local targets = GetTargets()
-    if #targets == 0 then return end
-
-   
-    local mainTarget = targets[1]
-    local hitList = {}
-    for i, target in ipairs(targets) do
-       
-        table.insert(hitList, {target.Model, target.Root})
-    end
-
-   
-    RegisterAttack:FireServer()
-
-    
-    local fakeHash = tostring(LocalPlayer.UserId):sub(2,4) .. tostring(math.random(10000, 99999))
-    pcall(function()
-        RegisterHit:FireServer(
-            mainTarget.Head,
-            hitList,
-            {},
-            fakeHash
-        )
-    end)
-
-   
-    if State.FoundRemote and State.FoundRemoteId then
-        pcall(function()
-            local seedValue = RemoteSeed and RemoteSeed:InvokeServer() or 1
-            local encryptedId = bit32.bxor(State.FoundRemoteId + 909090, seedValue * 2)
-            
-            -- 这里保留原有的加密字符串逻辑
-            local rawName = "RE/RegisterHit"
-            local timestamp = math.floor(workspace:GetServerTimeNow() / 10 % 10) + 1
-            local encryptedName = string.gsub(rawName, ".", function(c)
-                return string.char(bit32.bxor(string.byte(c), timestamp))
-            end)
-
-            State.FoundRemote:FireServer(encryptedName, encryptedId, mainTarget.Head, hitList)
-        end)
-    end
-end
-
 
 task.spawn(function()
-    while true do
-        local startTime = tick()
-        
+    while task.wait(0.15) do
+        -- Só executa se o toggle estiver ativado
         if _G.FastAttack then
-            local success, err = pcall(PerformAttack)
-            if not success then
-                warn("Attack Cycle Error: " .. tostring(err))
+            local _Character = game.Players.LocalPlayer.Character
+            local v13
+
+            if _Character then
+                v13 = _Character:FindFirstChild('HumanoidRootPart')
+            else
+                v13 = _Character
+            end
+
+            local v14, v15, v16 = ipairs({
+                workspace.Enemies,
+                workspace.Characters,
+            })
+            local u17 = {}
+
+            while true do
+                local v18
+
+                v16, v18 = v14(v15, v16)
+
+                if v16 == nil then
+                    break
+                end
+
+                local v19, v20, v21 = ipairs(v18 and v18:GetChildren() or {})
+
+                while true do
+                    local v22
+
+                    v21, v22 = v19(v20, v21)
+
+                    if v21 == nil then
+                        break
+                    end
+
+                    local _HumanoidRootPart = v22:FindFirstChild('HumanoidRootPart')
+                    local _Humanoid = v22:FindFirstChild('Humanoid')
+
+                    if v22 ~= _Character and (_HumanoidRootPart and (_Humanoid and (_Humanoid.Health > 0 and (_HumanoidRootPart.Position - v13.Position).Magnitude <= 60))) then
+                        local v25, v26, v27 = ipairs(v22:GetChildren())
+
+                        while true do
+                            local v28
+
+                            v27, v28 = v25(v26, v27)
+
+                            if v27 == nil then
+                                break
+                            end
+                            if v28:IsA('BasePart') and (_HumanoidRootPart.Position - v13.Position).Magnitude <= 60 then
+                                u17[#u17 + 1] = {v22, v28}
+                            end
+                        end
+                    end
+                end
+            end
+
+            local _Tool = _Character:FindFirstChildOfClass('Tool')
+
+            if #u17 > 0 and (_Tool and (_Tool:GetAttribute('WeaponType') == 'Melee' or _Tool:GetAttribute('WeaponType') == 'Sword')) then
+                pcall(function()
+                    require(game.ReplicatedStorage.Modules.Net):RemoteEvent('RegisterHit', true)
+                    game.ReplicatedStorage.Modules.Net['RE/RegisterAttack']:FireServer()
+
+                    local _Head = u17[1][1]:FindFirstChild('Head')
+
+                    if _Head then
+                        game.ReplicatedStorage.Modules.Net['RE/RegisterHit']:FireServer(_Head, u17, {}, tostring(game.Players.LocalPlayer.UserId):sub(2, 4) .. tostring(coroutine.running()):sub(11, 15))
+                        cloneref(u4):FireServer(string.gsub('RE/RegisterHit', '.', function(p31)
+                            return string.char(bit32.bxor(string.byte(p31), math.floor(workspace:GetServerTimeNow() / 10 % 10) + 1))
+                        end), bit32.bxor(u5 + 909090, game.ReplicatedStorage.Modules.Net.seed:InvokeServer() * 2), _Head, u17)
+                    end
+                end)
             end
         end
-        
-     
-        local elapsed = tick() - startTime
-        local waitTime = math.max(FastAttackSettings.AttackSpeed - elapsed, 0.001)
-        task.wait(waitTime)
     end
 end)
 
@@ -347,6 +326,10 @@ local previousAutoBird = false
 local previousBringMob = false
 _G.isHuntingBird = false -- 改为全局变量，确保不同线程/循环间能够共享和拦截
 
+local BringMob = false
+local BringCount = 0
+local MonFarm
+local FarmPos
 
 local FarmConnection = nil
 local rightSpawnCFrame = CFrame.new(-16538.543, 74.8822479, -353.176544, 0.942829669, 2.85748261e-08, -0.333274961, -1.46747183e-08, 1, 4.42249402e-08, 0.333274961, -3.68058721e-08, 0.942829669)
@@ -413,76 +396,78 @@ local function GetFarmTarget()
 end
 
 
--- Bring Mob
--- 原版效果: 水平微偏移贴目标 + ChangeState(11)
--- astral: 150 半径防 ghost + 清线速度/角速度，避免聚怪起飞
-local BringRadius = 250
+-- Bring Mob (1:1 from main)
+local BringRadius = 150
+local FactoryStaffSize = Vector3.new(1, 1, 1)
 local BringZero = Vector3.new(0, 0, 0)
 local BringSimReady = false
 
 local function BringOffsetXZ()
-    -- 只偏移 X/Z，Y 永远 0
+   
     return Vector3.new(math.random(-5, 5) / 10, 0, math.random(-5, 5) / 10)
 end
 
 task.spawn(function()
     while task.wait() do
-        if _G.BringMob then
-            pcall(function()
-                local character = LocalPlayer.Character
-                if not character or not character:FindFirstChild("HumanoidRootPart") then
-                    return
-                end
+        if _G.AutoBird and _G.BringMob and BringMob and MonFarm and FarmPos then
+            local monName = MonFarm
+            local farmPos = FarmPos
+            local center = farmPos.Position
+            local isFactory = monName == "Factory Staff"
 
-                local enemiesFolder = workspace:FindFirstChild("Enemies")
-                if not enemiesFolder then
-                    return
-                end
+            if not BringSimReady then
+                pcall(function()
+                    sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
+                end)
+                BringSimReady = true
+            end
 
-                local targetMob = GetFarmTarget()
-                local targetRoot = targetMob and targetMob:FindFirstChild("HumanoidRootPart")
-                local bringPos = targetRoot and targetRoot.CFrame
-                    or (character.HumanoidRootPart.CFrame * CFrame.new(0, -25, 0))
-                local center = bringPos.Position
-
-                if not BringSimReady then
-                    pcall(function()
-                        sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
-                    end)
-                    BringSimReady = true
-                end
-
-                for _, mob in pairs(enemiesFolder:GetChildren()) do
-                    if not string.find(mob.Name, "Boss") and mob.Name ~= "Tyrant of the Skies" then
-                        local root = mob:FindFirstChild("HumanoidRootPart")
-                        local hum = mob:FindFirstChild("Humanoid")
+            local enemies = workspace:FindFirstChild("Enemies")
+            if enemies then
+                for _, v in pairs(enemies:GetChildren()) do
+                    if v.Name == monName then
+                        local root = v:FindFirstChild("HumanoidRootPart")
+                        local hum = v:FindFirstChild("Humanoid")
                         if root and hum and hum.Health > 0
                         and (root.Position - center).Magnitude <= BringRadius then
-                            -- 先钉位再清速度，避免 Y 轴残余速度把怪弹飞
-                            root.CFrame = bringPos + BringOffsetXZ()
-                            root.AssemblyLinearVelocity = BringZero
-                            root.AssemblyAngularVelocity = BringZero
-                            root.CanCollide = false
+                            if isFactory then
+                                local head = v:FindFirstChild("Head")
+                                if head then
+                                    head.CanCollide = false
+                                end
+                                root.CanCollide = false
+                                root.Size = FactoryStaffSize
+                                root.CFrame = farmPos + BringOffsetXZ()
+                                root.AssemblyLinearVelocity = BringZero
+                                root.AssemblyAngularVelocity = BringZero
+                                BringCount = BringCount + 1
+                            else
+                        
+                                root.CFrame = farmPos + BringOffsetXZ()
+                                root.AssemblyLinearVelocity = BringZero
+                                root.AssemblyAngularVelocity = BringZero
+                                root.CanCollide = false
 
-                            local head = mob:FindFirstChild("Head")
-                            if head then
-                                head.CanCollide = false
-                            end
+                                local head = v:FindFirstChild("Head")
+                                if head then
+                                    head.CanCollide = false
+                                end
 
-                            -- Seated 锁住；不使用 Landing(14)，避免起飞
-                            if hum:GetState() ~= Enum.HumanoidStateType.Seated then
-                                hum:ChangeState(11)
-                            end
-                            if hum.WalkSpeed ~= 0 then
-                                hum.WalkSpeed = 0
-                            end
-                            if hum.JumpPower ~= 0 then
-                                hum.JumpPower = 0
+                               
+                                if hum:GetState() ~= Enum.HumanoidStateType.Seated then
+                                    hum:ChangeState(11)
+                                end
+                                if hum.WalkSpeed ~= 0 then
+                                    hum.WalkSpeed = 0
+                                end
+                                if hum.JumpPower ~= 0 then
+                                    hum.JumpPower = 0
+                                end
                             end
                         end
                     end
                 end
-            end)
+            end
         else
             BringSimReady = false
         end
@@ -695,6 +680,8 @@ task.spawn(function()
                     -- 如果正在打鸟王/打树 (isHuntingBird 为 true)，绝对不执行日常打怪逻辑
                     if _G.isHuntingBird then 
                         -- 如果正在打树/鸟王，确保不会去吸怪
+                        BringMob = false
+                        BringCount = 0
                         return 
                     end
                     
@@ -704,6 +691,17 @@ task.spawn(function()
                     if targetMob and targetMob:FindFirstChild("HumanoidRootPart") then
                         -- 保证挂机/跑图时强制穿墙，防止被打飞或卡建筑物
                         forceNoclip()
+
+                        BringMob = true
+                        MonFarm = targetMob.Name
+                        FarmPos = targetMob.HumanoidRootPart.CFrame
+                        targetMob.HumanoidRootPart.CanCollide = false
+                        if targetMob:FindFirstChild("Head") then
+                            targetMob.Head.CanCollide = false
+                        end
+                        if targetMob:FindFirstChild("Humanoid") and targetMob.Humanoid.WalkSpeed ~= 0 then
+                            targetMob.Humanoid.WalkSpeed = 0
+                        end
                         
                         -- 传送到小怪的绝对Y轴上方25个单位（而不是小怪头上相对坐标，防止小怪倒下导致偏离）
                         local targetCFrame = CFrame.new(targetMob.HumanoidRootPart.Position + Vector3.new(0, 25, 0))
@@ -716,6 +714,8 @@ task.spawn(function()
                             myRoot.CFrame = targetCFrame
                         end
                     else
+                        BringMob = false
+                        BringCount = 0
                         -- 如果没有怪，检查自己是否在刷新点，如果不在则飞过去
                         forceNoclip()
                         if _G.FarmLocation == "右边" then
@@ -746,6 +746,8 @@ task.spawn(function()
                 FarmConnection = nil
                 hasReachedSpawn = false -- 关闭开关时重置标志位，下次开启需重新前往刷新点
             end
+            BringMob = false
+            BringCount = 0
             if not _G.AutoBird then
                 StopTween()
             end
