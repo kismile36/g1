@@ -333,7 +333,7 @@ local FarmPos
 
 local FarmConnection = nil
 local rightSpawnCFrame = CFrame.new(-16538.543, 74.8822479, -353.176544, 0.942829669, 2.85748261e-08, -0.333274961, -1.46747183e-08, 1, 4.42249402e-08, 0.333274961, -3.68058721e-08, 0.942829669)
-local leftSpawnCFrame = CFrame.new(-16647.9375, 163.243622, 1365.65027, 0.0498976, 4.11380086e-08, -0.998754323, 4.56860789e-08, 1, 4.34717862e-08, 0.998754323, -4.77983093e-08, 0.0498976)
+local leftSpawnCFrame = CFrame.new(-16522.92, 159.25, 1329.59, 0.0498976, 4.11380086e-08, -0.998754323, 4.56860789e-08, 1, 4.34717862e-08, 0.998754323, -4.77983093e-08, 0.0498976)
 
 local hasReachedSpawn = false -- 标志位：是否已经到达了设定的刷新点
 
@@ -396,12 +396,12 @@ local function GetFarmTarget()
 end
 
 
--- Bring Mob (1:1 from main)
-local BringRadius = 150
+local BringRadius = 250
 local FactoryStaffSize = Vector3.new(1, 1, 1)
 local BringZero = Vector3.new(0, 0, 0)
 local BringSimReady = false
 
+-- Bring Mob Loop
 local function BringOffsetXZ()
    
     return Vector3.new(math.random(-5, 5) / 10, 0, math.random(-5, 5) / 10)
