@@ -72,6 +72,7 @@ _G.G_SilentAimTargetMobs    = _G.G_SilentAimTargetMobs or false
 _G.G_SilentAimShowLine      = _G.G_SilentAimShowLine or false
 _G.G_SilentAimFOVMode       = _G.G_SilentAimFOVMode or "跟随鼠标"
 _G.G_SilentAimTeamCheck     = _G.G_SilentAimTeamCheck or false
+_G.G_SilentAimMethod        = _G.G_SilentAimMethod or "鼠标最近的玩家"
 _G.G_LockHotkey              = _G.G_LockHotkey or false
 _G.G_LockHotkeyMode          = _G.G_LockHotkeyMode or "锁人1"
 
@@ -178,6 +179,10 @@ local Translations = {
         ["团队检测"] = "Team Check",
         ["显示锁定红线"] = "Show Lock Line",
         ["瞄准部位"] = "Target Part",
+        ["静默瞄准方法"] = "Silent Aim Method",
+        ["鼠标最近的玩家"] = "Closest to Mouse",
+        ["最近的玩家"] = "Closest Player",
+        ["选择玩家"] = "Selected Player",
         ["快捷键锁人(按键h)"] = "Hotkey Lock (Press H)",
         ["锁人模式"] = "Lock Mode",
         -- 描述
@@ -303,6 +308,7 @@ local function CollectConfig()
             SilentAimShowLine      = _G.G_SilentAimShowLine,
             SilentAimFOVMode       = _G.G_SilentAimFOVMode,
             SilentAimTeamCheck     = _G.G_SilentAimTeamCheck,
+            SilentAimMethod        = _G.G_SilentAimMethod,
             LockHotkey             = _G.G_LockHotkey,
             LockHotkeyMode         = _G.G_LockHotkeyMode,
         },
@@ -1161,10 +1167,9 @@ local function updateESP()
                     if _G.G_ESP_Distance then parts[#parts+1] = distance .. "米 | " end
                     if _G.G_ESP_HP then parts[#parts+1] = "生命 " .. hp .. "%" end
                     data.label.Text = table.concat(parts)
-                    -- 同步高亮状态
+            
                     if _G.G_ESP_Highlight then
                         local hlColor = hexToColor3(_G.G_ESP_HighlightColor)
-                        -- 劫持角色上已有的 Highlight（游戏见闻色等），改色为我方颜色
                         pcall(function()
                             for _, child in ipairs(char:GetChildren()) do
                                 if child:IsA("Highlight") and child.Name ~= "ESP_PlayerHighlight" then
@@ -1235,7 +1240,6 @@ task.spawn(function()
     end
 end)
 
--- [控件 11] 主要功能开关
 RJR[L("主要功能")]:Input({
     Title = L("移动速度"),
     Value = tostring(_G.G_translateSpeed),
@@ -1811,7 +1815,7 @@ end
 if _G.G_NoMove then StartNoMove() end
 
 
--- [控件 12] 杂项
+
 RJR[L("杂项")]:Slider({
     Title = L("视角缩放距离"),
     Value = {
@@ -2214,7 +2218,7 @@ for themeName, _ in pairs(availableThemes) do
     table.insert(themeList, themeName)
 end
 
--- [控件 13] 设置
+
 RJR[L("设置")]:Keybind({
     Title = L("窗口切换键"),
     Desc = L("切换窗口显示状态"),
@@ -2583,7 +2587,8 @@ elseif World3 then
         ["海洋城堡"] = Vector3.new(-12463.6, 376.26, -7566.08),
         ["海龟豪宅"] = Vector3.new(-5060.41, 316.43, -3192.30),
         ["司法"] = Vector3.new(-5096.48, 316.43, -3177.91),
-        ["九头蛇"] = Vector3.new(-5027.03, 316.43, -3206.07)
+        ["九头蛇"] = Vector3.new(-5027.03, 316.43, -3206.07),
+        ["P2"] = Vector3.new(5650.94482, 1034.45056, -350.383636),
     }
 end
 
@@ -2654,7 +2659,7 @@ RJR[L("传送")]:Toggle({
             
                 if distance > 1000 and tick() - Lock2LastEntrance > 3 then
                     local entName, entPos = GetNearestEntranceToTarget(targetPos, myPos)
-                    if entName and entPos then
+                    if entName and entPos and entName ~= "P1" and entName ~= "P2" then
                         requestEntrance(entPos)
                         Lock2LastEntrance = tick()
                         return
@@ -2861,6 +2866,53 @@ local function GetSilentAimOrigin()
 end
 
 local function GetClosestTargetToMouse()
+    local method = _G.G_SilentAimMethod or "鼠标最近的玩家"
+
+    if method == "选择玩家" then
+        if not _G.G_SilentAimTargetPlayers then return nil end
+        local name = _G.G_SilentAimSelectedPlayer
+        if not name or name == "" then return nil end
+        local player = Players:FindFirstChild(name)
+        if not player or player == LocalPlayer then return nil end
+        if _G.G_SilentAimTeamCheck and not IsSilentAimEnemy(player) then return nil end
+        local character = player.Character
+        if not IsAlive(character) then return nil end
+        return character:FindFirstChild(_G.G_SilentAimPart) or character:FindFirstChild("HumanoidRootPart")
+    end
+
+    if method == "最近的玩家" then
+        local myChar = LocalPlayer.Character
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return nil end
+        local closest, shortest = nil, math.huge
+        local myPos = myRoot.Position
+
+        local function checkNearest(character)
+            if not IsAlive(character) then return end
+            local part = character:FindFirstChild(_G.G_SilentAimPart) or character:FindFirstChild("HumanoidRootPart")
+            if not part then return end
+            local d = (part.Position - myPos).Magnitude
+            if d < shortest then closest, shortest = part, d end
+        end
+
+        if _G.G_SilentAimTargetPlayers then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    if not _G.G_SilentAimTeamCheck or IsSilentAimEnemy(player) then
+                        checkNearest(player.Character)
+                    end
+                end
+            end
+        end
+        if _G.G_SilentAimTargetMobs and workspace:FindFirstChild("Enemies") then
+            for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
+                checkNearest(enemy)
+            end
+        end
+        return closest
+    end
+
+    -- 鼠标最近的玩家（当前默认方法，按 FOV 内屏幕距离）
     local origin = GetSilentAimOrigin()
     local closest, shortest = nil, c.Radius
 
@@ -3190,6 +3242,16 @@ AimSection:Toggle({
     Callback = function(v) _G.G_SilentAimSkill = v; SaveConfiguration() end
 })
 
+AimSection:Dropdown({
+    Title = L("静默瞄准方法"),
+    Values = {"鼠标最近的玩家", "最近的玩家", "选择玩家"},
+    Value = _G.G_SilentAimMethod or "鼠标最近的玩家",
+    Callback = function(v)
+        _G.G_SilentAimMethod = v
+        SaveConfiguration()
+    end
+})
+
 AimSection:Toggle({
     Title = L("瞄准玩家"),
     Value = _G.G_SilentAimTargetPlayers,
@@ -3222,6 +3284,34 @@ AimSection:Dropdown({
 })
 
 RJR[L("绘制")]:Divider()
+
+local SilentAimPlayerDropdown = RJR[L("绘制")]:Dropdown({
+    Title = L("选择瞄准玩家"),
+    Values = GetPlayerList(),
+    Value = _G.G_SilentAimSelectedPlayer,
+    Callback = function(v)
+        _G.G_SilentAimSelectedPlayer = v or ""
+        SaveConfiguration()
+    end
+})
+
+RJR[L("绘制")]:Button({
+    Title = L("刷新玩家列表"),
+    Callback = function()
+        local newPlayerList = GetPlayerList()
+        if SilentAimPlayerDropdown and SilentAimPlayerDropdown.Refresh then
+            SilentAimPlayerDropdown:Refresh(newPlayerList, true)
+        end
+        if _G.G_SilentAimSelectedPlayer ~= "" and SilentAimPlayerDropdown and SilentAimPlayerDropdown.SetValue then
+            for _, name in ipairs(newPlayerList) do
+                if name == _G.G_SilentAimSelectedPlayer then
+                    pcall(function() SilentAimPlayerDropdown:SetValue(_G.G_SilentAimSelectedPlayer) end)
+                    break
+                end
+            end
+        end
+    end
+})
 
 RJR[L("绘制")]:Toggle({
     Title = L("快捷键锁人(按键h)"),
