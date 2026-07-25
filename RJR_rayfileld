@@ -1,3 +1,6 @@
+--pls join my sever https://discord.gg/862SZpM7Qk
+
+
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -229,6 +232,14 @@ local Translations = {
         ["快捷传送点"] = "Quick TP Point",
         ["锁人快捷路径"] = "Lock Quick Path",
         ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
+        ["公告"] = "Announcement",
+        ["DC 服务器"] = "DC Server",
+        ["点击复制 DC 链接"] = "Click to copy DC link",
+        ["已复制 DC 链接"] = "DC link copied",
+        ["点击复制"] = "Click to copy",
+        ["已复制链接"] = "Link copied",
+        ["锁人快捷路径"] = "Lock Quick Path",
+        ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
         -- 语言切换
         ["语言"] = "Language",
         ["中文"] = "Chinese",
@@ -368,6 +379,7 @@ local Window = Rayfield:CreateWindow({
 })
 
 local RJR = {
+    [L("公告")]     = Window:CreateTab(L("公告"), "bell"),
     [L("主要功能")] = Window:CreateTab(L("主要功能"), "zap"),
     [L("杀戮光环")] = Window:CreateTab(L("杀戮光环"), "sword"),
     ["ESP"]     = Window:CreateTab("ESP", "eye"),
@@ -2036,6 +2048,44 @@ RJR[L("商店")]:CreateButton({
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
     end
 })
+
+
+RJR[L("公告")]:CreateParagraph({
+    Title = L("DC 服务器"),
+    Content = "https://discord.gg/862SZpM7Qk",
+})
+
+RJR[L("公告")]:CreateButton({
+    Name = L("点击复制 DC 链接"),
+    Callback = function()
+        setclipboard("https://discord.gg/862SZpM7Qk")
+        Rayfield:Notify({ Title = L("复制成功"), Content = L("已复制 DC 链接"), Duration = 2 })
+    end
+})
+
+RJR[L("公告")]:CreateDivider()
+
+RJR[L("公告")]:CreateParagraph({
+    Title = "声明",
+    Content = "此脚本完全免费开源",
+})
+
+RJR[L("公告")]:CreateDivider()
+
+RJR[L("公告")]:CreateParagraph({
+    Title = "WindUI 版脚本链接",
+    Content = [[loadstring(game:HttpGet("https://raw.githubusercontent.com/kismile36/g1/refs/heads/main/RJR"))()]],
+})
+
+RJR[L("公告")]:CreateButton({
+    Name = L("点击复制"),
+    Callback = function()
+        setclipboard([[loadstring(game:HttpGet("https://raw.githubusercontent.com/kismile36/g1/refs/heads/main/RJR"))()]])
+        Rayfield:Notify({ Title = L("复制成功"), Content = L("已复制链接"), Duration = 2 })
+    end
+})
+
+
 
 
 RJR[L("服务器")]:CreateButton({
