@@ -59,6 +59,12 @@ _G.G_TeleportPredict  = _G.G_TeleportPredict or false
 _G.G_SpectatePlys     = _G.G_SpectatePlys or false
 
 _G.G_ServerRegion       = _G.G_ServerRegion or "Singapore"
+_G.G_HopPlayerRange = _G.G_HopPlayerRange or "1-12"
+_G.G_HopBountyRange = _G.G_HopBountyRange or "大于3m"
+_G.G_HopMinPlayers = _G.G_HopMinPlayers or 1
+_G.G_HopMaxPlayers = _G.G_HopMaxPlayers or 12
+_G.G_HopMinBounty = _G.G_HopMinBounty or 3000001
+_G.G_HopMaxBounty = _G.G_HopMaxBounty or 999999999
 
 _G.G_SilentAimM1R   = _G.G_SilentAimM1R or false
 _G.G_SilentAimSkill = _G.G_SilentAimSkill or false
@@ -75,6 +81,7 @@ _G.G_SilentAimTeamCheck     = _G.G_SilentAimTeamCheck or false
 _G.G_SilentAimMethod        = _G.G_SilentAimMethod or "鼠标最近的玩家"
 _G.G_LockHotkey              = _G.G_LockHotkey or false
 _G.G_LockHotkeyMode          = _G.G_LockHotkeyMode or "锁人1"
+_G.G_AutoSoru                = _G.G_AutoSoru or false
 
 _G.G_AutoLoadConfig   = _G.G_AutoLoadConfig or false
 _G.G_AutoSaveConfig   = _G.G_AutoSaveConfig or false
@@ -294,6 +301,12 @@ local function CollectConfig()
         },
         Server = {
             ServerRegion = _G.G_ServerRegion,
+            HopPlayerRange = _G.G_HopPlayerRange,
+            HopBountyRange = _G.G_HopBountyRange,
+            HopMinPlayers = _G.G_HopMinPlayers,
+            HopMaxPlayers = _G.G_HopMaxPlayers,
+            HopMinBounty = _G.G_HopMinBounty,
+            HopMaxBounty = _G.G_HopMaxBounty,
         },
         Drawing = {
             SilentAimM1R   = _G.G_SilentAimM1R,
@@ -659,9 +672,9 @@ task.spawn(function()
         local closest, dist = nil, math.huge
         local myPos = root.Position
         if _G.G_AttackMobs then
-            local enemiesFolder = workspace:FindFirstChild("Enemies")
-            if enemiesFolder then
-                for _, enemy in enemiesFolder:GetChildren() do
+            local function scanFolder(folder)
+                if not folder then return end
+                for _, enemy in folder:GetChildren() do
                     local eHum = enemy:FindFirstChildOfClass("Humanoid")
                     local eRoot = enemy:FindFirstChild("HumanoidRootPart")
                     if eHum and eHum.Health > 0 and eRoot then
@@ -670,6 +683,9 @@ task.spawn(function()
                     end
                 end
             end
+            scanFolder(workspace:FindFirstChild("Enemies"))
+            scanFolder(workspace:FindFirstChild("SeaBeasts"))
+            scanFolder(workspace:FindFirstChild("SeaEvents"))
         end
         if _G.G_AttackPlayers then
             for _, player in pairs(Players:GetPlayers()) do
@@ -2072,6 +2088,60 @@ RJR[L("服务器")]:Button({
     end
 })
 
+local function FormatNumber(n)
+    local s = tostring(math.floor(tonumber(n) or 0))
+    local left, num, right = s:match("^([^%d]*%d)(%d*)(.-)$")
+    return left .. (num:reverse():gsub("(%d%d%d)", "%1,"):reverse()) .. right
+end
+
+local function ApplyPlayerRange(label)
+    _G.G_HopPlayerRange = label
+    local minPlayers, maxPlayers = label:match("(%d+)%-(%d+)")
+    if minPlayers and maxPlayers then
+        _G.G_HopMinPlayers = tonumber(minPlayers)
+        _G.G_HopMaxPlayers = tonumber(maxPlayers)
+        return
+    end
+    _G.G_HopMinPlayers = 1
+    _G.G_HopMaxPlayers = 12
+end
+
+local function ApplyBountyRange(label)
+    _G.G_HopBountyRange = label
+    local minOnly = label:match("大于([%d%.]+[Mm]?)")
+    if minOnly then
+        local num, unit = minOnly:match("([%d%.]+)([Mm]?)")
+        local value = tonumber(num) or 0
+        if unit and unit:lower() == "m" then value = value * 1000000 end
+        _G.G_HopMinBounty = value + 1
+        _G.G_HopMaxBounty = 999999999
+        return
+    end
+    _G.G_HopMinBounty = 0
+    _G.G_HopMaxBounty = 999999999
+end
+
+local function ParseServerInfo(text)
+    if type(text) ~= "string" or text == "" then return nil end
+    local region = text:match("Region:%s*(.-)%s*%-%s*Players:")
+    local cur, max = text:match("Players:%s*(%d+)%s*/%s*(%d+)")
+    local bt = text:match("Bounty:%s*([%d,]+)")
+    if not cur or not max or not bt then return nil end
+    local bounty = tonumber((bt:gsub(",", "")))
+    if not bounty then return nil end
+    return { Region = region or "Unknown", Players = tonumber(cur), MaxPlayers = tonumber(max), Bounty = bounty }
+end
+
+local function IsServerAllowed(info)
+    if not info then return false end
+    if info.Players < _G.G_HopMinPlayers or info.Players > _G.G_HopMaxPlayers then return false end
+    if info.Bounty < _G.G_HopMinBounty or info.Bounty > _G.G_HopMaxBounty then return false end
+    return true
+end
+
+ApplyPlayerRange(_G.G_HopPlayerRange)
+ApplyBountyRange(_G.G_HopBountyRange)
+
 RJR[L("服务器")]:Dropdown({
     Title = L("选择服务器区域"),
     Desc = L("跳服时搜索的服务器区域"),
@@ -2084,91 +2154,141 @@ RJR[L("服务器")]:Dropdown({
     end
 })
 
+RJR[L("服务器")]:Dropdown({
+    Title = L("选择人数"),
+    Desc = L("跳服时过滤人数范围"),
+    Values = {"1-12", "3-12", "5-12", "7-12", "9-12"},
+    Value = _G.G_HopPlayerRange,
+    Callback = function(v)
+        ApplyPlayerRange(v)
+        SaveConfiguration()
+        WindUI:Notify({ Title = L("人数设置"), Content = v .. " (" .. _G.G_HopMinPlayers .. "-" .. _G.G_HopMaxPlayers .. ")", Duration = 2 })
+    end
+})
+
+RJR[L("服务器")]:Dropdown({
+    Title = L("选择赏金"),
+    Desc = L("跳服时过滤赏金范围"),
+    Values = {"大于3m", "大于5m", "大于10m", "大于15m", "大于25m", "大于35m", "大于50m"},
+    Value = _G.G_HopBountyRange,
+    Callback = function(v)
+        ApplyBountyRange(v)
+        SaveConfiguration()
+        WindUI:Notify({ Title = L("赏金设置"), Content = v .. " (" .. FormatNumber(_G.G_HopMinBounty) .. " - " .. FormatNumber(_G.G_HopMaxBounty) .. ")", Duration = 2 })
+    end
+})
+
 RJR[L("服务器")]:Button({
     Title = L("跳服"),
     Icon = "wind",
     Callback = function()
-        if getgenv().IsServerHopping == true then return end 
+        if getgenv().IsServerHopping == true then return end
 
-        getgenv().IsServerHopping = true 
-        getgenv().ShuttingDown = true 
+        getgenv().IsServerHopping = true
+        getgenv().ShuttingDown = true
 
-        WindUI:Notify({ 
-            Title = L("自动跳服"), 
-            Content = L("准备跳服...") .. "\n\n" .. L("设置区域为: ") .. _G.G_ServerRegion, 
-            Icon = "wind", 
+        WindUI:Notify({
+            Title = L("自动跳服"),
+            Content = L("准备跳服...") .. "\n\n"
+                .. L("设置区域为: ") .. _G.G_ServerRegion .. "\n"
+                .. L("人数: ") .. _G.G_HopPlayerRange .. "\n"
+                .. L("赏金: ") .. _G.G_HopBountyRange,
+            Icon = "wind",
             Duration = 10
-        }) 
+        })
 
-        local PlayerGui = LocalPlayer.PlayerGui 
+        local PlayerGui = LocalPlayer.PlayerGui
 
-        if not PlayerGui:FindFirstChild("ServerBrowser") then 
-            getgenv().IsServerHopping = false 
-            return 
-        end 
+        if not PlayerGui:FindFirstChild("ServerBrowser") then
+            getgenv().IsServerHopping = false
+            return
+        end
 
-        PlayerGui.ServerBrowser.Enabled = true 
-        task.wait(0.1) 
+        PlayerGui.ServerBrowser.Enabled = true
+        task.wait(0.1)
 
-        local Filters = PlayerGui.ServerBrowser.Frame:FindFirstChild("Filters") 
-        local SearchRegion = Filters and Filters:FindFirstChild("SearchRegion") 
-        local TextBox = SearchRegion and SearchRegion:FindFirstChild("TextBox") 
+        local Filters = PlayerGui.ServerBrowser.Frame:FindFirstChild("Filters")
+        local SearchRegion = Filters and Filters:FindFirstChild("SearchRegion")
+        local TextBox = SearchRegion and SearchRegion:FindFirstChild("TextBox")
 
-        if not TextBox then 
-            getgenv().IsServerHopping = false 
-            return 
-        end 
+        if not TextBox then
+            getgenv().IsServerHopping = false
+            return
+        end
 
-        TextBox.Text = _G.G_ServerRegion 
+        TextBox.Text = _G.G_ServerRegion
 
-        local ScrollingFrame = PlayerGui.ServerBrowser.Frame.ScrollingFrame 
-        local FakeScroll = PlayerGui.ServerBrowser.Frame.FakeScroll 
-        local Inside = FakeScroll.Inside 
+        -- 展开完整列表
+        local Full = Filters and Filters:FindFirstChild("Full")
+        local FullCheck = Full and Full:FindFirstChild("Check")
+        if FullCheck then
+            FullCheck.Text = "\226\156\148\239\184\143"
+            task.wait(0.1)
+        end
 
-        task.spawn(function() 
-            while task.wait(0.3) do 
-                ScrollingFrame.CanvasPosition = Vector2.new(0, math.random(100, 7000)) 
-            end 
-        end) 
+        local ScrollingFrame = PlayerGui.ServerBrowser.Frame.ScrollingFrame
+        local FakeScroll = PlayerGui.ServerBrowser.Frame.FakeScroll
+        local Inside = FakeScroll.Inside
 
-        task.wait() 
+        task.spawn(function()
+            while getgenv().IsServerHopping do
+                ScrollingFrame.CanvasPosition = Vector2.new(0, math.random(100, 7000))
+                task.wait(0.3)
+            end
+        end)
 
-        local currentJobId = game.JobId 
+        task.wait()
+
+        local currentJobId = game.JobId
         local ServerBrowserRemote = game:GetService("ReplicatedStorage"):WaitForChild("__ServerBrowser")
 
-        while task.wait(3) do 
-            for _, template in ipairs(Inside:GetChildren()) do 
-                if template.Name == "Template" then 
-                    local joinButton = template:FindFirstChild("Join") 
-                    if joinButton then 
-                        local job = joinButton:GetAttribute("Job") 
-                        if job and tostring(job):find("-", 1, true) then 
-                            job = tostring(job) 
-                            
-                            if job ~= currentJobId then 
-                                local success, err = pcall(function() 
-                                    ServerBrowserRemote:InvokeServer("teleport", job) 
-                                end) 
-                                if not success then 
-                                    local success2, err2 = pcall(function() 
-                                        ServerBrowserRemote:InvokeServer("teleport", job) 
-                                    end) 
-                                    if not success2 then 
-                                        WindUI:Notify({ 
-                                            Title = L("自动跳服"), 
-                                            Content = L("跳服失败") .. "\n\n" .. L("请重新加入游戏"), 
-                                            Icon = "wind", 
+        while getgenv().IsServerHopping do
+            for _, template in ipairs(Inside:GetChildren()) do
+                if template.Name == "Template" then
+                    local joinButton = template:FindFirstChild("Join")
+                    local textLabel = template:FindFirstChild("TextLabel")
+                    local info = textLabel and ParseServerInfo(textLabel.Text)
+
+                    if joinButton and info and IsServerAllowed(info) then
+                        local job = joinButton:GetAttribute("Job")
+                        if job and tostring(job):find("-", 1, true) then
+                            job = tostring(job)
+
+                            if job ~= currentJobId then
+                                WindUI:Notify({
+                                    Title = L("匹配到服务器"),
+                                    Content = L("尝试跳服") .. "\n"
+                                        .. L("地区: ") .. tostring(info.Region) .. "\n"
+                                        .. L("人数: ") .. info.Players .. "/" .. info.MaxPlayers .. "\n"
+                                        .. L("赏金: ") .. FormatNumber(info.Bounty),
+                                    Icon = "wind",
+                                    Duration = 5
+                                })
+
+                                local success = pcall(function()
+                                    ServerBrowserRemote:InvokeServer("teleport", job)
+                                end)
+                                if not success then
+                                    local success2 = pcall(function()
+                                        ServerBrowserRemote:InvokeServer("teleport", job)
+                                    end)
+                                    if not success2 then
+                                        WindUI:Notify({
+                                            Title = L("自动跳服"),
+                                            Content = L("跳服失败") .. "\n\n" .. L("请重新加入游戏"),
+                                            Icon = "wind",
                                             Duration = 10
-                                        }) 
-                                    end 
-                                end 
-                                task.wait(0.3) 
-                            end 
-                        end 
-                    end 
-                end 
-            end 
-        end 
+                                        })
+                                    end
+                                end
+                                task.wait(0.3)
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(3)
+        end
     end
 })
 
@@ -2588,7 +2708,6 @@ elseif World3 then
         ["海龟豪宅"] = Vector3.new(-5060.41, 316.43, -3192.30),
         ["司法"] = Vector3.new(-5096.48, 316.43, -3177.91),
         ["九头蛇"] = Vector3.new(-5027.03, 316.43, -3206.07),
-        ["P2"] = Vector3.new(5650.94482, 1034.45056, -350.383636),
     }
 end
 
@@ -3338,3 +3457,101 @@ RJR[L("绘制")]:Dropdown({
 })
 
 if _G.G_LockHotkey then StartLockHotkey() end
+
+RJR[L("绘制")]:Divider()
+
+-- ==========================================
+-- 自动 Soru 最近玩家
+-- ==========================================
+local AutoSoruConn = nil
+
+local function SoruTo(targetPosition)
+    local Character = LocalPlayer.Character
+    if not Character then return end
+
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+    local Humanoid = Character:FindFirstChild("Humanoid")
+    if not HumanoidRootPart or not Humanoid or Humanoid.Health <= 0 then return end
+
+    local startCFrame = HumanoidRootPart.CFrame
+    local finalPos = targetPosition
+    local finalCFrame = (startCFrame - startCFrame.Position) + finalPos + Vector3.new(0, HumanoidRootPart.Size.Y * 1.5, 0)
+
+    local randomId = math.random(1, 999999999)
+    ReplicatedStorage.Remotes.CommE:FireServer(
+        "Soru",
+        startCFrame,
+        finalCFrame,
+        workspace:GetServerTimeNow(),
+        randomId
+    )
+end
+
+local function GetClosestPlayerForSoru()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+
+    local Character = LocalPlayer.Character
+    if not Character or not Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+
+    local myPos = Character.HumanoidRootPart.Position
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local otherChar = player.Character
+            local otherHum = otherChar and otherChar:FindFirstChild("Humanoid")
+            local otherRoot = otherChar and otherChar:FindFirstChild("HumanoidRootPart")
+            if otherHum and otherRoot and otherHum.Health > 0 then
+                local distance = (otherRoot.Position - myPos).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+local function SoruToClosestPlayer()
+    local targetPlayer = GetClosestPlayerForSoru()
+    local targetChar = targetPlayer and targetPlayer.Character
+    if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+        local targetPos = (targetChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)).Position
+        SoruTo(targetPos)
+    end
+end
+
+local function StartAutoSoru()
+    if AutoSoruConn then return end
+    AutoSoruConn = task.spawn(function()
+        while _G.G_AutoSoru do
+            pcall(SoruToClosestPlayer)
+            task.wait(1)
+        end
+    end)
+end
+
+local function StopAutoSoru()
+    AutoSoruConn = nil
+end
+
+RJR[L("绘制")]:Toggle({
+    Title = L("自动瞬步"),
+    Desc = "每15秒强制打你2500血你气不气😂",
+    Value = _G.G_AutoSoru,
+    Callback = function(v)
+        _G.G_AutoSoru = v
+        if v then
+            StartAutoSoru()
+        else
+            StopAutoSoru()
+        end
+        SaveConfiguration()
+    end
+})
+
+if _G.G_AutoSoru then StartAutoSoru() end
