@@ -1,3 +1,6 @@
+--pls join my sever https://discord.gg/862SZpM7Qk
+
+
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -229,6 +232,11 @@ local Translations = {
         ["快捷传送点"] = "Quick TP Point",
         ["锁人快捷路径"] = "Lock Quick Path",
         ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
+        ["公告"] = "Announcement",
+        ["DC 服务器"] = "DC Server",
+        ["点击复制 DC 链接"] = "Click to copy DC link",
+        ["已复制 DC 链接"] = "DC link copied",
+        ["宣传图"] = "Banner",
         -- 语言切换
         ["语言"] = "Language",
         ["中文"] = "Chinese",
@@ -389,6 +397,7 @@ local Tabs = {
     [L("设置")] = Window:Section({ Title = L("设置"), Opened = true }),
 }
 local RJR = {
+    [L("公告")]     = Tabs[L("主要功能")]:Tab({ Title = L("公告"), Icon = "bell" }),
     [L("主要功能")] = Tabs[L("主要功能")]:Tab({ Title = L("主要功能"), Icon = "zap" }),
     [L("杀戮光环")] = Tabs[L("主要功能")]:Tab({ Title = L("杀戮光环"), Icon = "sword" }),
     ["ESP"]     = Tabs[L("主要功能")]:Tab({ Title = "ESP", Icon = "eye" }),
@@ -2080,6 +2089,37 @@ RJR[L("商店")]:Button({
     end
 })
 
+
+RJR[L("公告")]:Paragraph({
+    Title = L("DC 服务器"),
+    Desc = "https://discord.gg/862SZpM7Qk",
+    Buttons = {{
+        Title = L("点击复制 DC 链接"),
+        Callback = function()
+            setclipboard("https://discord.gg/862SZpM7Qk")
+            WindUI:Notify({ Title = L("复制成功"), Content = L("已复制 DC 链接"), Duration = 2 })
+        end
+    }}
+})
+
+RJR[L("公告")]:Divider()
+
+RJR[L("公告")]:Paragraph({
+    Title = "声明",
+    Desc = "此脚本完全免费开源 禁止拿去圈钱",
+})
+
+RJR[L("公告")]:Paragraph({
+    Title = L("Rayfield ui版脚本链接"),
+    Desc = [[loadstring(game:HttpGet("https://raw.githubusercontent.com/kismile36/g1/refs/heads/main/RJR_rayfileld"))()]],
+    Buttons = {{
+        Title = L("点击复制"),
+        Callback = function()
+            setclipboard([[loadstring(game:HttpGet("https://raw.githubusercontent.com/kismile36/g1/refs/heads/main/RJR_rayfileld"))()]])
+            WindUI:Notify({ Title = L("复制成功"), Content = L("已复制链接"), Duration = 2 })
+        end
+    }}
+})
 
 RJR[L("服务器")]:Button({
     Title = L("重进服务器"),
