@@ -56,6 +56,7 @@ _G.G_TeleportPly      = _G.G_TeleportPly or false
 _G.G_Teleport         = _G.G_Teleport or false
 _G.G_Lock2            = _G.G_Lock2 or false
 _G.G_TeleportPredict  = _G.G_TeleportPredict or false
+_G.G_LockQuickPath    = _G.G_LockQuickPath ~= false
 _G.G_SpectatePlys     = _G.G_SpectatePlys or false
 
 _G.G_ServerRegion       = _G.G_ServerRegion or "Singapore"
@@ -226,6 +227,8 @@ local Translations = {
         ["锁人2关闭"] = "Lock 2 Stopped",
         ["已停止锁定目标"] = "Stopped locking target",
         ["快捷传送点"] = "Quick TP Point",
+        ["锁人快捷路径"] = "Lock Quick Path",
+        ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
         -- 语言切换
         ["语言"] = "Language",
         ["中文"] = "Chinese",
@@ -298,6 +301,7 @@ local function CollectConfig()
             TeleportOffsetY = _G.G_TeleportOffsetY,
             TeleportOffsetZ = _G.G_TeleportOffsetZ,
             TeleportPredict = _G.G_TeleportPredict,
+            LockQuickPath   = _G.G_LockQuickPath,
         },
         Server = {
             ServerRegion = _G.G_ServerRegion,
@@ -2716,7 +2720,7 @@ RJR[L("传送")]:CreateToggle({
                 end
 
             
-                if distance > 1000 and tick() - Lock2LastEntrance > 3 then
+                if _G.G_LockQuickPath and distance > 1000 and tick() - Lock2LastEntrance > 3 then
                     local entName, entPos = GetNearestEntranceToTarget(targetPos, myPos)
                     if entName and entPos and entName ~= "P1" and entName ~= "P2" then
                         requestEntrance(entPos)
@@ -2747,6 +2751,16 @@ RJR[L("传送")]:CreateToggle({
     CurrentValue = _G.G_TeleportPredict,
     Callback = function(Value)
         _G.G_TeleportPredict = Value
+        SaveConfiguration()
+    end
+})
+
+RJR[L("传送")]:CreateToggle({
+    Name = L("锁人快捷路径"),
+    Desc = L("通过传送点快速接近目标"),
+    CurrentValue = _G.G_LockQuickPath,
+    Callback = function(Value)
+        _G.G_LockQuickPath = Value
         SaveConfiguration()
     end
 })
@@ -3151,7 +3165,7 @@ local function LockHotkeyStartLoop()
                     myHRP.CFrame = CFrame.new(myPos.X, targetPos.Y, myPos.Z)
                 end
       
-                if distance > 1000 and tick() - Lock2EntranceTick > 3 then
+                if _G.G_LockQuickPath and distance > 1000 and tick() - Lock2EntranceTick > 3 then
                     local entName, entPos = GetNearestEntranceToTarget(targetPos, myPos)
                     if entName and entPos then
                         requestEntrance(entPos)
