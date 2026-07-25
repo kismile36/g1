@@ -191,6 +191,7 @@ local Translations = {
         ["选择玩家"] = "Selected Player",
         ["快捷键锁人(按键h)"] = "Hotkey Lock (Press H)",
         ["锁人模式"] = "Lock Mode",
+        ["自动 Soru 最近玩家"] = "Auto Soru Closest Player",
         -- 描述
         ["跳服时搜索的服务器区域"] = "Server region for server hop",
         ["切换窗口显示状态"] = "Toggle window visibility",
@@ -3392,3 +3393,99 @@ RJR[L("绘制")]:CreateDropdown({
 })
 
 if _G.G_LockHotkey then StartLockHotkey() end
+
+-- ==========================================
+-- 自动 Soru 最近玩家
+-- ==========================================
+local AutoSoruConn = nil
+
+local function SoruTo(targetPosition)
+    local Character = LocalPlayer.Character
+    if not Character then return end
+
+    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+    local Humanoid = Character:FindFirstChild("Humanoid")
+    if not HumanoidRootPart or not Humanoid or Humanoid.Health <= 0 then return end
+
+    local startCFrame = HumanoidRootPart.CFrame
+    local finalPos = targetPosition
+    local finalCFrame = (startCFrame - startCFrame.Position) + finalPos + Vector3.new(0, HumanoidRootPart.Size.Y * 1.5, 0)
+
+    local randomId = math.random(1, 999999999)
+    ReplicatedStorage.Remotes.CommE:FireServer(
+        "Soru",
+        startCFrame,
+        finalCFrame,
+        workspace:GetServerTimeNow(),
+        randomId
+    )
+end
+
+local function GetClosestPlayerForSoru()
+    local closestPlayer = nil
+    local shortestDistance = math.huge
+
+    local Character = LocalPlayer.Character
+    if not Character or not Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+
+    local myPos = Character.HumanoidRootPart.Position
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local otherChar = player.Character
+            local otherHum = otherChar and otherChar:FindFirstChild("Humanoid")
+            local otherRoot = otherChar and otherChar:FindFirstChild("HumanoidRootPart")
+            if otherHum and otherRoot and otherHum.Health > 0 then
+                local distance = (otherRoot.Position - myPos).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+local function SoruToClosestPlayer()
+    local targetPlayer = GetClosestPlayerForSoru()
+    local targetChar = targetPlayer and targetPlayer.Character
+    if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+        local targetPos = (targetChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)).Position
+        SoruTo(targetPos)
+    end
+end
+
+local function StartAutoSoru()
+    if AutoSoruConn then return end
+    AutoSoruConn = task.spawn(function()
+        while _G.G_AutoSoru do
+            pcall(SoruToClosestPlayer)
+            task.wait(1)
+        end
+    end)
+end
+
+local function StopAutoSoru()
+    AutoSoruConn = nil
+end
+
+RJR[L("绘制")]:CreateToggle({
+    Name = L("自动 Soru 最近玩家"),
+    Desc = "每15秒强制打你2500血你气不气😂",
+    CurrentValue = _G.G_AutoSoru,
+    Callback = function(Value)
+        _G.G_AutoSoru = Value
+        if Value then
+            StartAutoSoru()
+        else
+            StopAutoSoru()
+        end
+        SaveConfiguration()
+    end
+})
+
+if _G.G_AutoSoru then StartAutoSoru() end
