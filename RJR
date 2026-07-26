@@ -365,6 +365,10 @@ _G.FOVMode = _G.G_SilentAimFOVMode or "跟随鼠标"
 local WindUI = loadstring(request({
     Url = "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
 }).Body)()
+local availableThemesCheck = WindUI:GetThemes()
+if not availableThemesCheck[_G.G_Theme] then
+    _G.G_Theme = "Dark"
+end
 WindUI:SetTheme(_G.G_Theme)
 local Window = WindUI:CreateWindow({
     Title = L("人挤人中心"),
