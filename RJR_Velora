@@ -56,9 +56,16 @@ _G.G_TeleportPly      = _G.G_TeleportPly or false
 _G.G_Teleport         = _G.G_Teleport or false
 _G.G_Lock2            = _G.G_Lock2 or false
 _G.G_TeleportPredict  = _G.G_TeleportPredict or false
+_G.G_LockQuickPath    = _G.G_LockQuickPath ~= false
 _G.G_SpectatePlys     = _G.G_SpectatePlys or false
 
 _G.G_ServerRegion       = _G.G_ServerRegion or "Singapore"
+_G.G_HopPlayerRange     = _G.G_HopPlayerRange or "1-12"
+_G.G_HopBountyRange     = _G.G_HopBountyRange or "大于3m"
+_G.G_HopMinPlayers      = _G.G_HopMinPlayers or 1
+_G.G_HopMaxPlayers      = _G.G_HopMaxPlayers or 12
+_G.G_HopMinBounty       = _G.G_HopMinBounty or 3000001
+_G.G_HopMaxBounty       = _G.G_HopMaxBounty or 999999999
 
 _G.G_SilentAimM1R   = _G.G_SilentAimM1R or false
 _G.G_SilentAimSkill = _G.G_SilentAimSkill or false
@@ -72,12 +79,14 @@ _G.G_SilentAimTargetMobs    = _G.G_SilentAimTargetMobs or false
 _G.G_SilentAimShowLine      = _G.G_SilentAimShowLine or false
 _G.G_SilentAimFOVMode       = _G.G_SilentAimFOVMode or "跟随鼠标"
 _G.G_SilentAimTeamCheck     = _G.G_SilentAimTeamCheck or false
+_G.G_SilentAimMethod        = _G.G_SilentAimMethod or "鼠标最近的玩家"
 _G.G_LockHotkey              = _G.G_LockHotkey or false
 _G.G_LockHotkeyMode          = _G.G_LockHotkeyMode or "锁人1"
+_G.G_AutoSoru                = _G.G_AutoSoru or false
 
 _G.G_AutoLoadConfig   = _G.G_AutoLoadConfig or false
 _G.G_AutoSaveConfig   = _G.G_AutoSaveConfig or false
-_G.G_Theme            = _G.G_Theme or "Light"
+_G.G_Theme            = _G.G_Theme or "Sakura"
 _G.G_Language         = _G.G_Language or "中文"
 
 local Translations = {
@@ -107,6 +116,9 @@ local Translations = {
         ["跳跃高度"] = "Jump Height",
         ["高跳开启"] = "High Jump",
         ["飞行"] = "Fly",
+        ["移动辅助"] = "Movement Assist",
+        ["自动瞬步"] = "Auto Soru",
+        ["每15秒强制打你2500血你气不气😂"] = "Forces 2,500 damage every 15 seconds 😂",
         ["自动武装色"] = "Auto Haki",
         ["自动 V3"] = "Auto V3",
         ["自动 V4"] = "Auto V4",
@@ -142,6 +154,17 @@ local Translations = {
         -- 服务器
         ["重进服务器"] = "Rejoin Server",
         ["选择服务器区域"] = "Select Server Region",
+        ["选择人数"] = "Player Count",
+        ["跳服时过滤人数范围"] = "Filter server hop by player count",
+        ["选择赏金"] = "Bounty Range",
+        ["跳服时过滤赏金范围"] = "Filter server hop by bounty",
+        ["人数设置"] = "Player Count",
+        ["赏金设置"] = "Bounty Range",
+        ["人数: "] = "Players: ",
+        ["赏金: "] = "Bounty: ",
+        ["匹配到服务器"] = "Matching Server Found",
+        ["尝试跳服"] = "Attempting server hop",
+        ["地区: "] = "Region: ",
         ["跳服"] = "Server Hop",
         ["服务器id"] = "Server ID",
         ["输入服务器id"] = "Enter Server ID",
@@ -207,6 +230,8 @@ local Translations = {
         ["直接传送至玩家"] = "Direct TP to Player",
         ["锁人2"] = "Lock 2",
         ["锁人预判 (对抗飞行)"] = "Lock Predict (Anti-Fly)",
+        ["锁人快捷路径"] = "Lock Quick Path",
+        ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
         ["X轴偏移"] = "X Offset",
         ["Y轴偏移"] = "Y Offset",
         ["Z轴偏移"] = "Z Offset",
@@ -224,6 +249,10 @@ local Translations = {
         ["团队检测"] = "Team Check",
         ["显示锁定红线"] = "Show Lock Line",
         ["瞄准部位"] = "Target Part",
+        ["静默瞄准方法"] = "Silent Aim Method",
+        ["鼠标最近的玩家"] = "Closest to Mouse",
+        ["最近的玩家"] = "Closest Player",
+        ["选择玩家"] = "Selected Player",
         ["快捷键锁人(按键h)"] = "Hotkey Lock (Press H)",
         ["锁人模式"] = "Lock Mode",
         -- 描述
@@ -278,6 +307,20 @@ local function L(text)
     return text
 end
 
+local EnglishTranslationSources = {}
+for source, translation in pairs(Translations["English"]) do
+    if EnglishTranslationSources[translation] == nil then
+        EnglishTranslationSources[translation] = source
+    end
+end
+
+local function LocalizeExistingText(text)
+    if type(text) ~= "string" or text == "" then
+        return text
+    end
+    return L(EnglishTranslationSources[text] or text)
+end
+
 local function ValidDropdownValue(values, value, fallback)
     for _, option in ipairs(values) do
         if option == value then
@@ -310,6 +353,7 @@ local function CollectConfig()
             jumpHeight       = _G.G_jumpHeight,
             jumpEnabled      = _G.G_jumpEnabled,
             Fly              = _G.G_Fly,
+            AutoSoru         = _G.G_AutoSoru,
         },
         ESP = {
             ESPEnabled   = _G.G_ESPEnabled,
@@ -341,9 +385,16 @@ local function CollectConfig()
             TeleportOffsetY = _G.G_TeleportOffsetY,
             TeleportOffsetZ = _G.G_TeleportOffsetZ,
             TeleportPredict = _G.G_TeleportPredict,
+            LockQuickPath   = _G.G_LockQuickPath,
         },
         Server = {
             ServerRegion = _G.G_ServerRegion,
+            HopPlayerRange = _G.G_HopPlayerRange,
+            HopBountyRange = _G.G_HopBountyRange,
+            HopMinPlayers = _G.G_HopMinPlayers,
+            HopMaxPlayers = _G.G_HopMaxPlayers,
+            HopMinBounty = _G.G_HopMinBounty,
+            HopMaxBounty = _G.G_HopMaxBounty,
         },
         Drawing = {
             SilentAimM1R   = _G.G_SilentAimM1R,
@@ -358,6 +409,7 @@ local function CollectConfig()
             SilentAimShowLine      = _G.G_SilentAimShowLine,
             SilentAimFOVMode       = _G.G_SilentAimFOVMode,
             SilentAimTeamCheck     = _G.G_SilentAimTeamCheck,
+            SilentAimMethod        = _G.G_SilentAimMethod,
             LockHotkey             = _G.G_LockHotkey,
             LockHotkeyMode         = _G.G_LockHotkeyMode,
         },
@@ -395,12 +447,27 @@ _G.G_ServerRegion = ValidDropdownValue(
     _G.G_ServerRegion,
     "Singapore"
 )
+_G.G_HopPlayerRange = ValidDropdownValue(
+    {"1-12", "3-12", "5-12", "7-12", "9-12"},
+    _G.G_HopPlayerRange,
+    "1-12"
+)
+_G.G_HopBountyRange = ValidDropdownValue(
+    {"大于3m", "大于5m", "大于10m", "大于15m", "大于25m", "大于35m", "大于50m"},
+    _G.G_HopBountyRange,
+    "大于3m"
+)
 _G.G_SilentAimPart = ValidDropdownValue(
     {"HumanoidRootPart", "Head", "Torso", "UpperTorso", "LowerTorso"},
     _G.G_SilentAimPart,
     "Head"
 )
 _G.G_LockHotkeyMode = ValidDropdownValue({"锁人1", "锁人2"}, _G.G_LockHotkeyMode, "锁人1")
+_G.G_SilentAimMethod = ValidDropdownValue(
+    {"鼠标最近的玩家", "最近的玩家", "选择玩家"},
+    _G.G_SilentAimMethod,
+    "鼠标最近的玩家"
+)
 _G.G_SilentAimFOVMode = ValidDropdownValue({"跟随鼠标", "屏幕中心"}, _G.G_SilentAimFOVMode, "跟随鼠标")
 _G.FOVMode = _G.G_SilentAimFOVMode
 local Velora = loadstring(game:HttpGet("https://raw.githubusercontent.com/kismile36/VeloraUI/main/Velora.lua"))()
@@ -429,7 +496,7 @@ local WindUI = {}
 
 function WindUI:SetTheme(theme)
     if not VeloraUI:GetThemes()[theme] then
-        theme = "Midnight"
+        theme = "Sakura"
     end
     _G.G_Theme = theme
     return VeloraUI:SetTheme(theme)
@@ -448,7 +515,7 @@ function WindUI:Notify(options)
 end
 
 if not VeloraUI:GetThemes()[_G.G_Theme] then
-    _G.G_Theme = "Midnight"
+    _G.G_Theme = "Sakura"
 end
 WindUI:SetTheme(_G.G_Theme)
 
@@ -518,6 +585,88 @@ local RJR = {
     [L("服务器")] = createSection(UtilityTab, L("服务器"), "Right"),
     [L("设置")] = AppearanceSection,
 }
+local AutoSoruSection = createSection(CombatTab, L("移动辅助"), "Right")
+
+local LanguageButton
+local ThemeDropdown
+local RefreshDynamicLanguageUI
+
+local function RefreshLocalizedUI()
+    Window:SetTitle(LocalizeExistingText(Window.Options.Title), LocalizeExistingText(Window.Options.Subtitle))
+    for _, tab in ipairs(Window._tabs) do
+        tab.Options.Description = LocalizeExistingText(tab.Options.Description)
+        tab:SetTitle(LocalizeExistingText(tab.Title))
+        for _, section in ipairs(tab._sections) do
+            local title = LocalizeExistingText(section.Title)
+            if section == ConfigSection then
+                title = L("配置") .. " / " .. L("语言")
+            end
+            section:SetTitle(title, LocalizeExistingText(section.Description))
+            for _, control in ipairs(section._controls) do
+                if control.Type == "Paragraph" then
+                    local value = control:Get()
+                    local paragraphTitle = LocalizeExistingText(value.Title)
+                    local paragraphContent = LocalizeExistingText(value.Content)
+                    control:Set({
+                        Title = paragraphTitle,
+                        Content = paragraphContent,
+                    }, {
+                        Silent = true,
+                        Force = true,
+                        Source = "language",
+                    })
+                    control.Title = paragraphTitle
+                    control.Description = paragraphContent
+                    if control._searchEntry then
+                        VeloraUI:_refreshSearchItem(control._searchEntry, paragraphTitle, paragraphContent)
+                    end
+                elseif control.Type == "Label" then
+                    local labelText = LocalizeExistingText(control:Get())
+                    control:Set(labelText, {
+                        Silent = true,
+                        Force = true,
+                        Source = "language",
+                    })
+                    control.Title = labelText
+                    if control._searchEntry then
+                        VeloraUI:_refreshSearchItem(control._searchEntry, labelText, "")
+                    end
+                else
+                    control:SetTitle(LocalizeExistingText(control.Title))
+                    if control.Description ~= "" then
+                        control:SetDescription(LocalizeExistingText(control.Description))
+                    end
+                end
+                if control.Values then
+                    local choicesChanged = false
+                    for _, choice in ipairs(control.Values) do
+                        if type(choice.Value) == "string" and Translations["English"][choice.Value] then
+                            choice.Title = L(choice.Value)
+                            choicesChanged = true
+                        end
+                    end
+                    if choicesChanged and control._render then
+                        control:_render(control:Get())
+                    end
+                end
+            end
+        end
+    end
+    if LanguageButton then
+        local languageName = _G.G_Language == "English" and "English" or "中文"
+        LanguageButton:SetTitle(L("语言") .. " (" .. languageName .. ")")
+    end
+    if ThemeDropdown and ThemeDropdown.Values then
+        for _, choice in ipairs(ThemeDropdown.Values) do
+            choice.Title = LocalizeExistingText(choice.Title)
+            choice.Description = LocalizeExistingText(choice.Description)
+        end
+        ThemeDropdown:_render(ThemeDropdown:Get())
+    end
+    if RefreshDynamicLanguageUI then
+        RefreshDynamicLanguageUI()
+    end
+end
 
 local DiscordLink = "https://discord.gg/862SZpM7Qk"
 local RayfieldScript = [[loadstring(game:HttpGet("https://raw.githubusercontent.com/kismile36/g1/refs/heads/main/RJR_rayfileld"))()]]
@@ -1503,6 +1652,100 @@ RJR[L("主要功能")]:Button({
         end)
     end
 })
+
+local AutoSoruTask
+local AutoSoruRevision = 0
+
+local function SoruTo(targetPosition)
+    local character = LocalPlayer.Character
+    if not character then return end
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoidRootPart or not humanoid or humanoid.Health <= 0 then return end
+    local startCFrame = humanoidRootPart.CFrame
+    local finalCFrame = (startCFrame - startCFrame.Position)
+        + targetPosition
+        + Vector3.new(0, humanoidRootPart.Size.Y * 1.5, 0)
+    ReplicatedStorage.Remotes.CommE:FireServer(
+        "Soru",
+        startCFrame,
+        finalCFrame,
+        workspace:GetServerTimeNow(),
+        math.random(1, 999999999)
+    )
+end
+
+local function GetClosestPlayerForSoru()
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local closestPlayer
+    local shortestDistance = math.huge
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local otherCharacter = player.Character
+            local otherHumanoid = otherCharacter and otherCharacter:FindFirstChild("Humanoid")
+            local otherRoot = otherCharacter and otherCharacter:FindFirstChild("HumanoidRootPart")
+            if otherHumanoid and otherRoot and otherHumanoid.Health > 0 then
+                local distance = (otherRoot.Position - root.Position).Magnitude
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+local function SoruToClosestPlayer()
+    local targetPlayer = GetClosestPlayerForSoru()
+    local targetRoot = targetPlayer and targetPlayer.Character
+        and targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if targetRoot then
+        SoruTo((targetRoot.CFrame * CFrame.new(0, 0, 3)).Position)
+    end
+end
+
+local function StartAutoSoru()
+    if AutoSoruTask then return end
+    AutoSoruRevision = AutoSoruRevision + 1
+    local revision = AutoSoruRevision
+    AutoSoruTask = task.spawn(function()
+        while _G.G_AutoSoru and AutoSoruRevision == revision do
+            pcall(SoruToClosestPlayer)
+            task.wait(1)
+        end
+        if AutoSoruRevision == revision then
+            AutoSoruTask = nil
+        end
+    end)
+end
+
+local function StopAutoSoru()
+    AutoSoruRevision = AutoSoruRevision + 1
+    AutoSoruTask = nil
+end
+
+AutoSoruSection:Toggle({
+    Title = L("自动瞬步"),
+    Desc = L("每15秒强制打你2500血你气不气😂"),
+    Value = _G.G_AutoSoru,
+    Callback = function(value)
+        _G.G_AutoSoru = value
+        if value then
+            StartAutoSoru()
+        else
+            StopAutoSoru()
+        end
+        SaveConfiguration()
+    end,
+})
+
+if _G.G_AutoSoru then
+    StartAutoSoru()
+end
+
 RJR["ESP"]:Toggle({
     Title = L("ESP 开关"),
     Value = _G.G_ESPEnabled,
@@ -2256,6 +2499,63 @@ RJR[L("服务器")]:Button({
     end
 })
 
+local function FormatNumber(value)
+    local text = tostring(math.floor(tonumber(value) or 0))
+    local left, digits, right = text:match("^([^%d]*%d)(%d*)(.-)$")
+    return left .. (digits:reverse():gsub("(%d%d%d)", "%1,"):reverse()) .. right
+end
+
+local function ApplyPlayerRange(label)
+    _G.G_HopPlayerRange = label
+    local minimum, maximum = label:match("(%d+)%-(%d+)")
+    _G.G_HopMinPlayers = tonumber(minimum) or 1
+    _G.G_HopMaxPlayers = tonumber(maximum) or 12
+end
+
+local function ApplyBountyRange(label)
+    _G.G_HopBountyRange = label
+    local amount = label:match("大于([%d%.]+[Mm]?)")
+    if not amount then
+        _G.G_HopMinBounty = 0
+        _G.G_HopMaxBounty = 999999999
+        return
+    end
+    local number, unit = amount:match("([%d%.]+)([Mm]?)")
+    local value = tonumber(number) or 0
+    if unit and unit:lower() == "m" then
+        value = value * 1000000
+    end
+    _G.G_HopMinBounty = value + 1
+    _G.G_HopMaxBounty = 999999999
+end
+
+local function ParseServerInfo(text)
+    if type(text) ~= "string" or text == "" then return nil end
+    local region = text:match("Region:%s*(.-)%s*%-%s*Players:")
+    local currentPlayers, maximumPlayers = text:match("Players:%s*(%d+)%s*/%s*(%d+)")
+    local bountyText = text:match("Bounty:%s*([%d,]+)")
+    if not currentPlayers or not maximumPlayers or not bountyText then return nil end
+    local bounty = tonumber((bountyText:gsub(",", "")))
+    if not bounty then return nil end
+    return {
+        Region = region or "Unknown",
+        Players = tonumber(currentPlayers),
+        MaxPlayers = tonumber(maximumPlayers),
+        Bounty = bounty,
+    }
+end
+
+local function IsServerAllowed(info)
+    return info
+        and info.Players >= _G.G_HopMinPlayers
+        and info.Players <= _G.G_HopMaxPlayers
+        and info.Bounty >= _G.G_HopMinBounty
+        and info.Bounty <= _G.G_HopMaxBounty
+end
+
+ApplyPlayerRange(_G.G_HopPlayerRange)
+ApplyBountyRange(_G.G_HopBountyRange)
+
 RJR[L("服务器")]:Dropdown({
     Title = L("选择服务器区域"),
     Desc = L("跳服时搜索的服务器区域"),
@@ -2272,6 +2572,38 @@ RJR[L("服务器")]:Dropdown({
     end
 })
 
+RJR[L("服务器")]:Dropdown({
+    Title = L("选择人数"),
+    Desc = L("跳服时过滤人数范围"),
+    Values = {"1-12", "3-12", "5-12", "7-12", "9-12"},
+    Value = _G.G_HopPlayerRange,
+    Callback = function(value)
+        ApplyPlayerRange(value)
+        SaveConfiguration()
+        WindUI:Notify({
+            Title = L("人数设置"),
+            Content = value .. " (" .. _G.G_HopMinPlayers .. "-" .. _G.G_HopMaxPlayers .. ")",
+            Duration = 2,
+        })
+    end,
+})
+
+RJR[L("服务器")]:Dropdown({
+    Title = L("选择赏金"),
+    Desc = L("跳服时过滤赏金范围"),
+    Values = {"大于3m", "大于5m", "大于10m", "大于15m", "大于25m", "大于35m", "大于50m"},
+    Value = _G.G_HopBountyRange,
+    Callback = function(value)
+        ApplyBountyRange(value)
+        SaveConfiguration()
+        WindUI:Notify({
+            Title = L("赏金设置"),
+            Content = value .. " (" .. FormatNumber(_G.G_HopMinBounty) .. " - " .. FormatNumber(_G.G_HopMaxBounty) .. ")",
+            Duration = 2,
+        })
+    end,
+})
+
 RJR[L("服务器")]:Button({
     Title = L("跳服"),
     Icon = "wind",
@@ -2283,7 +2615,10 @@ RJR[L("服务器")]:Button({
 
         WindUI:Notify({ 
             Title = L("自动跳服"), 
-            Content = L("准备跳服...") .. "\n\n" .. L("设置区域为: ") .. _G.G_ServerRegion, 
+            Content = L("准备跳服...") .. "\n\n"
+                .. L("设置区域为: ") .. _G.G_ServerRegion .. "\n"
+                .. L("人数: ") .. _G.G_HopPlayerRange .. "\n"
+                .. L("赏金: ") .. _G.G_HopBountyRange,
             Icon = "wind", 
             Duration = 10
         }) 
@@ -2309,13 +2644,21 @@ RJR[L("服务器")]:Button({
 
         TextBox.Text = _G.G_ServerRegion 
 
+        local Full = Filters and Filters:FindFirstChild("Full")
+        local FullCheck = Full and Full:FindFirstChild("Check")
+        if FullCheck then
+            FullCheck.Text = "\226\156\148\239\184\143"
+            task.wait(0.1)
+        end
+
         local ScrollingFrame = PlayerGui.ServerBrowser.Frame.ScrollingFrame 
         local FakeScroll = PlayerGui.ServerBrowser.Frame.FakeScroll 
         local Inside = FakeScroll.Inside 
 
         task.spawn(function() 
-            while task.wait(0.3) do 
+            while getgenv().IsServerHopping do
                 ScrollingFrame.CanvasPosition = Vector2.new(0, math.random(100, 7000)) 
+                task.wait(0.3)
             end 
         end) 
 
@@ -2324,21 +2667,32 @@ RJR[L("服务器")]:Button({
         local currentJobId = game.JobId 
         local ServerBrowserRemote = game:GetService("ReplicatedStorage"):WaitForChild("__ServerBrowser")
 
-        while task.wait(3) do 
+        while getgenv().IsServerHopping do
             for _, template in ipairs(Inside:GetChildren()) do 
                 if template.Name == "Template" then 
                     local joinButton = template:FindFirstChild("Join") 
-                    if joinButton then 
+                    local textLabel = template:FindFirstChild("TextLabel")
+                    local info = textLabel and ParseServerInfo(textLabel.Text)
+                    if joinButton and info and IsServerAllowed(info) then
                         local job = joinButton:GetAttribute("Job") 
                         if job and tostring(job):find("-", 1, true) then 
                             job = tostring(job) 
                             
                             if job ~= currentJobId then 
-                                local success, err = pcall(function() 
+                                WindUI:Notify({
+                                    Title = L("匹配到服务器"),
+                                    Content = L("尝试跳服") .. "\n"
+                                        .. L("地区: ") .. tostring(info.Region) .. "\n"
+                                        .. L("人数: ") .. info.Players .. "/" .. info.MaxPlayers .. "\n"
+                                        .. L("赏金: ") .. FormatNumber(info.Bounty),
+                                    Icon = "wind",
+                                    Duration = 5,
+                                })
+                                local success = pcall(function()
                                     ServerBrowserRemote:InvokeServer("teleport", job) 
                                 end) 
                                 if not success then 
-                                    local success2, err2 = pcall(function() 
+                                    local success2 = pcall(function()
                                         ServerBrowserRemote:InvokeServer("teleport", job) 
                                     end) 
                                     if not success2 then 
@@ -2356,7 +2710,8 @@ RJR[L("服务器")]:Button({
                     end 
                 end 
             end 
-        end 
+            task.wait(3)
+        end
     end
 })
 
@@ -2417,7 +2772,7 @@ local themeChoices = {
 }
 
 -- 窗口快捷键固定为 G。
-ConfigSection:Button({
+LanguageButton = ConfigSection:Button({
     Title = L("语言") .. " (" .. _G.G_Language .. ")",
     Icon = "globe",
     Callback = function()
@@ -2426,6 +2781,7 @@ ConfigSection:Button({
         else
             _G.G_Language = "中文"
         end
+        RefreshLocalizedUI()
         SaveConfiguration()
         WindUI:Notify({
             Title = L("语言"),
@@ -2882,7 +3238,7 @@ RJR[L("传送")]:Toggle({
                 end
 
             
-                if distance > 1000 and tick() - Lock2LastEntrance > 3 then
+                if _G.G_LockQuickPath and distance > 1000 and tick() - Lock2LastEntrance > 3 then
                     local entName, entPos = GetNearestEntranceToTarget(targetPos, myPos)
                     if entName and entPos then
                         requestEntrance(entPos)
@@ -2915,6 +3271,16 @@ RJR[L("传送")]:Toggle({
         _G.G_TeleportPredict = v
         SaveConfiguration()
     end
+})
+
+RJR[L("传送")]:Toggle({
+    Title = L("锁人快捷路径"),
+    Desc = L("通过传送点快速接近目标"),
+    Value = _G.G_LockQuickPath,
+    Callback = function(value)
+        _G.G_LockQuickPath = value
+        SaveConfiguration()
+    end,
 })
 
 RJR[L("传送")]:Divider()
@@ -2970,7 +3336,7 @@ RJR[L("传送")]:Input({
 
 
 
-RJR[L("设置")]:Dropdown({
+ThemeDropdown = RJR[L("设置")]:Dropdown({
     Title = L("内置主题（十三套）"),
     Description = L("选择后立即应用，不会重建窗口"),
     Values = themeChoices,
@@ -3097,6 +3463,55 @@ local function GetSilentAimOrigin()
 end
 
 local function GetClosestTargetToMouse()
+    local method = _G.G_SilentAimMethod or "鼠标最近的玩家"
+
+    if method == "选择玩家" then
+        if not _G.G_SilentAimTargetPlayers then return nil end
+        local selectedName = _G.G_SelectPly
+        if not selectedName or selectedName == "" then return nil end
+        local player = Players:FindFirstChild(selectedName)
+        if not player or player == LocalPlayer then return nil end
+        if _G.G_SilentAimTeamCheck and not IsSilentAimEnemy(player) then return nil end
+        local character = player.Character
+        if not IsAlive(character) then return nil end
+        return character:FindFirstChild(_G.G_SilentAimPart)
+            or character:FindFirstChild("HumanoidRootPart")
+    end
+
+    if method == "最近的玩家" then
+        local character = LocalPlayer.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+        if not root then return nil end
+        local closest, shortest = nil, math.huge
+        local origin = root.Position
+
+        local function checkNearest(targetCharacter)
+            if not IsAlive(targetCharacter) then return end
+            local part = targetCharacter:FindFirstChild(_G.G_SilentAimPart)
+                or targetCharacter:FindFirstChild("HumanoidRootPart")
+            if not part then return end
+            local distance = (part.Position - origin).Magnitude
+            if distance < shortest then
+                closest, shortest = part, distance
+            end
+        end
+
+        if _G.G_SilentAimTargetPlayers then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer
+                    and (not _G.G_SilentAimTeamCheck or IsSilentAimEnemy(player)) then
+                    checkNearest(player.Character)
+                end
+            end
+        end
+        if _G.G_SilentAimTargetMobs and workspace:FindFirstChild("Enemies") then
+            for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
+                checkNearest(enemy)
+            end
+        end
+        return closest
+    end
+
     local origin = GetSilentAimOrigin()
     local closest, shortest = nil, c.Radius
 
@@ -3223,6 +3638,8 @@ local function LockHotkeyUpdateUI()
     end
 end
 
+RefreshDynamicLanguageUI = LockHotkeyUpdateUI
+
 local function LockHotkeyStartLoop()
    
     lockHotkeyTarget = nil
@@ -3277,7 +3694,7 @@ local function LockHotkeyStartLoop()
                     myHRP.CFrame = CFrame.new(myPos.X, targetPos.Y, myPos.Z)
                 end
       
-                if distance > 1000 and tick() - Lock2EntranceTick > 3 then
+                if _G.G_LockQuickPath and distance > 1000 and tick() - Lock2EntranceTick > 3 then
                     local entName, entPos = GetNearestEntranceToTarget(targetPos, myPos)
                     if entName and entPos then
                         requestEntrance(entPos)
@@ -3424,6 +3841,20 @@ AimSection:Toggle({
     Title = L("技能自瞄"),
     Value = _G.G_SilentAimSkill,
     Callback = function(v) _G.G_SilentAimSkill = v; SaveConfiguration() end
+})
+
+AimSection:Dropdown({
+    Title = L("静默瞄准方法"),
+    Values = {
+        {Title = L("鼠标最近的玩家"), Value = "鼠标最近的玩家"},
+        {Title = L("最近的玩家"), Value = "最近的玩家"},
+        {Title = L("选择玩家"), Value = "选择玩家"},
+    },
+    Value = _G.G_SilentAimMethod,
+    Callback = function(value)
+        _G.G_SilentAimMethod = value
+        SaveConfiguration()
+    end,
 })
 
 AimSection:Toggle({
