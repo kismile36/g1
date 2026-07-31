@@ -187,7 +187,7 @@ local Translations = {
         ["自瞄设置"] = "Aimbot Settings",
         ["M1 自瞄"] = "M1 Aimbot",
         ["技能自瞄"] = "Skill Aimbot",
-        ["自瞄招式"] = "Aimbot Skills",
+        ["指定技能自瞄"] = "Aimbot Skills",
         ["瞄准玩家"] = "Target Players",
         ["瞄准 NPC"] = "Target NPCs",
         ["团队检测"] = "Team Check",
@@ -3602,7 +3602,7 @@ RJR[L("绘制")]:CreateToggle({
 })
 
 RJR[L("绘制")]:CreateDropdown({
-    Name = L("自瞄招式"),
+    Name = L("指定技能自瞄"),
     Options = {"M1 (普攻)", "Z", "X", "C", "V", "F", "R"},
     CurrentOption = _G.G_SilentAimSkills,
     Multiple = true,
