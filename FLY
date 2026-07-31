@@ -1,0 +1,1181 @@
+local P=game:GetService("Players")
+local R=game:GetService("RunService")
+local U=game:GetService("UserInputService")
+
+local LP=P.LocalPlayer
+
+
+--==============================
+-- UI
+--==============================
+
+local m=Instance.new("ScreenGui")
+local f=Instance.new("Frame")
+local u=Instance.new("TextButton")
+local d=Instance.new("TextButton")
+local o=Instance.new("TextButton")
+local t=Instance.new("TextLabel")
+local p=Instance.new("TextButton")
+local s=Instance.new("TextBox")
+local n=Instance.new("TextButton")
+local c=Instance.new("TextButton")
+local h=Instance.new("TextButton")
+local h2=Instance.new("TextButton")
+local nc=Instance.new("TextButton")
+
+
+m.Name="main"
+m.Parent=LP:WaitForChild("PlayerGui")
+m.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+m.ResetOnSpawn=false
+
+
+f.Parent=m
+f.BackgroundColor3=Color3.fromRGB(163,255,137)
+f.BorderColor3=Color3.fromRGB(103,221,213)
+f.Position=UDim2.new(0.1,0,0.38,0)
+f.Size=UDim2.new(0,190,0,57)
+f.Active=true
+f.Draggable=true
+
+
+
+local function b(x,y,z,q)
+	x.Name=y
+	x.Parent=f
+	x.Position=z
+	x.Size=q
+	x.Font=Enum.Font.SourceSans
+	x.Text=y
+	x.TextColor3=Color3.new(0,0,0)
+	x.TextSize=14
+	x.TextScaled=true
+	x.TextWrapped=true
+end
+
+
+
+b(u,"↑",UDim2.new(0,0,0,0),UDim2.new(0,44,0,28))
+u.BackgroundColor3=Color3.fromRGB(79,255,152)
+
+
+b(d,"↓",UDim2.new(0,0,.49,0),UDim2.new(0,44,0,28))
+d.BackgroundColor3=Color3.fromRGB(215,255,121)
+
+
+
+o.Parent=f
+o.Name="onoff"
+o.Position=UDim2.new(.70,0,.49,0)
+o.Size=UDim2.new(0,56,0,28)
+o.BackgroundColor3=Color3.fromRGB(255,249,74)
+o.Text="开始"
+o.TextScaled=true
+
+
+
+p.Parent=f
+p.Name="plus"
+p.Position=UDim2.new(.23,0,0,0)
+p.Size=UDim2.new(0,45,0,28)
+p.BackgroundColor3=Color3.fromRGB(133,145,255)
+p.Text="+1"
+p.TextScaled=true
+
+
+
+n.Parent=f
+n.Name="mine"
+n.Position=UDim2.new(.23,0,.49,0)
+n.Size=UDim2.new(0,45,0,29)
+n.BackgroundColor3=Color3.fromRGB(123,255,247)
+n.Text="-1"
+n.TextScaled=true
+
+
+
+t.Parent=f
+t.Position=UDim2.new(.46,0,0,0)
+t.Size=UDim2.new(0,100,0,28)
+t.BackgroundColor3=Color3.fromRGB(242,60,255)
+t.Text="人挤人飞行"
+t.TextScaled=true
+
+
+
+s.Parent=f
+s.Name="speed"
+s.Position=UDim2.new(.46,0,.49,0)
+s.Size=UDim2.new(0,44,0,28)
+s.BackgroundColor3=Color3.fromRGB(255,85,0)
+s.Text="1"
+s.ClearTextOnFocus=false
+s.TextScaled=true
+
+
+
+nc.Parent=f
+nc.Name="NoClip"
+nc.Position=UDim2.new(0,89,-1,27)
+nc.Size=UDim2.new(0,45,0,28)
+nc.BackgroundColor3=Color3.fromRGB(255,120,60)
+nc.Text="穿墙模式"
+nc.TextScaled=true
+
+
+
+c.Parent=f
+c.Name="Close"
+c.Position=UDim2.new(0,0,-1,27)
+c.Size=UDim2.new(0,45,0,28)
+c.BackgroundColor3=Color3.fromRGB(225,25,0)
+c.Text="关闭"
+c.TextScaled=true
+
+
+
+h.Parent=f
+h.Name="minimize"
+h.Position=UDim2.new(0,44,-1,27)
+h.Size=UDim2.new(0,45,0,28)
+h.BackgroundColor3=Color3.fromRGB(192,150,230)
+h.Text="隐藏"
+h.TextScaled=true
+
+
+
+h2.Parent=f
+h2.Name="minimize2"
+h2.Position=UDim2.new(0,44,-1,57)
+h2.Size=UDim2.new(0,45,0,28)
+h2.BackgroundColor3=Color3.fromRGB(192,150,230)
+h2.Text="显示"
+h2.TextScaled=true
+h2.Visible=false
+
+
+
+
+--==============================
+-- 飞行核心
+--==============================
+
+local F={}
+F.__index=F
+
+
+
+function F.new()
+
+	local self=setmetatable({},F)
+
+	self.v=1
+	self.f=false
+	self.n=false
+
+	self.c={}
+	self.w={}
+	self.p={}
+
+	self.l=nil
+	self.m=nil
+
+	self.ch=nil
+	self.h=nil
+	self.r=nil
+
+	self.i=nil
+
+	self.pl=LP
+
+	self.nc=nil
+	self.nl=nil
+
+
+	self:e()
+
+	return self
+
+end
+
+
+
+function F:e()
+
+	self:uC()
+
+
+	table.insert(
+		self.c,
+		self.pl.CharacterAdded:Connect(function()
+
+			task.wait(.2)
+
+			self:uC()
+
+			if self.f then
+				self:sF()
+			end
+
+		end)
+	)
+
+end
+
+
+
+function F:uC()
+
+	self.ch=self.pl.Character
+
+	if self.ch then
+
+		self.h=self.ch:FindFirstChildOfClass("Humanoid")
+
+		self.r=self.ch:FindFirstChild("HumanoidRootPart")
+
+	end
+
+end
+
+
+
+--==============================
+-- 水中冲突修复核心
+--==============================
+
+function F:FixWater()
+
+	if not self.h then return end
+
+
+	self.h:SetStateEnabled(
+		Enum.HumanoidStateType.Swimming,
+		false
+	)
+
+
+	self.h:SetStateEnabled(
+		Enum.HumanoidStateType.Physics,
+		true
+	)
+
+
+	local state=self.h:GetState()
+
+
+	if state==Enum.HumanoidStateType.Swimming then
+		
+		self.h:ChangeState(
+			Enum.HumanoidStateType.Physics
+		)
+
+	end
+
+
+end
+--==============================
+-- 清理
+--==============================
+
+function F:sA()
+
+	if self.l then
+		self.l:Disconnect()
+		self.l=nil
+	end
+
+
+	for _,v in ipairs(self.w) do
+
+		if v then
+			v:Disconnect()
+		end
+
+	end
+
+	self.w={}
+
+end
+
+
+
+function F:clP()
+
+	for _,v in ipairs(self.p) do
+
+		if v and v.Parent then
+			v:Destroy()
+		end
+
+	end
+
+	self.p={}
+
+end
+
+
+
+--==============================
+-- 动画
+--==============================
+
+function F:pI()
+
+	if not self.h then return end
+
+
+	local anim=Instance.new("Animation")
+
+	anim.AnimationId="rbxassetid://507766666"
+
+
+	self.i=self.h:LoadAnimation(anim)
+
+
+	if self.i then
+
+		self.i.Looped=true
+		self.i.Priority=Enum.AnimationPriority.Idle
+		self.i:Play()
+
+	end
+
+end
+
+
+
+function F:sI()
+
+	if self.i then
+
+		self.i:Stop()
+		self.i=nil
+
+	end
+
+end
+
+
+
+
+--==============================
+-- 穿墙
+--==============================
+
+
+function F:aN()
+
+	if not self.ch then return end
+
+
+	for _,v in ipairs(self.ch:GetDescendants()) do
+
+		if v:IsA("BasePart") then
+
+			v.CanCollide=false
+
+		end
+
+	end
+
+
+	self.nl=R.Heartbeat:Connect(function()
+
+		if not self.n then return end
+
+
+		if self.ch then
+
+			for _,v in ipairs(self.ch:GetDescendants()) do
+
+				if v:IsA("BasePart") then
+					v.CanCollide=false
+				end
+
+			end
+
+		end
+
+
+	end)
+
+end
+
+
+
+function F:rN()
+
+	if not self.ch then return end
+
+
+	if self.nl then
+		self.nl:Disconnect()
+		self.nl=nil
+	end
+
+
+	for _,v in ipairs(self.ch:GetDescendants()) do
+
+		if v:IsA("BasePart") then
+
+			v.CanCollide=true
+
+		end
+
+	end
+
+end
+
+
+
+
+
+--==============================
+-- 禁止游戏水泳状态
+--==============================
+
+
+function F:dH()
+
+	if not self.h then return end
+
+
+	local states={
+
+		Enum.HumanoidStateType.Climbing,
+		Enum.HumanoidStateType.FallingDown,
+		Enum.HumanoidStateType.Flying,
+		Enum.HumanoidStateType.Freefall,
+		Enum.HumanoidStateType.GettingUp,
+		Enum.HumanoidStateType.Jumping,
+		Enum.HumanoidStateType.Landed,
+		Enum.HumanoidStateType.PlatformStanding,
+		Enum.HumanoidStateType.Ragdoll,
+		Enum.HumanoidStateType.Running,
+		Enum.HumanoidStateType.RunningNoPhysics,
+		Enum.HumanoidStateType.Seated,
+
+	}
+
+
+	for _,v in ipairs(states) do
+
+		self.h:SetStateEnabled(v,false)
+
+	end
+
+
+
+	--关键修复
+	self.h:SetStateEnabled(
+		Enum.HumanoidStateType.Swimming,
+		false
+	)
+
+
+	self.h:SetStateEnabled(
+		Enum.HumanoidStateType.Physics,
+		true
+	)
+
+
+	self.h:ChangeState(
+		Enum.HumanoidStateType.Physics
+	)
+
+
+end
+
+
+
+
+function F:eH()
+
+	if not self.h then return end
+
+
+	for _,v in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+
+		self.h:SetStateEnabled(v,true)
+
+	end
+
+
+	self.h:ChangeState(
+		Enum.HumanoidStateType.Running
+	)
+
+end
+
+
+
+
+
+--==============================
+-- 飞行速度
+--==============================
+
+
+function F:cV(c,sp)
+
+	local cam=workspace.CurrentCamera
+
+	if not cam then
+		return Vector3.zero
+	end
+
+
+	local cf=cam.CFrame
+
+
+	local move=
+
+	(cf.LookVector*(c.f+c.b))
+
+
+	+
+
+	(cf.RightVector*(c.r+c.l))
+
+
+	return move*sp
+
+
+end
+
+
+
+
+function F:gI()
+
+	local i={
+		f=0,
+		b=0,
+		l=0,
+		r=0
+	}
+
+
+	if U:IsKeyDown(Enum.KeyCode.W) then
+		i.f=1
+	end
+
+
+	if U:IsKeyDown(Enum.KeyCode.S) then
+		i.b=-1
+	end
+
+
+	if U:IsKeyDown(Enum.KeyCode.A) then
+		i.l=-1
+	end
+
+
+	if U:IsKeyDown(Enum.KeyCode.D) then
+		i.r=1
+	end
+
+
+	return i
+
+end
+
+
+
+
+
+--==============================
+-- R15 飞行
+--==============================
+
+
+function F:sR15()
+
+
+	local root=self.r
+
+	if not root then return end
+
+
+
+	self:clP()
+
+
+
+	local gyro=Instance.new("BodyGyro")
+
+	gyro.Name="FlightGyro"
+
+	gyro.P=90000
+
+	gyro.MaxTorque=
+	Vector3.new(
+		math.huge,
+		math.huge,
+		math.huge
+	)
+
+	gyro.CFrame=root.CFrame
+
+	gyro.Parent=root
+
+
+
+	local vel=Instance.new("BodyVelocity")
+
+	vel.Name="FlightVelocity"
+
+	vel.MaxForce=
+	Vector3.new(
+		math.huge,
+		math.huge,
+		math.huge
+	)
+
+
+	vel.P=100000
+
+	vel.Velocity=Vector3.zero
+
+	vel.Parent=root
+
+
+
+	table.insert(self.p,gyro)
+	table.insert(self.p,vel)
+
+
+
+	self.l=R.RenderStepped:Connect(function()
+
+		if not self.f then
+			return
+		end
+
+
+		--防水系统抢控制
+		self:FixWater()
+
+
+		local input=self:gI()
+
+
+		-- 无惯性移动
+		if input.f+input.b~=0 
+		or input.l+input.r~=0 then
+			
+			vel.Velocity=
+			self:cV(
+				input,
+				self.v*10
+			)
+
+		else
+			
+			--松开立即停止
+			vel.Velocity=Vector3.zero
+			
+		end
+
+
+
+		gyro.CFrame=
+		workspace.CurrentCamera.CFrame
+
+
+	end)
+
+
+end
+
+
+
+
+--==============================
+-- R6
+--==============================
+
+
+function F:sR6()
+
+	self:sR15()
+
+end
+--==============================
+-- 开启飞行
+--==============================
+
+function F:sF()
+
+	self:uC()
+
+
+	if not self.ch or not self.h or not self.r then
+		return
+	end
+
+
+	self.f=true
+
+	o.Text="停止"
+
+
+	--关闭游戏动画影响
+
+	local anim=self.ch:FindFirstChild("Animate")
+
+	if anim then
+		anim.Disabled=true
+	end
+
+
+
+	--禁止水系统抢控制
+
+	self:dH()
+
+
+
+	--暂停人物动画
+
+	for _,v in ipairs(self.h:GetPlayingAnimationTracks()) do
+
+		v:AdjustSpeed(0)
+
+	end
+
+
+
+	self:pI()
+
+
+
+	if self.h.RigType==Enum.HumanoidRigType.R6 then
+
+		self:sR6()
+
+	else
+
+		self:sR15()
+
+	end
+
+
+end
+
+
+
+
+
+--==============================
+-- 停止飞行
+--==============================
+
+
+function F:eF()
+
+	self.f=false
+
+
+	o.Text="开始"
+
+
+
+	self:sA()
+
+	self:clP()
+
+	self:sI()
+
+
+	self:eH()
+
+
+
+	local anim=self.ch and self.ch:FindFirstChild("Animate")
+
+
+	if anim then
+
+		anim.Disabled=false
+
+	end
+
+
+
+	if self.h then
+
+		self.h.PlatformStand=false
+
+	end
+
+
+end
+
+
+
+
+function F:tF()
+
+	if self.f then
+
+		self:eF()
+
+	else
+
+		self:sF()
+
+	end
+
+end
+
+
+
+
+
+--==============================
+-- 穿墙切换
+--==============================
+
+
+function F:tN()
+
+	self.n=not self.n
+
+
+	if self.n then
+
+		nc.Text="正常模式"
+
+		self:aN()
+
+
+	else
+
+		nc.Text="穿墙模式"
+
+		self:rN()
+
+	end
+
+
+end
+
+
+
+
+--==============================
+-- 速度设置
+--==============================
+
+
+function F:sS()
+
+	local num=tonumber(s.Text)
+
+
+	if num then
+
+
+		if num<1 then
+			num=1
+		end
+
+
+		if num>150 then
+			num=150
+		end
+
+
+		self.v=num
+
+		s.Text=tostring(num)
+
+
+	else
+
+		s.Text=tostring(self.v)
+
+	end
+
+end
+
+
+
+
+
+function F:iS()
+
+	if self.v<150 then
+
+		self.v=self.v+1
+
+		s.Text=tostring(self.v)
+
+	end
+
+end
+
+
+
+
+function F:dS()
+
+	if self.v>1 then
+
+		self.v=self.v-1
+
+		s.Text=tostring(self.v)
+
+	end
+
+end
+
+
+
+
+
+local fm=F.new()
+
+
+
+
+
+--==============================
+-- 按钮
+--==============================
+
+
+o.MouseButton1Click:Connect(function()
+
+	fm:tF()
+
+end)
+
+
+
+nc.MouseButton1Click:Connect(function()
+
+	fm:tN()
+
+end)
+
+
+
+s.FocusLost:Connect(function()
+
+	fm:sS()
+
+end)
+
+
+
+p.MouseButton1Click:Connect(function()
+
+	fm:iS()
+
+end)
+
+
+
+n.MouseButton1Click:Connect(function()
+
+	fm:dS()
+
+end)
+
+
+
+
+
+
+--==============================
+-- 上下飞行
+--==============================
+
+
+local upDown=nil
+
+
+
+local function moveY(value)
+
+
+	if upDown then
+		upDown:Disconnect()
+	end
+
+
+
+	upDown=
+	R.Heartbeat:Connect(function()
+
+
+		if fm.r then
+
+			fm.r.CFrame=
+			fm.r.CFrame
+			*
+			CFrame.new(
+				0,
+				value,
+				0
+			)
+
+
+		end
+
+
+	end)
+
+
+end
+
+
+
+
+local function stopY()
+
+
+	if upDown then
+
+		upDown:Disconnect()
+
+		upDown=nil
+
+	end
+
+
+end
+
+
+
+
+u.MouseButton1Down:Connect(function()
+
+	moveY(1)
+
+end)
+
+
+
+u.MouseButton1Up:Connect(stopY)
+
+u.MouseLeave:Connect(stopY)
+
+
+
+
+
+d.MouseButton1Down:Connect(function()
+
+	moveY(-1)
+
+end)
+
+
+
+d.MouseButton1Up:Connect(stopY)
+
+d.MouseLeave:Connect(stopY)
+
+
+
+
+
+
+
+--==============================
+-- 关闭
+--==============================
+
+
+c.MouseButton1Click:Connect(function()
+
+
+	if fm.f then
+
+		fm:eF()
+
+	end
+
+
+
+	m:Destroy()
+
+
+end)
+
+
+
+
+
+
+--==============================
+-- 隐藏
+--==============================
+
+
+h.MouseButton1Click:Connect(function()
+
+
+	for _,v in ipairs(f:GetChildren()) do
+
+		if v:IsA("GuiObject") and v~=h2 then
+
+			v.Visible=false
+
+		end
+
+	end
+
+
+
+	h.Visible=false
+
+	h2.Visible=true
+
+
+	f.BackgroundTransparency=1
+
+
+
+end)
+
+
+
+
+
+
+--==============================
+-- 显示
+--==============================
+
+
+h2.MouseButton1Click:Connect(function()
+
+
+
+	for _,v in ipairs(f:GetChildren()) do
+
+		if v:IsA("GuiObject") then
+
+			v.Visible=true
+
+		end
+
+	end
+
+
+
+	h2.Visible=false
+
+	h.Visible=true
+
+
+	f.BackgroundTransparency=0
+
+
+
+end)
