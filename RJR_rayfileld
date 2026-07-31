@@ -994,12 +994,10 @@ RJR[L("主要功能")]:CreateSlider({
         SaveConfiguration()
     end
 })
-local LastSkillPressed = "M1 (普攻)"
+local LastSkillPressed = "Z"
 UIS.InputBegan:Connect(function(input)
     if UIS:GetFocusedTextBox() then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        LastSkillPressed = "M1 (普攻)"
-    elseif input.KeyCode == Enum.KeyCode.Z then
+    if input.KeyCode == Enum.KeyCode.Z then
         LastSkillPressed = "Z"
     elseif input.KeyCode == Enum.KeyCode.X then
         LastSkillPressed = "X"
@@ -1009,8 +1007,6 @@ UIS.InputBegan:Connect(function(input)
         LastSkillPressed = "V"
     elseif input.KeyCode == Enum.KeyCode.F then
         LastSkillPressed = "F"
-    elseif input.KeyCode == Enum.KeyCode.R then
-        LastSkillPressed = "R"
     end
 end)
 local function IsSkillSelected(skillName)
