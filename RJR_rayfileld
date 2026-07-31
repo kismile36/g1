@@ -3605,7 +3605,7 @@ RJR[L("绘制")]:CreateDropdown({
     Name = L("指定技能自瞄"),
     Options = {"Z", "X", "C", "V", "F"},
     CurrentOption = _G.G_SilentAimSkills,
-    Multiple = true,
+    MultipleOptions = true,
     Callback = function(Options)
         _G.G_SilentAimSkills = Options
         SaveConfiguration()
