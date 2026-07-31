@@ -1552,6 +1552,8 @@ local InfiniteJumpRunning = false
 local InfiniteJumpLast = 0
 local SkyjumpFns = nil
 local SkyjumpFnsSky = nil
+local SkyjumpJumped = nil
+local SkyjumpLastUseTbl = nil
 local function ResetSkyjumpUpvalues(char)
     if not (char and getgc and getupvalues and setupvalue) then return end
     local sky = char:FindFirstChild("Skyjump")
@@ -1559,6 +1561,8 @@ local function ResetSkyjumpUpvalues(char)
     if SkyjumpFnsSky ~= sky or #SkyjumpFns == 0 then
         SkyjumpFnsSky = sky
         SkyjumpFns = {}
+        SkyjumpJumped = nil
+        SkyjumpLastUseTbl = nil
         for _, fn in next, getgc() do
             if typeof(fn) == "function" then
                 local ok, env = pcall(getfenv, fn)
@@ -1569,12 +1573,18 @@ local function ResetSkyjumpUpvalues(char)
         end
     end
     for _, fn in ipairs(SkyjumpFns) do
+        local hasLastUse = false
         for i, uv in next, getupvalues(fn) do
             if type(uv) == "table" and uv.LastUse ~= nil then
                 uv.LastUse = 0
+                SkyjumpLastUseTbl = uv
+                hasLastUse = true
             elseif type(uv) == "number" and uv >= 5 and uv <= 100 then
                 pcall(setupvalue, fn, i, 0)
             end
+        end
+        if hasLastUse and not SkyjumpJumped then
+            SkyjumpJumped = fn
         end
     end
 end
@@ -1592,6 +1602,13 @@ local function DoInfiniteJump()
     pcall(function()
         hum:ChangeState(Enum.HumanoidStateType.Jumping)
     end)
+    if SkyjumpJumped then
+        local before = SkyjumpLastUseTbl and SkyjumpLastUseTbl.LastUse
+        pcall(SkyjumpJumped, { UserInputState = Enum.UserInputState.Begin })
+        if SkyjumpLastUseTbl and before ~= SkyjumpLastUseTbl.LastUse then
+            return
+        end
+    end
     local mult = 1.5
     pcall(function()
         local race = LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Race")
