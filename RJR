@@ -14,6 +14,7 @@ _G.G_FastAttackMode   = _G.G_FastAttackMode or "模式2(部分账号失效用)"
 _G.G_AttackMobs       = _G.G_AttackMobs ~= true
 _G.G_AttackPlayers    = _G.G_AttackPlayers ~= true
 _G.G_DragonGunM1      = _G.G_DragonGunM1 or false
+_G.G_M1FireInterval   = _G.G_M1FireInterval or 0.2
 _G.G_FruitM1          = _G.G_FruitM1 or false
 _G.G_AutoHaki         = _G.G_AutoHaki or false
 _G.G_AutoV3           = _G.G_AutoV3 or false
@@ -24,7 +25,9 @@ _G.G_translateSpeed   = _G.G_translateSpeed or 50
 _G.G_translateAccel   = _G.G_translateAccel or false
 _G.G_jumpHeight       = _G.G_jumpHeight or 50
 _G.G_jumpEnabled      = _G.G_jumpEnabled or false
+_G.G_InfiniteJump     = _G.G_InfiniteJump or false
 _G.G_Fly              = _G.G_Fly or false
+_G.G_Noclip           = _G.G_Noclip or false
 _G.G_ESPEnabled       = _G.G_ESPEnabled ~= false
 _G.G_ESP_Name         = _G.G_ESP_Name ~= false
 _G.G_ESP_Level        = _G.G_ESP_Level ~= false
@@ -72,6 +75,7 @@ _G.G_HopMaxBounty = _G.G_HopMaxBounty or 999999999
 
 _G.G_SilentAimM1R   = _G.G_SilentAimM1R or false
 _G.G_SilentAimSkill = _G.G_SilentAimSkill or false
+_G.G_SilentAimSkills = _G.G_SilentAimSkills or {"M1 (普攻)", "Z", "X", "C", "V", "F", "R"}
 _G.G_SilentAimShowFOV = _G.G_SilentAimShowFOV or false
 _G.G_SilentAimFOV     = _G.G_SilentAimFOV or 100
 _G.G_SilentAimPart    = _G.G_SilentAimPart or "Head"
@@ -87,10 +91,207 @@ _G.G_LockHotkey              = _G.G_LockHotkey or false
 _G.G_LockHotkeyMode          = _G.G_LockHotkeyMode or "锁人1"
 _G.G_AutoSoru                = _G.G_AutoSoru or false
 
-_G.G_AutoLoadConfig   = _G.G_AutoLoadConfig or false
-_G.G_AutoSaveConfig   = _G.G_AutoSaveConfig or false
 _G.G_Theme            = _G.G_Theme or "Light"
 _G.G_Language         = _G.G_Language or "中文"
+
+local ConfigKeys = {
+    "G_FastAttack",
+    "G_FastAttackMode",
+    "G_AttackMobs",
+    "G_AttackPlayers",
+    "G_DragonGunM1",
+    "G_M1FireInterval",
+    "G_FruitM1",
+    "G_AutoHaki",
+    "G_AutoV3",
+    "G_AutoV4",
+    "G_AutoFlee",
+    "G_AutoFleeHP",
+    "G_translateSpeed",
+    "G_translateAccel",
+    "G_jumpHeight",
+    "G_jumpEnabled",
+    "G_InfiniteJump",
+    "G_Fly",
+    "G_Noclip",
+    "G_ESPEnabled",
+    "G_ESP_Name",
+    "G_ESP_Level",
+    "G_ESP_Bounty",
+    "G_ESP_Fruit",
+    "G_ESP_Distance",
+    "G_ESP_HP",
+    "G_ESP_TextSize",
+    "G_ESP_Highlight",
+    "G_ESP_HighlightColor",
+    "G_currentZoom",
+    "G_DodgeNoCooldown",
+    "G_DashLengthEnabled",
+    "G_DashLength",
+    "G_RemoveLava",
+    "G_RemoveFog",
+    "G_RemoveAnim",
+    "G_RemoveGhostShip",
+    "G_WalkOnWater",
+    "G_spinEnabled",
+    "G_spinSpeed",
+    "G_AutoFpsLock",
+    "G_NoMove",
+    "G_TeleportOffsetX",
+    "G_TeleportOffsetY",
+    "G_TeleportOffsetZ",
+    "G_TeleportPredict",
+    "G_LockQuickPath",
+    "G_ServerRegion",
+    "G_HopPlayerRange",
+    "G_HopBountyRange",
+    "G_HopMinPlayers",
+    "G_HopMaxPlayers",
+    "G_HopMinBounty",
+    "G_HopMaxBounty",
+    "G_SilentAimM1R",
+    "G_SilentAimSkill",
+    "G_SilentAimSkills",
+    "G_SilentAimShowFOV",
+    "G_SilentAimFOV",
+    "G_SilentAimPart",
+    "G_SilentAimFOVThickness",
+    "G_SilentAimFOVTransparency",
+    "G_SilentAimTargetPlayers",
+    "G_SilentAimTargetMobs",
+    "G_SilentAimShowLine",
+    "G_SilentAimFOVMode",
+    "G_SilentAimTeamCheck",
+    "G_SilentAimMethod",
+    "G_LockHotkey",
+    "G_LockHotkeyMode",
+    "G_Theme",
+    "G_Language",
+}
+local ConfigDirty = false
+local ConfigSaving = false
+local ConfigReady = false
+local ConfigLoadedData = {}
+
+local function EnsureConfigFolder()
+    if typeof(isfolder) == "function" and typeof(makefolder) == "function" then
+        local dir = CONFIG_FILE:match("^(.-)/[^/]+$")
+        if dir and not isfolder(dir) then
+            makefolder(dir)
+        end
+        return true
+    end
+    return false
+end
+
+local function DeepCopy(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local copy = {}
+    for k, v in pairs(value) do
+        copy[k] = DeepCopy(v)
+    end
+    return copy
+end
+
+local function CollectConfig()
+    local data = {}
+    for _, key in ipairs(ConfigKeys) do
+        local value = _G[key]
+        if value ~= nil then
+            data[key] = DeepCopy(value)
+        end
+    end
+    return data
+end
+
+local function ApplyConfigData(data)
+    if type(data) ~= "table" then
+        return
+    end
+    for _, key in ipairs(ConfigKeys) do
+        if data[key] ~= nil then
+            _G[key] = DeepCopy(data[key])
+        end
+    end
+end
+
+local function SaveConfig(force)
+    if ConfigSaving then
+        return false
+    end
+    if not force and not ConfigDirty then
+        return false
+    end
+    if typeof(writefile) ~= "function" then
+        return false
+    end
+    ConfigSaving = true
+    local ok = pcall(function()
+        EnsureConfigFolder()
+        local payload = CollectConfig()
+        writefile(CONFIG_FILE, HttpService:JSONEncode(payload))
+    end)
+    if ok then
+        ConfigDirty = false
+    end
+    ConfigSaving = false
+    return ok
+end
+
+local function QueueSaveConfig()
+    if not ConfigReady then
+        return
+    end
+    ConfigDirty = true
+end
+
+local function SaveConfiguration()
+    QueueSaveConfig()
+end
+
+local function LoadConfig()
+    if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then
+        return false
+    end
+    if not isfile(CONFIG_FILE) then
+        return false
+    end
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(readfile(CONFIG_FILE))
+    end)
+    if not ok or type(data) ~= "table" then
+        return false
+    end
+    ConfigLoadedData = data
+    ApplyConfigData(data)
+    return true
+end
+
+LoadConfig()
+ConfigReady = true
+
+task.spawn(function()
+    local lastRaw = nil
+    while task.wait(1) do
+        if not ConfigReady then
+            continue
+        end
+        local ok, raw = pcall(function()
+            return HttpService:JSONEncode(CollectConfig())
+        end)
+        if ok and raw then
+            if raw ~= lastRaw then
+                lastRaw = raw
+                ConfigDirty = true
+            end
+        end
+        if ConfigDirty then
+            SaveConfig(true)
+        end
+    end
+end)
 
 local Translations = {
     ["中文"] = {},
@@ -112,12 +313,15 @@ local Translations = {
         ["攻击怪物(此页面所有功能)"] = "Attack Mobs (All features)",
         ["攻击玩家(此页面所有功能)"] = "Attack Players (All features)",
         ["枪械 m1"] = "Dragon Gun M1",
+        ["枪械 m1 发射间隔"] = "Gun M1 Fire Interval",
         ["果实m1"] = "Fruit M1",
         -- 主要功能
         ["移动速度"] = "Move Speed",
         ["加速开关"] = "Speed Boost",
         ["跳跃高度"] = "Jump Height",
         ["高跳开启"] = "High Jump",
+        ["无限跳跃"] = "Infinite Jump",
+        ["穿墙"] = "Noclip",
         ["飞行"] = "Fly",
         ["自动武装色"] = "Auto Haki",
         ["自动 V3"] = "Auto V3",
@@ -160,8 +364,7 @@ local Translations = {
         ["加入服务器 id"] = "Join Server ID",
         -- 设置
         ["选择主题"] = "Select Theme",
-        ["自动保存配置"] = "Auto Save Config",
-        ["进游戏自动加载配置"] = "Auto Load Config",
+        ["自动保存已开启"] = "Auto Save On",
         ["保存配置"] = "Save Config",
         ["加载配置"] = "Load Config",
         ["窗口切换键"] = "Toggle Window Key",
@@ -185,6 +388,7 @@ local Translations = {
         ["自瞄设置"] = "Aimbot Settings",
         ["M1 自瞄"] = "M1 Aimbot",
         ["技能自瞄"] = "Skill Aimbot",
+        ["自瞄招式"] = "Aimbot Skills",
         ["瞄准玩家"] = "Target Players",
         ["瞄准 NPC"] = "Target NPCs",
         ["团队检测"] = "Team Check",
@@ -255,112 +459,6 @@ local function L(text)
     return text
 end
 
-local function CollectConfig()
-    return {
-        Attack = {
-            FastAttack     = _G.G_FastAttack,
-            FastAttackMode = _G.G_FastAttackMode,
-            AttackMobs     = _G.G_AttackMobs,
-            AttackPlayers  = _G.G_AttackPlayers,
-            DragonGunM1    = _G.G_DragonGunM1,
-            FruitM1        = _G.G_FruitM1,
-        },
-        Auto = {
-            AutoHaki = _G.G_AutoHaki,
-            AutoV3   = _G.G_AutoV3,
-            AutoV4   = _G.G_AutoV4,
-            AutoFlee = _G.G_AutoFlee,
-            AutoFleeHP = _G.G_AutoFleeHP,
-        },
-        Main = {
-            translateSpeed   = _G.G_translateSpeed,
-            translateAccel   = _G.G_translateAccel,
-            jumpHeight       = _G.G_jumpHeight,
-            jumpEnabled      = _G.G_jumpEnabled,
-            Fly              = _G.G_Fly,
-        },
-        ESP = {
-            ESPEnabled   = _G.G_ESPEnabled,
-            ESP_Name     = _G.G_ESP_Name,
-            ESP_Level    = _G.G_ESP_Level,
-            ESP_Bounty   = _G.G_ESP_Bounty,
-            ESP_Fruit    = _G.G_ESP_Fruit,
-            ESP_Distance = _G.G_ESP_Distance,
-            ESP_HP       = _G.G_ESP_HP,
-            ESP_TextSize = _G.G_ESP_TextSize,
-            ESP_Highlight = _G.G_ESP_Highlight,
-            ESP_HighlightColor = _G.G_ESP_HighlightColor,
-        },
-        Misc = {
-            currentZoom         = _G.G_currentZoom,
-            DodgeNoCooldown     = _G.G_DodgeNoCooldown,
-            DashLengthEnabled   = _G.G_DashLengthEnabled,
-            DashLength          = _G.G_DashLength,
-            RemoveLava      = _G.G_RemoveLava,
-            RemoveFog       = _G.G_RemoveFog,
-            RemoveAnim      = _G.G_RemoveAnim,
-            RemoveGhostShip = _G.G_RemoveGhostShip,
-            WalkOnWater     = _G.G_WalkOnWater,
-            spinEnabled     = _G.G_spinEnabled,
-            spinSpeed       = _G.G_spinSpeed,
-            AutoFpsLock     = _G.G_AutoFpsLock,
-            NoMove          = _G.G_NoMove,
-            TeleportOffsetX = _G.G_TeleportOffsetX,
-            TeleportOffsetY = _G.G_TeleportOffsetY,
-            TeleportOffsetZ = _G.G_TeleportOffsetZ,
-            TeleportPredict = _G.G_TeleportPredict,
-            LockQuickPath   = _G.G_LockQuickPath,
-        },
-        Server = {
-            ServerRegion = _G.G_ServerRegion,
-            HopPlayerRange = _G.G_HopPlayerRange,
-            HopBountyRange = _G.G_HopBountyRange,
-            HopMinPlayers = _G.G_HopMinPlayers,
-            HopMaxPlayers = _G.G_HopMaxPlayers,
-            HopMinBounty = _G.G_HopMinBounty,
-            HopMaxBounty = _G.G_HopMaxBounty,
-        },
-        Drawing = {
-            SilentAimM1R   = _G.G_SilentAimM1R,
-            SilentAimSkill = _G.G_SilentAimSkill,
-            SilentAimShowFOV = _G.G_SilentAimShowFOV,
-            SilentAimFOV     = _G.G_SilentAimFOV,
-            SilentAimPart    = _G.G_SilentAimPart,
-            SilentAimFOVThickness = _G.G_SilentAimFOVThickness,
-            SilentAimFOVTransparency = _G.G_SilentAimFOVTransparency,
-            SilentAimTargetPlayers = _G.G_SilentAimTargetPlayers,
-            SilentAimTargetMobs    = _G.G_SilentAimTargetMobs,
-            SilentAimShowLine      = _G.G_SilentAimShowLine,
-            SilentAimFOVMode       = _G.G_SilentAimFOVMode,
-            SilentAimTeamCheck     = _G.G_SilentAimTeamCheck,
-            SilentAimMethod        = _G.G_SilentAimMethod,
-            LockHotkey             = _G.G_LockHotkey,
-            LockHotkeyMode         = _G.G_LockHotkeyMode,
-        },
-        Setting = {
-            AutoLoadConfig = _G.G_AutoLoadConfig,
-            AutoSaveConfig = _G.G_AutoSaveConfig,
-        },
-        UI = {
-            Theme = _G.G_Theme,
-            Language = _G.G_Language
-        }
-    }
-end
-function SaveConfiguration()
-    local data = CollectConfig()
-    writefile(CONFIG_FILE, HttpService:JSONEncode(data))
-end
-function LoadConfiguration()
-    if not isfile(CONFIG_FILE) then return end
-    local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
-    for section, values in pairs(data) do
-        for k, v in pairs(values) do
-            _G["G_" .. k] = v
-        end
-    end
-end
-pcall(LoadConfiguration)
 _G.FOVMode = _G.G_SilentAimFOVMode or "跟随鼠标"
 local WindUI = loadstring(request({
     Url = "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
@@ -591,6 +689,10 @@ local function PerformAttack()
 end
 task.spawn(function()
     while true do
+        if not _G.G_FastAttack then
+            task.wait(0.3)
+            continue
+        end
         local startTime = tick()
         pcall(PerformAttack)
         if _G.G_FastAttackMode == "模式1" then
@@ -655,16 +757,6 @@ task.spawn(function()
         if not ShootFunction then return 0, 0 end
         local upvals = getupvals(ShootFunction)
         if not upvals then return 0, 0 end
-        if upvals[V_Idx.v21] ~= 727595 then
-            for i, v in pairs(upvals) do
-                if v == 727595 then
-                    local offset = i - 15
-                    V_Idx.v21 = i; V_Idx.v22 = 13 + offset; V_Idx.v23 = 16 + offset; V_Idx.v24 = 17 + offset
-                    V_Idx.v26 = 12 + offset; V_Idx.v25 = 14 + offset; V_Idx.v27 = 18 + offset
-                    break
-                end
-            end
-        end
         local v1 = getupval(ShootFunction, V_Idx.v21)
         local v2 = getupval(ShootFunction, V_Idx.v22)
         local v3 = getupval(ShootFunction, V_Idx.v23)
@@ -682,27 +774,38 @@ task.spawn(function()
         setupval(ShootFunction, V_Idx.v25, v5); setupval(ShootFunction, V_Idx.v26, v6); setupval(ShootFunction, V_Idx.v27, v7)
         return math.floor(v9 / v4 * 16777215), v7
     end
-    local function GetClosestTarget()
+    local function GetAllTargets()
         local char = LocalPlayer.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
-        if not root then return nil end
-        local closest, dist = nil, math.huge
+        if not root then return {} end
+        local targets = {}
         local myPos = root.Position
         if _G.G_AttackMobs then
-            local function scanFolder(folder)
+            local function scanEnemies(folder)
                 if not folder then return end
                 for _, enemy in folder:GetChildren() do
                     local eHum = enemy:FindFirstChildOfClass("Humanoid")
                     local eRoot = enemy:FindFirstChild("HumanoidRootPart")
                     if eHum and eHum.Health > 0 and eRoot then
-                        local d = (eRoot.Position - myPos).Magnitude
-                        if d < dist then dist = d; closest = eRoot end
+                        table.insert(targets, eRoot)
                     end
                 end
             end
-            scanFolder(workspace:FindFirstChild("Enemies"))
-            scanFolder(workspace:FindFirstChild("SeaBeasts"))
-            scanFolder(workspace:FindFirstChild("SeaEvents"))
+            local function scanSea(node, depth)
+                if not node then return end
+                for _, enemy in node:GetChildren() do
+                    local eHum = enemy:FindFirstChildOfClass("Humanoid")
+                    local eRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart or enemy:FindFirstChildWhichIsA("BasePart")
+                    if eRoot and (not eHum or eHum.Health > 0) then
+                        table.insert(targets, eRoot)
+                    elseif depth < 3 and not enemy:IsA("BasePart") then
+                        scanSea(enemy, depth + 1)
+                    end
+                end
+            end
+            scanEnemies(workspace:FindFirstChild("Enemies"))
+            scanSea(workspace:FindFirstChild("SeaBeasts"), 0)
+            scanSea(workspace:FindFirstChild("SeaEvents"), 0)
         end
         if _G.G_AttackPlayers then
             for _, player in pairs(Players:GetPlayers()) do
@@ -710,21 +813,27 @@ task.spawn(function()
                     local pHum = player.Character:FindFirstChildOfClass("Humanoid")
                     local pRoot = player.Character:FindFirstChild("HumanoidRootPart")
                     if pHum and pHum.Health > 0 and pRoot then
-                        local d = (pRoot.Position - myPos).Magnitude
-                        if d < dist then dist = d; closest = pRoot end
+                        table.insert(targets, pRoot)
                     end
                 end
             end
         end
-        return closest
+        return targets
     end
-    while task.wait(0.085) do
+    while task.wait(_G.G_M1FireInterval or 0.2) do
         if not _G.G_DragonGunM1 then continue end
         pcall(function()
             local char = LocalPlayer.Character
             local tool = char and char:FindFirstChildOfClass("Tool")
             if not tool or tool.ToolTip ~= "Gun" then return end
-            local targetPart = GetClosestTarget()
+            local targets = GetAllTargets()
+            if #targets == 0 then return end
+            local myPos = char.HumanoidRootPart.Position
+            local targetPart, dist = nil, math.huge
+            for _, part in ipairs(targets) do
+                local d = (part.Position - myPos).Magnitude
+                if d < dist then dist = d; targetPart = part end
+            end
             if not targetPart then return end
             local valCode, valCount = GetNextValidator()
             if valCode ~= 0 then Validator2:FireServer(valCode, valCount) end
@@ -739,6 +848,19 @@ RJR[L("杀戮光环")]:Toggle({
     Value = _G.G_DragonGunM1,
     Callback = function(v) 
         _G.G_DragonGunM1 = v 
+        SaveConfiguration()
+    end
+})
+RJR[L("杀戮光环")]:Slider({
+    Title = L("枪械 m1 发射间隔"),
+    Step = 0.001,
+    Value = {
+        Min = 0.001,
+        Max = 0.2,
+        Default = _G.G_M1FireInterval or 0.2
+    },
+    Callback = function(v)
+        _G.G_M1FireInterval = v
         SaveConfiguration()
     end
 })
@@ -872,27 +994,78 @@ handleAbility("V3")
 handleAbility("V4")
 
 local fleeConnection = nil
+local fleeTeleported = false
+-- 世界2 → 鬼船，世界3 → 九头蛇
+local function GetFleeDestination()
+    local pid = game.PlaceId
+    if pid == 4442272183 or pid == 79091703265657 then
+        return Vector3.new(923, 126, 32852)
+    elseif pid == 7449423635 or pid == 100117331123089 then
+        return Vector3.new(-5027.03, 316.43, -3206.07)
+    end
+    return nil
+end
+local function RestoreFleeState()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end
+        if hum then
+            hum.PlatformStand = false
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end)
+end
 local function StartAutoFlee()
     if fleeConnection then return end
     fleeConnection = task.spawn(function()
         while _G.G_AutoFlee do
             task.wait(0.01)
             pcall(function()
+                if not _G.G_AutoFlee then return end
                 local char = LocalPlayer.Character
-                local hum = char and char:FindFirstChild("Humanoid")
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if not hum or not hrp or hum.Health <= 0 then return end
+                if not hum or not hrp or hum.Health <= 0 then
+                    fleeTeleported = false
+                    return
+                end
                 local hpPercent = (hum.Health / hum.MaxHealth) * 100
                 if hpPercent <= _G.G_AutoFleeHP then
+                    if not fleeTeleported then
+                        fleeTeleported = true
+                        local dest = GetFleeDestination()
+                        if dest then
+                            pcall(function()
+                                game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("requestEntrance", dest)
+                            end)
+                        end
+                    end
+                    -- 清零速度 + Physics 状态，否则重力会把角色拉下来
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                    hum:ChangeState(Enum.HumanoidStateType.Physics)
                     hrp.CFrame = hrp.CFrame + Vector3.new(0, 20, 0)
+                elseif fleeTeleported then
+                    fleeTeleported = false
+                    RestoreFleeState()
                 end
             end)
         end
         fleeConnection = nil
+        fleeTeleported = false
+        RestoreFleeState()
     end)
 end
 local function StopAutoFlee()
     fleeConnection = nil
+    fleeTeleported = false
+    RestoreFleeState()
 end
 if _G.G_AutoFlee then StartAutoFlee() end
 RJR[L("主要功能")]:Toggle({
@@ -940,13 +1113,50 @@ RJR[L("主要功能")]:Slider({
         SaveConfiguration()
     end
 })
+local LastSkillPressed = "M1 (普攻)"
+UIS.InputBegan:Connect(function(input)
+    if UIS:GetFocusedTextBox() then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        LastSkillPressed = "M1 (普攻)"
+    elseif input.KeyCode == Enum.KeyCode.Z then
+        LastSkillPressed = "Z"
+    elseif input.KeyCode == Enum.KeyCode.X then
+        LastSkillPressed = "X"
+    elseif input.KeyCode == Enum.KeyCode.C then
+        LastSkillPressed = "C"
+    elseif input.KeyCode == Enum.KeyCode.V then
+        LastSkillPressed = "V"
+    elseif input.KeyCode == Enum.KeyCode.F then
+        LastSkillPressed = "F"
+    elseif input.KeyCode == Enum.KeyCode.R then
+        LastSkillPressed = "R"
+    end
+end)
+local function IsSkillSelected(skillName)
+    local skills = _G.G_SilentAimSkills
+    if not skills then return true end
+    if type(skills) == "table" then
+        if next(skills) == nil then return false end
+        if skills[skillName] ~= nil then
+            return skills[skillName] == true
+        end
+        for _, v in pairs(skills) do
+            if v == skillName then return true end
+        end
+        return false
+    end
+    return true
+end
+local function IsCurrentSkillEnabled()
+    return IsSkillSelected(LastSkillPressed)
+end
 local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
-    if _G.G_SilentAimSkill and _G.G_SilentAimTargetPos and (method == "FireServer" or method == "InvokeServer") then
+    if _G.G_SilentAimSkill and IsCurrentSkillEnabled() and _G.G_SilentAimTargetPos and (method == "FireServer" or method == "InvokeServer") then
         local sName = tostring(self)
         if sName == "RemoteEvent" or sName == "CommE" or sName == "RemoteFunction" then
             for i, v in pairs(args) do
@@ -1342,13 +1552,149 @@ RJR[L("主要功能")]:Toggle({
         SaveConfiguration()
     end
 })
+local InfiniteJumpRunning = false
+local InfiniteJumpLast = 0
+local SkyjumpFns = nil
+local SkyjumpFnsSky = nil
+local function ResetSkyjumpUpvalues(char)
+    if not (char and getgc and getupvalues and setupvalue) then return end
+    local sky = char:FindFirstChild("Skyjump")
+    if not sky then return end
+    if SkyjumpFnsSky ~= sky or #SkyjumpFns == 0 then
+        SkyjumpFnsSky = sky
+        SkyjumpFns = {}
+        for _, fn in next, getgc() do
+            if typeof(fn) == "function" then
+                local ok, env = pcall(getfenv, fn)
+                if ok and env and env.script == sky then
+                    table.insert(SkyjumpFns, fn)
+                end
+            end
+        end
+    end
+    for _, fn in ipairs(SkyjumpFns) do
+        for i, uv in next, getupvalues(fn) do
+            if type(uv) == "table" and uv.LastUse ~= nil then
+                uv.LastUse = 0
+            elseif type(uv) == "number" and uv >= 5 and uv <= 100 then
+                pcall(setupvalue, fn, i, 0)
+            end
+        end
+    end
+end
+local function DoInfiniteJump()
+    if not _G.G_InfiniteJump then return end
+    local now = tick()
+    if now - InfiniteJumpLast < 0.05 then return end
+    InfiniteJumpLast = now
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp or hum.Health <= 0 or hum.Sit then return end
+    ResetSkyjumpUpvalues(char)
+    pcall(function()
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    end)
+    local mult = 1.5
+    pcall(function()
+        local race = LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Race")
+        if race and race.Value == "Skypiea" then mult = 1.4 end
+    end)
+    local jp = 50
+    if hum.UseJumpPower then
+        jp = hum.JumpPower
+    else
+        jp = math.sqrt(math.max(hum.JumpHeight or 7.2, 0) * 2 * workspace.Gravity)
+    end
+    local vel = hrp.AssemblyLinearVelocity
+    hrp.AssemblyLinearVelocity = Vector3.new(vel.X, math.max(jp * mult, 50), vel.Z)
+    pcall(function()
+        local energy = char:FindFirstChild("Energy")
+        local cost = 15
+        if energy and energy.Value >= cost then
+            local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+            local commE = remotes and remotes:FindFirstChild("CommE")
+            if commE then
+                commE:FireServer("Dodge", "Geppo", cost, nil, workspace:GetServerTimeNow())
+            end
+            local skyEv = ReplicatedStorage:FindFirstChild("PlayerSkyJumped")
+            if skyEv then skyEv:Fire() end
+        end
+    end)
+end
+UIS.JumpRequest:Connect(DoInfiniteJump)
+local function StartInfiniteJumpLoop()
+    if InfiniteJumpRunning then return end
+    InfiniteJumpRunning = true
+    task.spawn(function()
+        while _G.G_InfiniteJump do
+            pcall(ResetSkyjumpUpvalues, LocalPlayer.Character)
+            task.wait(0.1)
+        end
+        InfiniteJumpRunning = false
+    end)
+end
+if _G.G_InfiniteJump then StartInfiniteJumpLoop() end
+LocalPlayer.CharacterAdded:Connect(function()
+    if _G.G_InfiniteJump then
+        task.wait(1)
+        StartInfiniteJumpLoop()
+    end
+end)
+RJR[L("主要功能")]:Toggle({
+    Title = L("无限跳跃"),
+    Value = _G.G_InfiniteJump,
+    Callback = function(v)
+        _G.G_InfiniteJump = v
+        if v then StartInfiniteJumpLoop() end
+        SaveConfiguration()
+    end
+})
+
+local NoclipConnection = nil
+local function StartNoclip()
+    if NoclipConnection then return end
+    NoclipConnection = RunService.Stepped:Connect(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end)
+end
+local function StopNoclip()
+    if NoclipConnection then
+        NoclipConnection:Disconnect()
+        NoclipConnection = nil
+    end
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+end
+if _G.G_Noclip then StartNoclip() end
+RJR[L("主要功能")]:Toggle({
+    Title = L("穿墙"),
+    Value = _G.G_Noclip,
+    Callback = function(v)
+        _G.G_Noclip = v
+        if v then StartNoclip() else StopNoclip() end
+        SaveConfiguration()
+    end
+})
 
 RJR[L("主要功能")]:Button({
     Title = L("飞行"),
     Icon = "wind",
     Callback = function()
         pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/ttker951-dot/y1/refs/heads/main/fly"))()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/kismile36/g1/refs/heads/main/FLY"))()
         end)
     end
 })
@@ -2929,30 +3275,13 @@ RJR[L("设置")]:Dropdown({
     Callback = function(v)
         _G.G_Theme = v
         WindUI:SetTheme(v)
-        if _G.G_AutoSaveConfig then SaveConfiguration() end
-    end
-})
-
-RJR[L("设置")]:Toggle({
-    Title = L("自动保存配置"),
-    Value = _G.G_AutoSaveConfig,
-    Callback = function(v)
-        _G.G_AutoSaveConfig = v
-    end
-})
-
-RJR[L("设置")]:Toggle({
-    Title = L("进游戏自动加载配置"),
-    Value = _G.G_AutoLoadConfig,
-    Callback = function(v)
-        _G.G_AutoLoadConfig = v
     end
 })
 
 RJR[L("设置")]:Button({
     Title = L("保存配置"),
     Callback = function()
-        SaveConfiguration()
+        SaveConfig(true)
         WindUI:Notify({ Title = L("保存配置"), Content = L("加载完成"), Duration = 2 })
     end
 })
@@ -2960,7 +3289,7 @@ RJR[L("设置")]:Button({
 RJR[L("设置")]:Button({
     Title = L("加载配置"),
     Callback = function()
-        LoadConfiguration()
+        LoadConfig()
         WindUI:Notify({ Title = L("加载配置"), Content = L("加载完成"), Duration = 2 })
     end
 })
@@ -3091,12 +3420,14 @@ local function GetClosestTargetToMouse()
 
     -- 鼠标最近的玩家（当前默认方法，按 FOV 内屏幕距离）
     local origin = GetSilentAimOrigin()
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     local closest, shortest = nil, c.Radius
 
     local function check(character)
         if not IsAlive(character) then return end
         local part = character:FindFirstChild(_G.G_SilentAimPart) or character:FindFirstChild("HumanoidRootPart")
         if not part then return end
+        if myRoot and (part.Position - myRoot.Position).Magnitude > 1500 then return end
         local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(part.Position)
         if onScreen then
             local dist = (Vector2.new(pos.X, pos.Y) - origin).Magnitude
@@ -3134,10 +3465,10 @@ if MouseModule and typeof(MouseModule) == "table" then
         rawset(MouseModule, "Hit", nil); rawset(MouseModule, "Target", nil)
         mmt.__index = function(self, key)
             if key == "Hit" then
-                if _G.G_SilentAimSkill and currentSilentAimTarget then return CFrame.new(currentSilentAimTarget.Position) end
+                if _G.G_SilentAimSkill and IsCurrentSkillEnabled() and currentSilentAimTarget then return CFrame.new(currentSilentAimTarget.Position) end
                 return realStore.Hit
             elseif key == "Target" then
-                if _G.G_SilentAimSkill and currentSilentAimTarget then return currentSilentAimTarget end
+                if _G.G_SilentAimSkill and IsCurrentSkillEnabled() and currentSilentAimTarget then return currentSilentAimTarget end
                 return realStore.Target
             end
         end
@@ -3153,7 +3484,7 @@ local mouse = LocalPlayer:GetMouse()
 local oldIndex
 pcall(function()
     oldIndex = hookmetamethod(game, "__index", function(self, key)
-        if _G.G_SilentAimM1R and currentSilentAimTarget and not checkcaller() and self == mouse then
+        if _G.G_SilentAimM1R and IsCurrentSkillEnabled() and currentSilentAimTarget and not checkcaller() and self == mouse then
             local tp = currentSilentAimTarget.Position
             local cp = workspace.CurrentCamera.CFrame.Position
             if key == "Hit" then return CFrame.new(tp)
@@ -3420,6 +3751,17 @@ AimSection:Toggle({
 })
 
 AimSection:Dropdown({
+    Title = L("自瞄招式"),
+    Values = {"M1 (普攻)", "Z", "X", "C", "V", "F", "R"},
+    Value = _G.G_SilentAimSkills,
+    Multi = true,
+    Callback = function(v)
+        _G.G_SilentAimSkills = v
+        SaveConfiguration()
+    end
+})
+
+AimSection:Dropdown({
     Title = L("静默瞄准方法"),
     Values = {"鼠标最近的玩家", "最近的玩家", "选择玩家"},
     Value = _G.G_SilentAimMethod or "鼠标最近的玩家",
@@ -3613,3 +3955,8 @@ RJR[L("绘制")]:Toggle({
 })
 
 if _G.G_AutoSoru then StartAutoSoru() end
+
+task.defer(function()
+    SaveConfig(true)
+    WindUI:Notify({ Title = L("保存配置"), Content = L("自动保存已开启"), Duration = 3 })
+end)
