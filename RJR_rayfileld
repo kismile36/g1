@@ -14,6 +14,7 @@ _G.G_FastAttackMode   = _G.G_FastAttackMode or "模式2(部分账号失效用)"
 _G.G_AttackMobs       = _G.G_AttackMobs ~= true
 _G.G_AttackPlayers    = _G.G_AttackPlayers ~= true
 _G.G_DragonGunM1      = _G.G_DragonGunM1 or false
+_G.G_M1FireInterval   = _G.G_M1FireInterval or 0.2
 _G.G_FruitM1          = _G.G_FruitM1 or false
 _G.G_AutoHaki         = _G.G_AutoHaki or false
 _G.G_AutoV3           = _G.G_AutoV3 or false
@@ -24,7 +25,9 @@ _G.G_translateSpeed   = _G.G_translateSpeed or 50
 _G.G_translateAccel   = _G.G_translateAccel or false
 _G.G_jumpHeight       = _G.G_jumpHeight or 50
 _G.G_jumpEnabled      = _G.G_jumpEnabled or false
+_G.G_InfiniteJump     = _G.G_InfiniteJump or false
 _G.G_Fly              = _G.G_Fly or false
+_G.G_Noclip           = _G.G_Noclip or false
 _G.G_ESPEnabled       = _G.G_ESPEnabled ~= false
 _G.G_ESP_Name         = _G.G_ESP_Name ~= false
 _G.G_ESP_Level        = _G.G_ESP_Level ~= false
@@ -72,6 +75,7 @@ _G.G_HopMaxBounty = _G.G_HopMaxBounty or 999999999
 
 _G.G_SilentAimM1R   = _G.G_SilentAimM1R or false
 _G.G_SilentAimSkill = _G.G_SilentAimSkill or false
+_G.G_SilentAimSkills = _G.G_SilentAimSkills or {"M1", "R","Z", "X", "C", "V", "F"}
 _G.G_SilentAimShowFOV = _G.G_SilentAimShowFOV or false
 _G.G_SilentAimFOV     = _G.G_SilentAimFOV or 100
 _G.G_SilentAimPart    = _G.G_SilentAimPart or "Head"
@@ -86,8 +90,6 @@ _G.G_SilentAimMethod        = _G.G_SilentAimMethod or "鼠标最近的玩家"
 _G.G_LockHotkey              = _G.G_LockHotkey or false
 _G.G_LockHotkeyMode          = _G.G_LockHotkeyMode or "锁人1"
 
-_G.G_AutoLoadConfig   = _G.G_AutoLoadConfig or false
-_G.G_AutoSaveConfig   = _G.G_AutoSaveConfig or false
 _G.G_Theme            = _G.G_Theme or "Light"
 _G.G_Language         = _G.G_Language or "中文"
 
@@ -111,12 +113,15 @@ local Translations = {
         ["攻击怪物(此页面所有功能)"] = "Attack Mobs (All features)",
         ["攻击玩家(此页面所有功能)"] = "Attack Players (All features)",
         ["枪械 m1"] = "Dragon Gun M1",
+        ["枪械 m1 发射间隔"] = "Gun M1 Fire Interval",
         ["果实m1"] = "Fruit M1",
         -- 主要功能
         ["移动速度"] = "Move Speed",
         ["加速开关"] = "Speed Boost",
         ["跳跃高度"] = "Jump Height",
         ["高跳开启"] = "High Jump",
+        ["无限跳跃"] = "Infinite Jump",
+        ["穿墙"] = "Noclip",
         ["飞行"] = "Fly",
         ["自动武装色"] = "Auto Haki",
         ["自动 V3"] = "Auto V3",
@@ -159,8 +164,6 @@ local Translations = {
         ["加入服务器 id"] = "Join Server ID",
         -- 设置
         ["选择主题"] = "Select Theme",
-        ["自动保存配置"] = "Auto Save Config",
-        ["进游戏自动加载配置"] = "Auto Load Config",
         ["保存配置"] = "Save Config",
         ["加载配置"] = "Load Config",
         ["窗口切换键"] = "Toggle Window Key",
@@ -184,6 +187,7 @@ local Translations = {
         ["自瞄设置"] = "Aimbot Settings",
         ["M1 自瞄"] = "M1 Aimbot",
         ["技能自瞄"] = "Skill Aimbot",
+        ["自瞄招式"] = "Aimbot Skills",
         ["瞄准玩家"] = "Target Players",
         ["瞄准 NPC"] = "Target NPCs",
         ["团队检测"] = "Team Check",
@@ -266,6 +270,7 @@ local function CollectConfig()
             AttackMobs     = _G.G_AttackMobs,
             AttackPlayers  = _G.G_AttackPlayers,
             DragonGunM1    = _G.G_DragonGunM1,
+            M1FireInterval = _G.G_M1FireInterval,
             FruitM1        = _G.G_FruitM1,
         },
         Auto = {
@@ -280,7 +285,9 @@ local function CollectConfig()
             translateAccel   = _G.G_translateAccel,
             jumpHeight       = _G.G_jumpHeight,
             jumpEnabled      = _G.G_jumpEnabled,
+            InfiniteJump     = _G.G_InfiniteJump,
             Fly              = _G.G_Fly,
+            Noclip           = _G.G_Noclip,
         },
         ESP = {
             ESPEnabled   = _G.G_ESPEnabled,
@@ -326,6 +333,7 @@ local function CollectConfig()
         Drawing = {
             SilentAimM1R   = _G.G_SilentAimM1R,
             SilentAimSkill = _G.G_SilentAimSkill,
+            SilentAimSkills = _G.G_SilentAimSkills,
             SilentAimShowFOV = _G.G_SilentAimShowFOV,
             SilentAimFOV     = _G.G_SilentAimFOV,
             SilentAimPart    = _G.G_SilentAimPart,
@@ -339,10 +347,6 @@ local function CollectConfig()
             SilentAimMethod        = _G.G_SilentAimMethod,
             LockHotkey             = _G.G_LockHotkey,
             LockHotkeyMode         = _G.G_LockHotkeyMode,
-        },
-        Setting = {
-            AutoLoadConfig = _G.G_AutoLoadConfig,
-            AutoSaveConfig = _G.G_AutoSaveConfig,
         },
         UI = {
             Theme = _G.G_Theme,
@@ -364,6 +368,18 @@ function LoadConfiguration()
     end
 end
 pcall(LoadConfiguration)
+task.spawn(function()
+    local lastRaw = nil
+    while task.wait(1) do
+        local ok, raw = pcall(function()
+            return HttpService:JSONEncode(CollectConfig())
+        end)
+        if ok and raw and raw ~= lastRaw then
+            lastRaw = raw
+            pcall(SaveConfiguration)
+        end
+    end
+end)
 _G.FOVMode = _G.G_SilentAimFOVMode or "跟随鼠标"
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
@@ -569,6 +585,10 @@ local function PerformAttack()
 end
 task.spawn(function()
     while true do
+        if not _G.G_FastAttack then
+            task.wait(0.3)
+            continue
+        end
         local startTime = tick()
         pcall(PerformAttack)
         if _G.G_FastAttackMode == "模式1" then
@@ -693,7 +713,7 @@ task.spawn(function()
         end
         return closest
     end
-    while task.wait(0.085) do
+    while task.wait(_G.G_M1FireInterval or 0.2) do
         if not _G.G_DragonGunM1 then continue end
         pcall(function()
             local char = LocalPlayer.Character
@@ -714,6 +734,16 @@ RJR[L("杀戮光环")]:CreateToggle({
     CurrentValue = _G.G_DragonGunM1,
     Callback = function(Value) 
         _G.G_DragonGunM1 = Value 
+        SaveConfiguration()
+    end
+})
+RJR[L("杀戮光环")]:CreateSlider({
+    Name = L("枪械 m1 发射间隔"),
+    Range = {0.001, 0.2},
+    Increment = 0.001,
+    CurrentValue = _G.G_M1FireInterval or 0.2,
+    Callback = function(Value)
+        _G.G_M1FireInterval = Value
         SaveConfiguration()
     end
 })
@@ -847,27 +877,78 @@ handleAbility("V3")
 handleAbility("V4")
 
 local fleeConnection = nil
+local fleeTeleported = false
+-- 世界2 → 鬼船，世界3 → 九头蛇
+local function GetFleeDestination()
+    local pid = game.PlaceId
+    if pid == 4442272183 or pid == 79091703265657 then
+        return Vector3.new(923, 126, 32852)
+    elseif pid == 7449423635 or pid == 100117331123089 then
+        return Vector3.new(-5027.03, 316.43, -3206.07)
+    end
+    return nil
+end
+local function RestoreFleeState()
+    pcall(function()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end
+        if hum then
+            hum.PlatformStand = false
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            hum:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end)
+end
 local function StartAutoFlee()
     if fleeConnection then return end
     fleeConnection = task.spawn(function()
         while _G.G_AutoFlee do
             task.wait(0.01)
             pcall(function()
+                if not _G.G_AutoFlee then return end
                 local char = LocalPlayer.Character
-                local hum = char and char:FindFirstChild("Humanoid")
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                if not hum or not hrp or hum.Health <= 0 then return end
+                if not hum or not hrp or hum.Health <= 0 then
+                    fleeTeleported = false
+                    return
+                end
                 local hpPercent = (hum.Health / hum.MaxHealth) * 100
                 if hpPercent <= _G.G_AutoFleeHP then
+                    if not fleeTeleported then
+                        fleeTeleported = true
+                        local dest = GetFleeDestination()
+                        if dest then
+                            pcall(function()
+                                game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("requestEntrance", dest)
+                            end)
+                        end
+                    end
+                    -- 清零速度 + Physics 状态，否则重力会把角色拉下来
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                    hum:ChangeState(Enum.HumanoidStateType.Physics)
                     hrp.CFrame = hrp.CFrame + Vector3.new(0, 20, 0)
+                elseif fleeTeleported then
+                    fleeTeleported = false
+                    RestoreFleeState()
                 end
             end)
         end
         fleeConnection = nil
+        fleeTeleported = false
+        RestoreFleeState()
     end)
 end
 local function StopAutoFlee()
     fleeConnection = nil
+    fleeTeleported = false
+    RestoreFleeState()
 end
 if _G.G_AutoFlee then StartAutoFlee() end
 RJR[L("主要功能")]:CreateToggle({
@@ -913,13 +994,50 @@ RJR[L("主要功能")]:CreateSlider({
         SaveConfiguration()
     end
 })
+local LastSkillPressed = "M1 (普攻)"
+UIS.InputBegan:Connect(function(input)
+    if UIS:GetFocusedTextBox() then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        LastSkillPressed = "M1 (普攻)"
+    elseif input.KeyCode == Enum.KeyCode.Z then
+        LastSkillPressed = "Z"
+    elseif input.KeyCode == Enum.KeyCode.X then
+        LastSkillPressed = "X"
+    elseif input.KeyCode == Enum.KeyCode.C then
+        LastSkillPressed = "C"
+    elseif input.KeyCode == Enum.KeyCode.V then
+        LastSkillPressed = "V"
+    elseif input.KeyCode == Enum.KeyCode.F then
+        LastSkillPressed = "F"
+    elseif input.KeyCode == Enum.KeyCode.R then
+        LastSkillPressed = "R"
+    end
+end)
+local function IsSkillSelected(skillName)
+    local skills = _G.G_SilentAimSkills
+    if not skills then return true end
+    if type(skills) == "table" then
+        if next(skills) == nil then return false end
+        if skills[skillName] ~= nil then
+            return skills[skillName] == true
+        end
+        for _, v in pairs(skills) do
+            if v == skillName then return true end
+        end
+        return false
+    end
+    return true
+end
+local function IsCurrentSkillEnabled()
+    return IsSkillSelected(LastSkillPressed)
+end
 local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
-    if _G.G_SilentAimSkill and _G.G_SilentAimTargetPos and (method == "FireServer" or method == "InvokeServer") then
+    if _G.G_SilentAimSkill and IsCurrentSkillEnabled() and _G.G_SilentAimTargetPos and (method == "FireServer" or method == "InvokeServer") then
         local sName = tostring(self)
         if sName == "RemoteEvent" or sName == "CommE" or sName == "RemoteFunction" then
             for i, v in pairs(args) do
@@ -1316,11 +1434,148 @@ RJR[L("主要功能")]:CreateToggle({
     end
 })
 
+local InfiniteJumpRunning = false
+local InfiniteJumpLast = 0
+local SkyjumpFns = nil
+local SkyjumpFnsSky = nil
+local function ResetSkyjumpUpvalues(char)
+    if not (char and getgc and getupvalues and setupvalue) then return end
+    local sky = char:FindFirstChild("Skyjump")
+    if not sky then return end
+    if SkyjumpFnsSky ~= sky or #SkyjumpFns == 0 then
+        SkyjumpFnsSky = sky
+        SkyjumpFns = {}
+        for _, fn in next, getgc() do
+            if typeof(fn) == "function" then
+                local ok, env = pcall(getfenv, fn)
+                if ok and env and env.script == sky then
+                    table.insert(SkyjumpFns, fn)
+                end
+            end
+        end
+    end
+    for _, fn in ipairs(SkyjumpFns) do
+        for i, uv in next, getupvalues(fn) do
+            if type(uv) == "table" and uv.LastUse ~= nil then
+                uv.LastUse = 0
+            elseif type(uv) == "number" and uv >= 5 and uv <= 100 then
+                pcall(setupvalue, fn, i, 0)
+            end
+        end
+    end
+end
+local function DoInfiniteJump()
+    if not _G.G_InfiniteJump then return end
+    local now = tick()
+    if now - InfiniteJumpLast < 0.05 then return end
+    InfiniteJumpLast = now
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp or hum.Health <= 0 or hum.Sit then return end
+    ResetSkyjumpUpvalues(char)
+    pcall(function()
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    end)
+    local mult = 1.5
+    pcall(function()
+        local race = LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Race")
+        if race and race.Value == "Skypiea" then mult = 1.4 end
+    end)
+    local jp = 50
+    if hum.UseJumpPower then
+        jp = hum.JumpPower
+    else
+        jp = math.sqrt(math.max(hum.JumpHeight or 7.2, 0) * 2 * workspace.Gravity)
+    end
+    local vel = hrp.AssemblyLinearVelocity
+    hrp.AssemblyLinearVelocity = Vector3.new(vel.X, math.max(jp * mult, 50), vel.Z)
+    pcall(function()
+        local energy = char:FindFirstChild("Energy")
+        local cost = 15
+        if energy and energy.Value >= cost then
+            local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+            local commE = remotes and remotes:FindFirstChild("CommE")
+            if commE then
+                commE:FireServer("Dodge", "Geppo", cost, nil, workspace:GetServerTimeNow())
+            end
+            local skyEv = ReplicatedStorage:FindFirstChild("PlayerSkyJumped")
+            if skyEv then skyEv:Fire() end
+        end
+    end)
+end
+UIS.JumpRequest:Connect(DoInfiniteJump)
+local function StartInfiniteJumpLoop()
+    if InfiniteJumpRunning then return end
+    InfiniteJumpRunning = true
+    task.spawn(function()
+        while _G.G_InfiniteJump do
+            pcall(ResetSkyjumpUpvalues, LocalPlayer.Character)
+            task.wait(0.1)
+        end
+        InfiniteJumpRunning = false
+    end)
+end
+if _G.G_InfiniteJump then StartInfiniteJumpLoop() end
+LocalPlayer.CharacterAdded:Connect(function()
+    if _G.G_InfiniteJump then
+        task.wait(1)
+        StartInfiniteJumpLoop()
+    end
+end)
+RJR[L("主要功能")]:CreateToggle({
+    Name = L("无限跳跃"),
+    CurrentValue = _G.G_InfiniteJump,
+    Callback = function(Value)
+        _G.G_InfiniteJump = Value
+        if Value then StartInfiniteJumpLoop() end
+        SaveConfiguration()
+    end
+})
+
+local NoclipConnection = nil
+local function StartNoclip()
+    if NoclipConnection then return end
+    NoclipConnection = RunService.Stepped:Connect(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end)
+end
+local function StopNoclip()
+    if NoclipConnection then
+        NoclipConnection:Disconnect()
+        NoclipConnection = nil
+    end
+    local char = LocalPlayer.Character
+    if not char then return end
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+end
+if _G.G_Noclip then StartNoclip() end
+RJR[L("主要功能")]:CreateToggle({
+    Name = L("穿墙"),
+    CurrentValue = _G.G_Noclip,
+    Callback = function(Value)
+        _G.G_Noclip = Value
+        if Value then StartNoclip() else StopNoclip() end
+        SaveConfiguration()
+    end
+})
+
 RJR[L("主要功能")]:CreateButton({
     Name = L("飞行"),
     Callback = function()
         pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/ttker951-dot/y1/refs/heads/main/fly"))()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/kismile36/g1/refs/heads/main/FLY"))()
         end)
     end
 })
@@ -2874,23 +3129,6 @@ RJR[L("设置")]:CreateDropdown({
     Callback = function(Options)
         _G.G_Theme = Options[1]
         Window.ModifyTheme(Options[1])
-        if _G.G_AutoSaveConfig then SaveConfiguration() end
-    end
-})
-
-RJR[L("设置")]:CreateToggle({
-    Name = L("自动保存配置"),
-    CurrentValue = _G.G_AutoSaveConfig,
-    Callback = function(Value)
-        _G.G_AutoSaveConfig = Value
-    end
-})
-
-RJR[L("设置")]:CreateToggle({
-    Name = L("进游戏自动加载配置"),
-    CurrentValue = _G.G_AutoLoadConfig,
-    Callback = function(Value)
-        _G.G_AutoLoadConfig = Value
     end
 })
 
@@ -3036,12 +3274,14 @@ local function GetClosestTargetToMouse()
 
     -- 鼠标最近的玩家（当前默认方法，按 FOV 内屏幕距离）
     local origin = GetSilentAimOrigin()
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
     local closest, shortest = nil, c.Radius
 
     local function check(character)
         if not IsAlive(character) then return end
         local part = character:FindFirstChild(_G.G_SilentAimPart) or character:FindFirstChild("HumanoidRootPart")
         if not part then return end
+        if myRoot and (part.Position - myRoot.Position).Magnitude > 1500 then return end
         local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(part.Position)
         if onScreen then
             local dist = (Vector2.new(pos.X, pos.Y) - origin).Magnitude
@@ -3079,10 +3319,10 @@ if MouseModule and typeof(MouseModule) == "table" then
         rawset(MouseModule, "Hit", nil); rawset(MouseModule, "Target", nil)
         mmt.__index = function(self, key)
             if key == "Hit" then
-                if _G.G_SilentAimSkill and currentSilentAimTarget then return CFrame.new(currentSilentAimTarget.Position) end
+                if _G.G_SilentAimSkill and IsCurrentSkillEnabled() and currentSilentAimTarget then return CFrame.new(currentSilentAimTarget.Position) end
                 return realStore.Hit
             elseif key == "Target" then
-                if _G.G_SilentAimSkill and currentSilentAimTarget then return currentSilentAimTarget end
+                if _G.G_SilentAimSkill and IsCurrentSkillEnabled() and currentSilentAimTarget then return currentSilentAimTarget end
                 return realStore.Target
             end
         end
@@ -3098,7 +3338,7 @@ local mouse = LocalPlayer:GetMouse()
 local oldIndex
 pcall(function()
     oldIndex = hookmetamethod(game, "__index", function(self, key)
-        if _G.G_SilentAimM1R and currentSilentAimTarget and not checkcaller() and self == mouse then
+        if _G.G_SilentAimM1R and IsCurrentSkillEnabled() and currentSilentAimTarget and not checkcaller() and self == mouse then
             local tp = currentSilentAimTarget.Position
             local cp = workspace.CurrentCamera.CFrame.Position
             if key == "Hit" then return CFrame.new(tp)
@@ -3359,6 +3599,17 @@ RJR[L("绘制")]:CreateToggle({
     Name = L("技能自瞄"),
     CurrentValue = _G.G_SilentAimSkill,
     Callback = function(Value) _G.G_SilentAimSkill = Value; SaveConfiguration() end
+})
+
+RJR[L("绘制")]:CreateDropdown({
+    Name = L("自瞄招式"),
+    Options = {"M1 (普攻)", "Z", "X", "C", "V", "F", "R"},
+    CurrentOption = _G.G_SilentAimSkills,
+    Multiple = true,
+    Callback = function(Options)
+        _G.G_SilentAimSkills = Options
+        SaveConfiguration()
+    end
 })
 
 RJR[L("绘制")]:CreateDropdown({
