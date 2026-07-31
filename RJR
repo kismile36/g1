@@ -388,7 +388,7 @@ local Translations = {
         ["自瞄设置"] = "Aimbot Settings",
         ["M1 自瞄"] = "M1 Aimbot",
         ["技能自瞄"] = "Skill Aimbot",
-        ["自瞄招式"] = "Aimbot Skills",
+        ["指定技能自瞄"] = "Aimbot Skills",
         ["瞄准玩家"] = "Target Players",
         ["瞄准 NPC"] = "Target NPCs",
         ["团队检测"] = "Team Check",
@@ -3751,7 +3751,7 @@ AimSection:Toggle({
 })
 
 AimSection:Dropdown({
-    Title = L("自瞄招式"),
+    Title = L("指定技能自瞄"),
     Values = {"M1 (普攻)", "Z", "X", "C", "V", "F", "R"},
     Value = _G.G_SilentAimSkills,
     Multi = true,
