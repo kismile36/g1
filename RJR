@@ -75,7 +75,7 @@ _G.G_HopMaxBounty = _G.G_HopMaxBounty or 999999999
 
 _G.G_SilentAimM1R   = _G.G_SilentAimM1R or false
 _G.G_SilentAimSkill = _G.G_SilentAimSkill or false
-_G.G_SilentAimSkills = _G.G_SilentAimSkills or {"M1 (普攻)", "Z", "X", "C", "V", "F", "R"}
+_G.G_SilentAimSkills = _G.G_SilentAimSkills or {"Z", "X", "C", "V", "F"}
 _G.G_SilentAimShowFOV = _G.G_SilentAimShowFOV or false
 _G.G_SilentAimFOV     = _G.G_SilentAimFOV or 100
 _G.G_SilentAimPart    = _G.G_SilentAimPart or "Head"
@@ -3752,7 +3752,7 @@ AimSection:Toggle({
 
 AimSection:Dropdown({
     Title = L("指定技能自瞄"),
-    Values = {"M1 (普攻)", "Z", "X", "C", "V", "F", "R"},
+    Values = {"Z", "X", "C", "V", "F"},
     Value = _G.G_SilentAimSkills,
     Multi = true,
     Callback = function(v)
