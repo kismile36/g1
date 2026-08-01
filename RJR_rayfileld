@@ -61,6 +61,7 @@ _G.G_SelectPly        = _G.G_SelectPly or ""
 _G.G_TeleportPly      = _G.G_TeleportPly or false
 _G.G_Teleport         = _G.G_Teleport or false
 _G.G_Lock2            = _G.G_Lock2 or false
+_G.G_LockOrbit        = _G.G_LockOrbit or false
 _G.G_TeleportPredict  = _G.G_TeleportPredict or false
 _G.G_LockQuickPath    = _G.G_LockQuickPath ~= false
 _G.G_SpectatePlys     = _G.G_SpectatePlys or false
@@ -107,6 +108,7 @@ local Translations = {
         ["服务器"] = "Server",
         ["设置"] = "Settings",
         ["FOV"] = "FOV",
+        ["商店"] = "Shop",
         -- 杀戮光环
         ["开启快速攻击"] = "Enable Fast Attack",
         ["快速攻击模式"] = "Fast Attack Mode",
@@ -133,7 +135,7 @@ local Translations = {
         ["显示玩家名字"] = "Show Player Name",
         ["显示玩家等级"] = "Show Player Level",
         ["显示玩家赏金"] = "Show Bounty",
-        ["显示恶魔果实"] = "Show Devil Fruit",
+        ["显示恶魔果实"] = "Show Fruit",
         ["显示距离"] = "Show Distance",
         ["显示血量"] = "Show HP",
         ["高亮显示玩家"] = "Highlight Players",
@@ -148,10 +150,10 @@ local Translations = {
         ["移除岩浆 (需重进恢复)"] = "Remove Lava (Rejoin to restore)",
         ["移除雾 (需重进恢复)"] = "Remove Fog (Rejoin to restore)",
         ["移除玩家动作 (僵直)"] = "Remove Player Anim (Stun)",
-        ["移除鬼船 (保留传送点)"] = "Remove Ghost Ship (Keep TP)",
+        ["移除鬼船 (保留传送点)"] = "Remove Ghost Ship",
         ["水上行走"] = "Walk on Water",
         ["解帧数限制 (仅电脑)"] = "Unlock FPS (PC only)",
-        ["自动血拳卡帧"] = "Auto Blood FPS Lock",
+        ["自动血拳卡帧"] = "Auto sanguine FPS Lock",
         ["旋转"] = "Spin",
         ["旋转速度"] = "Spin Speed",
         ["反移动(释放技能不移动)"] = "Anti-Move (Skill no move)",
@@ -164,6 +166,7 @@ local Translations = {
         ["加入服务器 id"] = "Join Server ID",
         -- 设置
         ["选择主题"] = "Select Theme",
+        ["自动保存已开启"] = "Auto Save On",
         ["保存配置"] = "Save Config",
         ["加载配置"] = "Load Config",
         ["窗口切换键"] = "Toggle Window Key",
@@ -171,13 +174,21 @@ local Translations = {
         ["选择目标玩家"] = "Select Target Player",
         ["刷新玩家列表"] = "Refresh Player List",
         ["观战玩家"] = "Spectate Player",
-        ["平滑传送至玩家"] = "Smooth TP to Player",
-        ["直接传送至玩家"] = "Direct TP to Player",
+        ["平滑传送至玩家"] = "Twen TP",
+        ["直接传送至玩家"] = "Instant TP",
         ["锁人2"] = "Lock 2",
         ["锁人预判 (对抗飞行)"] = "Lock Predict (Anti-Fly)",
         ["X轴偏移"] = "X Offset",
         ["Y轴偏移"] = "Y Offset",
         ["Z轴偏移"] = "Z Offset",
+        ["豪宅"] = "Mansion",
+        ["天鹅房间"] = "Swan Room",
+        ["鬼船"] = "Ship Inside",
+        ["僵尸岛"] = "Ship Outside",
+        ["海洋城堡"] = "castle of the sea",
+        ["海龟豪宅"] = "Turtle Mansion",
+        ["司法"] = "Justice",
+        ["九头蛇"] = "Hydra",
         -- 绘制/FOV
         ["自瞄范围设置"] = "Aimbot Range Settings",
         ["显示 FOV 范围"] = "Show FOV Range",
@@ -199,6 +210,14 @@ local Translations = {
         ["选择玩家"] = "Selected Player",
         ["快捷键锁人(按键h)"] = "Hotkey Lock (Press H)",
         ["锁人模式"] = "Lock Mode",
+        ["M1 R 自瞄"] = "M1 R Aimbot",
+        ["选择瞄准玩家"] = "Select Aimbot Player",
+        ["重置数据"] = "Reset Stads",
+        ["重置种族"] = "Reroll Race",
+        ["切换海盗"] = "Join Pirates",
+        ["切换海军"] = "Join Marines",
+        ["更换吸血鬼"] = "Change to Ghoul",
+        ["更换机器人"] = "Change to Cyborg",
         ["自动 Soru 最近玩家"] = "Auto Soru Closest Player",
         -- 描述
         ["跳服时搜索的服务器区域"] = "Server region for server hop",
@@ -235,15 +254,14 @@ local Translations = {
         ["已停止锁定目标"] = "Stopped locking target",
         ["快捷传送点"] = "Quick TP Point",
         ["锁人快捷路径"] = "Lock Quick Path",
+        ["环绕锁人"] = "Orbit Lock",
+        ["靠近敌人后完全随机偏移，幅度 25-75"] = "Fully random offset around enemy when close, range 25-75",
         ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
         ["公告"] = "Announcement",
         ["DC 服务器"] = "DC Server",
         ["点击复制 DC 链接"] = "Click to copy DC link",
         ["已复制 DC 链接"] = "DC link copied",
-        ["点击复制"] = "Click to copy",
-        ["已复制链接"] = "Link copied",
-        ["锁人快捷路径"] = "Lock Quick Path",
-        ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
+        ["宣传图"] = "Banner",
         -- 语言切换
         ["语言"] = "Language",
         ["中文"] = "Chinese",
@@ -252,6 +270,33 @@ local Translations = {
         -- 其他
         ["正在锁人: "] = "Locking: ",
         ["正在锁人..."] = "Locking...",
+        -- 补充（下拉框显示值/通知）
+        ["锁人1"] = "Lock 1",
+        ["跟随鼠标"] = "Follow Mouse",
+        ["屏幕中心"] = "Screen Center",
+        ["模式1"] = "Mode 1",
+        ["模式2(部分账号失效用)"] = "Mode 2 (Some accounts fail)",
+        ["大于3m"] = ">3M",
+        ["大于5m"] = ">5M",
+        ["大于10m"] = ">10M",
+        ["大于15m"] = ">15M",
+        ["大于25m"] = ">25M",
+        ["大于35m"] = ">35M",
+        ["大于50m"] = ">50M",
+        ["人数: "] = "Players: ",
+        ["赏金: "] = "Bounty: ",
+        ["Rayfield ui版脚本链接"] = "Rayfield UI script link",
+        ["点击复制"] = "Click to copy",
+        ["已复制链接"] = "Link copied",
+        ["选择人数"] = "Select Players",
+        ["人数设置"] = "Players Setting",
+        ["选择赏金"] = "Select Bounty",
+        ["赏金设置"] = "Bounty Setting",
+        ["匹配到服务器"] = "Matched Server",
+        ["请先选择目标玩家"] = "Select target player first",
+        ["观战结束"] = "Spectate Ended",
+        ["已恢复本地视角"] = "Camera restored",
+        ["自动瞬步"] = "Auto Soru",
     }
 }
 
@@ -260,6 +305,20 @@ local function L(text)
         return Translations["English"][text]
     end
     return text
+end
+
+local EnglishTranslationSources = {}
+for source, translation in pairs(Translations["English"]) do
+    if EnglishTranslationSources[translation] == nil then
+        EnglishTranslationSources[translation] = source
+    end
+end
+
+local function LocalizeExistingText(text)
+    if type(text) ~= "string" or text == "" then
+        return text
+    end
+    return L(EnglishTranslationSources[text] or text)
 end
 
 local function CollectConfig()
@@ -320,6 +379,7 @@ local function CollectConfig()
             TeleportOffsetZ = _G.G_TeleportOffsetZ,
             TeleportPredict = _G.G_TeleportPredict,
             LockQuickPath   = _G.G_LockQuickPath,
+            LockOrbit       = _G.G_LockOrbit,
         },
         Server = {
             ServerRegion = _G.G_ServerRegion,
@@ -2610,6 +2670,9 @@ RJR[L("服务器")]:CreateButton({
 
 local themeList = {"Default", "AmberGlow", "Amethyst", "Bloom", "DarkBlue", "Green", "Light", "Ocean", "Serenity"}
 
+local RefreshLocalizedUI
+local RefreshDynamicLanguageUI
+
 RJR[L("设置")]:CreateButton({
     Name = L("语言") .. " (" .. _G.G_Language .. ")",
     Callback = function()
@@ -2619,6 +2682,7 @@ RJR[L("设置")]:CreateButton({
             _G.G_Language = "中文"
         end
         SaveConfiguration()
+        if RefreshLocalizedUI then RefreshLocalizedUI() end
         Rayfield:Notify({
             Title = L("语言"),
             Content = _G.G_Language == "English" and L("语言已切换为: English") or L("语言已切换为: 中文"),
@@ -2626,6 +2690,78 @@ RJR[L("设置")]:CreateButton({
         })
     end
 })
+
+RefreshLocalizedUI = function()
+    local languageName = _G.G_Language == "English" and "English" or "中文"
+    local langTitle = L("语言") .. " (" .. languageName .. ")"
+    pcall(function()
+        if Rayfield.Main and Rayfield.Main.TabList then
+            for _, tb in ipairs(Rayfield.Main.TabList:GetChildren()) do
+                if tb.ClassName == "Frame" and tb.Name ~= "Template" and tb.Name ~= "Placeholder" and tb:FindFirstChild("Title") then
+                    local nt = LocalizeExistingText(tb.Title.Text)
+                    if nt ~= tb.Title.Text then
+                        tb.Title.Text = nt
+                    end
+                end
+            end
+        end
+    end)
+    pcall(function()
+        if Rayfield.Main and Rayfield.Main.Elements then
+            for _, page in ipairs(Rayfield.Main.Elements:GetChildren()) do
+                if page.Name ~= "Template" and page.Name ~= "Placeholder" then
+                    local newName = LocalizeExistingText(page.Name)
+                    if newName ~= page.Name then
+                        page.Name = newName
+                    end
+                    for _, element in ipairs(page:GetChildren()) do
+                        local title = element:FindFirstChild("Title")
+                        if title and title:IsA("TextLabel") then
+                            if title.Text == "语言 (中文)" or title.Text == "语言 (English)" or title.Text == "Language (中文)" or title.Text == "Language (English)" then
+                                title.Text = langTitle
+                            else
+                                local nt = LocalizeExistingText(title.Text)
+                                if nt ~= title.Text then
+                                    title.Text = nt
+                                end
+                            end
+                        end
+                        local selected = element:FindFirstChild("Selected")
+                        if selected and selected:IsA("TextLabel") then
+                            if not element:GetAttribute("_langHooked") then
+                                element:SetAttribute("_langHooked", true)
+                                selected:GetPropertyChangedSignal("Text"):Connect(function()
+                                    local t = LocalizeExistingText(selected.Text)
+                                    if t ~= selected.Text then
+                                        selected.Text = t
+                                    end
+                                end)
+                            end
+                            local t = LocalizeExistingText(selected.Text)
+                            if t ~= selected.Text then
+                                selected.Text = t
+                            end
+                            local list = element:FindFirstChild("List")
+                            if list then
+                                for _, opt in ipairs(list:GetChildren()) do
+                                    if opt.ClassName == "Frame" and opt.Name ~= "Placeholder" then
+                                        local optTitle = opt:FindFirstChild("Title")
+                                        if optTitle and optTitle:IsA("TextLabel") then
+                                            optTitle.Text = L(opt.Name)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    if RefreshDynamicLanguageUI then
+        pcall(RefreshDynamicLanguageUI)
+    end
+end
 
 
 
@@ -2989,6 +3125,20 @@ end
 
 local Lock2Connection
 local Lock2LastEntrance = 0
+local LockOrbitLastRoll = 0
+local LockOrbitDX = 0
+local LockOrbitDY = 0
+local LockOrbitDZ = 0
+local function GetLockOrbitPos(targetPos)
+    if tick() - LockOrbitLastRoll > 0.08 + math.random() * 0.07 then
+        LockOrbitLastRoll = tick()
+        local function rnd() return math.random(25, 75) * (math.random() < 0.5 and 1 or -1) end
+        LockOrbitDX = rnd()
+        LockOrbitDY = rnd()
+        LockOrbitDZ = rnd()
+    end
+    return targetPos + Vector3.new(LockOrbitDX, LockOrbitDY, LockOrbitDZ)
+end
 
 RJR[L("传送")]:CreateToggle({
     Name = L("锁人2"),
@@ -3048,6 +3198,9 @@ RJR[L("传送")]:CreateToggle({
                 end
                 if distance > 300 then
                     topos(targetCFrame)
+                elseif _G.G_LockOrbit then
+                    StopTween()
+                    myHRP.CFrame = CFrame.new(GetLockOrbitPos(targetPos))
                 else             
                     StopTween()
                     myHRP.CFrame = targetCFrame
@@ -3061,6 +3214,16 @@ RJR[L("传送")]:CreateToggle({
             StopTween()
             Rayfield:Notify({ Title = L("锁人2关闭"), Content = L("已停止锁定目标"), Duration = 2 })
         end
+    end
+})
+
+RJR[L("传送")]:CreateToggle({
+    Name = L("环绕锁人"),
+    Desc = L("靠近敌人后完全随机偏移，幅度 25-75"),
+    CurrentValue = _G.G_LockOrbit,
+    Callback = function(Value)
+        _G.G_LockOrbit = Value
+        SaveConfiguration()
     end
 })
 
@@ -3287,14 +3450,12 @@ local function GetClosestTargetToMouse()
 
     -- 鼠标最近的玩家（当前默认方法，按 FOV 内屏幕距离）
     local origin = GetSilentAimOrigin()
-    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    local closest, shortest = nil, c.Radius
+    local closest, shortest = nil, math.huge
 
     local function check(character)
         if not IsAlive(character) then return end
         local part = character:FindFirstChild(_G.G_SilentAimPart) or character:FindFirstChild("HumanoidRootPart")
         if not part then return end
-        if myRoot and (part.Position - myRoot.Position).Magnitude > 1500 then return end
         local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(part.Position)
         if onScreen then
             local dist = (Vector2.new(pos.X, pos.Y) - origin).Magnitude
@@ -3414,6 +3575,8 @@ local function LockHotkeyUpdateUI()
     end
 end
 
+RefreshDynamicLanguageUI = LockHotkeyUpdateUI
+
 local function LockHotkeyStartLoop()
    
     lockHotkeyTarget = nil
@@ -3478,6 +3641,9 @@ local function LockHotkeyStartLoop()
                 end
                 if distance > 300 then
                     topos(targetCFrame)
+                elseif _G.G_LockOrbit then
+                    StopTween()
+                    myHRP.CFrame = CFrame.new(GetLockOrbitPos(targetPos))
                 else
                     StopTween()
                     myHRP.CFrame = targetCFrame
