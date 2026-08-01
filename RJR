@@ -38,6 +38,15 @@ _G.G_ESP_HP           = _G.G_ESP_HP ~= false
 _G.G_ESP_TextSize     = _G.G_ESP_TextSize or 14
 _G.G_ESP_Highlight    = _G.G_ESP_Highlight or false
 _G.G_ESP_HighlightColor = _G.G_ESP_HighlightColor or "FF0000"
+_G.G_ESP_Layout       = _G.G_ESP_Layout or "经典"
+_G.G_ESP_NameColor    = _G.G_ESP_NameColor or "FFFF00"
+_G.G_ESP_LevelColor   = _G.G_ESP_LevelColor or "00FF00"
+_G.G_ESP_BountyColor  = _G.G_ESP_BountyColor or "FFD700"
+_G.G_ESP_FruitColor   = _G.G_ESP_FruitColor or "FF69B4"
+_G.G_ESP_DistanceColor= _G.G_ESP_DistanceColor or "00FFFF"
+_G.G_ESP_HPColor      = _G.G_ESP_HPColor or "FF5555"
+_G.G_ESP_Avatar       = _G.G_ESP_Avatar or false
+_G.G_ESP_AvatarSide   = _G.G_ESP_AvatarSide or "右边"
 
 -- Misc
 _G.G_currentZoom      = _G.G_currentZoom or 0
@@ -90,6 +99,7 @@ _G.G_SilentAimTeamCheck     = _G.G_SilentAimTeamCheck or false
 _G.G_SilentAimMethod        = _G.G_SilentAimMethod or "鼠标最近的玩家"
 _G.G_LockHotkey              = _G.G_LockHotkey or false
 _G.G_LockHotkeyMode          = _G.G_LockHotkeyMode or "锁人1"
+_G.G_LockHotkeyKey           = _G.G_LockHotkeyKey or "H"
 _G.G_AutoSoru                = _G.G_AutoSoru or false
 
 _G.G_Theme            = _G.G_Theme or "Light"
@@ -125,6 +135,15 @@ local ConfigKeys = {
     "G_ESP_TextSize",
     "G_ESP_Highlight",
     "G_ESP_HighlightColor",
+    "G_ESP_Layout",
+    "G_ESP_NameColor",
+    "G_ESP_LevelColor",
+    "G_ESP_BountyColor",
+    "G_ESP_FruitColor",
+    "G_ESP_DistanceColor",
+    "G_ESP_HPColor",
+    "G_ESP_Avatar",
+    "G_ESP_AvatarSide",
     "G_currentZoom",
     "G_DodgeNoCooldown",
     "G_DashLengthEnabled",
@@ -167,6 +186,7 @@ local ConfigKeys = {
     "G_SilentAimMethod",
     "G_LockHotkey",
     "G_LockHotkeyMode",
+    "G_LockHotkeyKey",
     "G_Theme",
     "G_Language",
 }
@@ -342,6 +362,19 @@ local Translations = {
         ["高亮显示玩家"] = "Highlight Players",
         ["高亮颜色"] = "Highlight Color",
         ["ESP 字体大小"] = "ESP Text Size",
+        ["ESP 排版"] = "ESP Layout",
+        ["经典"] = "Classic",
+        ["血条样式"] = "HP Bar Style",
+        ["名字颜色"] = "Name Color",
+        ["等级颜色"] = "Level Color",
+        ["赏金颜色"] = "Bounty Color",
+        ["果实颜色"] = "Fruit Color",
+        ["距离颜色"] = "Distance Color",
+        ["血量颜色"] = "HP Color",
+        ["显示玩家头像"] = "Show Player Avatar",
+        ["头像位置"] = "Avatar Position",
+        ["左边"] = "Left",
+        ["右边"] = "Right",
         -- 杂项
         ["视角缩放距离"] = "Camera Zoom",
         ["冲刺无冷却"] = "Dodge No Cooldown",
@@ -409,7 +442,15 @@ local Translations = {
         ["鼠标最近的玩家"] = "Closest to Mouse",
         ["最近的玩家"] = "Closest Player",
         ["选择玩家"] = "Selected Player",
-        ["快捷键锁人(按键h)"] = "Hotkey Lock (Press H)",
+        ["快捷键锁人"] = "Hotkey Lock",
+        ["锁人快捷键"] = "Lock Hotkey",
+        ["快捷锁人"] = "Hotkey Lock",
+        ["未锁定"] = "Not Locked",
+        ["距离: "] = "Distance: ",
+        ["快捷键: "] = "Hotkey: ",
+        ["按下按键开始锁定"] = "Press the key to lock",
+        ["解除锁定"] = "Unlock",
+        ["开始锁定"] = "Start Lock",
         ["锁人模式"] = "Lock Mode",
         ["M1 R 自瞄"] = "M1 R Aimbot",
         ["选择瞄准玩家"] = "Select Aimbot Player",
@@ -455,7 +496,6 @@ local Translations = {
         ["快捷传送点"] = "Quick TP Point",
         ["锁人快捷路径"] = "Lock Quick Path",
         ["环绕锁人"] = "Orbit Lock",
-        ["靠近敌人后完全随机偏移，幅度 25-75"] = "Fully random offset around enemy when close, range 25-75",
         ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
         ["公告"] = "Announcement",
         ["DC 服务器"] = "DC Server",
@@ -872,6 +912,14 @@ task.spawn(function()
         if _G.G_AttackPlayers then
             for _, player in pairs(Players:GetPlayers()) do
                 if player ~= LocalPlayer and player.Character then
+                    local isRubber = false
+                    pcall(function()
+                        local fruit = player.Data.DevilFruit.Value
+                        if typeof(fruit) == "string" and fruit:find("Rubber") then
+                            isRubber = true
+                        end
+                    end)
+                    if isRubber then continue end
                     local pHum = player.Character:FindFirstChildOfClass("Humanoid")
                     local pRoot = player.Character:FindFirstChild("HumanoidRootPart")
                     if pHum and pHum.Health > 0 and pRoot then
@@ -882,12 +930,19 @@ task.spawn(function()
         end
         return targets
     end
-    while task.wait(_G.G_M1FireInterval or 0.2) do
-        if not _G.G_DragonGunM1 then continue end
+    while true do
+        if not _G.G_DragonGunM1 then
+            task.wait()
+            continue
+        end
         pcall(function()
             local char = LocalPlayer.Character
             local tool = char and char:FindFirstChildOfClass("Tool")
             if not tool or tool.ToolTip ~= "Gun" then return end
+            local cooldown = tool:FindFirstChild("Cooldown")
+            if cooldown and cooldown:IsA("NumberValue") then
+                cooldown.Value = 0
+            end
             local targets = GetAllTargets()
             if #targets == 0 then return end
             local myPos = char.HumanoidRootPart.Position
@@ -899,10 +954,9 @@ task.spawn(function()
             if not targetPart then return end
             local valCode, valCount = GetNextValidator()
             if valCode ~= 0 then Validator2:FireServer(valCode, valCount) end
-            tool:SetAttribute("LocalOverheat", 0)
-            tool:SetAttribute("LocalTotalShots", (tool:GetAttribute("LocalTotalShots") or 0) + 1)
             ShootGunEvent:FireServer(targetPart.Position, { targetPart })
         end)
+        task.wait()
     end
 end)
 RJR[L("杀戮光环")]:Toggle({
@@ -910,19 +964,6 @@ RJR[L("杀戮光环")]:Toggle({
     Value = _G.G_DragonGunM1,
     Callback = function(v) 
         _G.G_DragonGunM1 = v 
-        SaveConfiguration()
-    end
-})
-RJR[L("杀戮光环")]:Slider({
-    Title = L("枪械 m1 发射间隔"),
-    Step = 0.001,
-    Value = {
-        Min = 0.001,
-        Max = 0.2,
-        Default = _G.G_M1FireInterval or 0.2
-    },
-    Callback = function(v)
-        _G.G_M1FireInterval = v
         SaveConfiguration()
     end
 })
@@ -1304,6 +1345,25 @@ local function hexToColor3(hex)
     local b = tonumber(hex:sub(5,6), 16) / 255 or 0
     return Color3.new(r, g, b)
 end
+local function color3ToRGBString(color3)
+    return string.format("rgb(%d,%d,%d)",
+        math.floor(color3.R * 255 + 0.5),
+        math.floor(color3.G * 255 + 0.5),
+        math.floor(color3.B * 255 + 0.5))
+end
+local function NormalizeLayout(l)
+    l = l or "经典"
+    if l == "血条" then return "血条样式" end
+    if l == "多行" or l == "单行" or l == "双行" or l == "方框" then return "经典" end
+    return l
+end
+local function FormatBounty(amount)
+    if amount >= 1000000 then
+        return string.format("%.1f", amount / 1000000) .. "M"
+    else
+        return string.format("%.1f", amount / 1000) .. "K"
+    end
+end
 local function removeESP(player)
     if espObjects[player] then
         pcall(function()
@@ -1332,7 +1392,7 @@ local function createESP(player)
     local team, color = getTeamInfo(player)
     local billboard = Instance.new("BillboardGui")
     billboard.Adornee = head
-    billboard.Size = UDim2.new(0,200,0,70)
+    billboard.Size = UDim2.new(0,220,0,150)
     billboard.StudsOffset = Vector3.new(0,3,0)
     billboard.AlwaysOnTop = true
     local text = Instance.new("TextLabel")
@@ -1345,6 +1405,45 @@ local function createESP(player)
     text.TextStrokeTransparency = 0
     text.TextColor3 = color
     text.Parent = billboard
+    local hpBar = Instance.new("Frame")
+    hpBar.Name = "ESP_HPBar"
+    hpBar.Size = UDim2.new(1, -60, 0, 6)
+    hpBar.Position = UDim2.new(0.5, 0, 1, -8)
+    hpBar.AnchorPoint = Vector2.new(0.5, 1)
+    hpBar.BackgroundColor3 = Color3.fromRGB(25,25,25)
+    hpBar.BorderSizePixel = 1
+    hpBar.BorderColor3 = Color3.fromRGB(0,0,0)
+    hpBar.Visible = false
+    local hpFill = Instance.new("Frame")
+    hpFill.Size = UDim2.new(1, 0, 1, 0)
+    hpFill.Position = UDim2.new(0, 0, 0.5, 0)
+    hpFill.AnchorPoint = Vector2.new(0, 0.5)
+    hpFill.BackgroundColor3 = Color3.fromRGB(0,255,0)
+    hpFill.BorderSizePixel = 0
+    hpFill.Parent = hpBar
+    hpBar.Parent = billboard
+    local avatar = Instance.new("ImageLabel")
+    avatar.Name = "ESP_Avatar"
+    avatar.Size = UDim2.new(0, 42, 0, 42)
+    avatar.AnchorPoint = Vector2.new(0, 0.5)
+    avatar.Position = UDim2.new(0, 4, 0.5, 0)
+    avatar.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    avatar.BackgroundTransparency = 0.2
+    avatar.BorderSizePixel = 1
+    avatar.BorderColor3 = color
+    avatar.Image = ""
+    avatar.ScaleType = Enum.ScaleType.Crop
+    avatar.Visible = false
+    avatar.Parent = billboard
+    task.spawn(function()
+        pcall(function()
+            local url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png"
+            pcall(function()
+                game:GetService("ContentProvider"):Preload(url)
+            end)
+            avatar.Image = url
+        end)
+    end)
     billboard.Parent = head
     local highlight = nil
     if _G.G_ESP_Highlight then
@@ -1361,6 +1460,9 @@ local function createESP(player)
     espObjects[player] = {
         gui = billboard,
         label = text,
+        hpBar = hpBar,
+        hpFill = hpFill,
+        avatar = avatar,
         char = char,
         highlight = highlight
     }
@@ -1452,22 +1554,87 @@ local function updateESP()
                         isPvpDisabled = true
                     end
                     data.label.TextColor3 = color
-                    if data.label.TextSize ~= _G.G_ESP_TextSize then
-                        data.label.TextSize = _G.G_ESP_TextSize
+                    local layout = NormalizeLayout(_G.G_ESP_Layout)
+                    local ts = _G.G_ESP_TextSize or 14
+                    if data.label.TextSize ~= ts then
+                        data.label.TextSize = ts
                     end
-                    local parts = {}
-                    if _G.G_ESP_Name then parts[#parts+1] = warnTag .. "[" .. team .. "] <font color=\"rgb(255,255,0)\">" .. player.Name .. "</font>" end
-                    if _G.G_ESP_Level then parts[#parts+1] = " [Lv." .. level .. "]" end
-                    if isPvpDisabled then
-                        parts[#parts+1] = "\n<font color=\"rgb(0,255,0)\">" .. pvpIcon .. pvpState .. "</font>\n"
+                    local showAvatar = _G.G_ESP_Avatar and data.avatar.Image ~= ""
+                    local avatarLeft = (_G.G_ESP_AvatarSide or "右边") == "左边"
+                    data.avatar.Visible = showAvatar
+                    if showAvatar then
+                        pcall(function()
+                            if avatarLeft then
+                                data.avatar.AnchorPoint = Vector2.new(0, 0.5)
+                                data.avatar.Position = UDim2.new(0, 4, 0.5, 0)
+                                data.label.AnchorPoint = Vector2.new(0.5, 0.5)
+                                data.label.Position = UDim2.new(0.5, 18, 0.5, 0)
+                                data.label.Size = UDim2.new(1, -56, 1, 0)
+                            else
+                                data.avatar.AnchorPoint = Vector2.new(1, 0.5)
+                                data.avatar.Position = UDim2.new(1, -4, 0.5, 0)
+                                data.label.AnchorPoint = Vector2.new(0.5, 0.5)
+                                data.label.Position = UDim2.new(0.5, -18, 0.5, 0)
+                                data.label.Size = UDim2.new(1, -56, 1, 0)
+                            end
+                        end)
                     else
-                        parts[#parts+1] = "\n" .. pvpIcon .. pvpState .. "\n"
+                        pcall(function()
+                            data.label.AnchorPoint = Vector2.new(0, 0)
+                            data.label.Position = UDim2.new(0, 0, 0, 0)
+                            data.label.Size = UDim2.new(1, 0, 1, 0)
+                        end)
                     end
-                    if _G.G_ESP_Fruit then parts[#parts+1] = "水果: " .. fruit .. "\n" end
-                    if _G.G_ESP_Bounty then parts[#parts+1] = "赏金: " .. math.floor(bounty/1000000) .. "M\n" end
-                    if _G.G_ESP_Distance then parts[#parts+1] = distance .. "米 | " end
-                    if _G.G_ESP_HP then parts[#parts+1] = "生命 " .. hp .. "%" end
-                    data.label.Text = table.concat(parts)
+                    local namePart, levelPart, fruitPart, bountyPart, distPart, hpPart
+                    if _G.G_ESP_Name then
+                        namePart = warnTag .. "[" .. team .. "] <font color=\"" .. color3ToRGBString(hexToColor3(_G.G_ESP_NameColor)) .. "\">" .. player.Name .. "</font>"
+                    end
+                    if _G.G_ESP_Level then
+                        levelPart = "<font color=\"" .. color3ToRGBString(hexToColor3(_G.G_ESP_LevelColor)) .. "\">Lv." .. level .. "</font>"
+                    end
+                    local pvpPart
+                    if isPvpDisabled then
+                        pvpPart = "<font color=\"rgb(0,255,0)\">" .. pvpIcon .. pvpState .. "</font>"
+                    else
+                        pvpPart = pvpIcon .. pvpState
+                    end
+                    if _G.G_ESP_Fruit then
+                        fruitPart = "<font color=\"" .. color3ToRGBString(hexToColor3(_G.G_ESP_FruitColor)) .. "\">水果: " .. fruit .. "</font>"
+                    end
+                    if _G.G_ESP_Bounty then
+                        bountyPart = "<font color=\"" .. color3ToRGBString(hexToColor3(_G.G_ESP_BountyColor)) .. "\">赏金: " .. FormatBounty(bounty) .. "</font>"
+                    end
+                    if _G.G_ESP_Distance then
+                        distPart = "<font color=\"" .. color3ToRGBString(hexToColor3(_G.G_ESP_DistanceColor)) .. "\">" .. distance .. "米</font>"
+                    end
+                    if _G.G_ESP_HP and layout ~= "血条样式" then
+                        hpPart = "<font color=\"" .. color3ToRGBString(hexToColor3(_G.G_ESP_HPColor)) .. "\">生命 " .. hp .. "%</font>"
+                    end
+                    data.gui.StudsOffset = Vector3.new(0, 3, 0)
+                    local hpBarVisible = layout == "血条样式"
+                    data.hpBar.Visible = hpBarVisible
+                    if hpBarVisible then
+                        pcall(function()
+                            data.hpFill.Size = UDim2.new(math.clamp(hp / 100, 0, 1), 0, 1, 0)
+                            if hp > 50 then
+                                data.hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                            elseif hp > 25 then
+                                data.hpFill.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+                            else
+                                data.hpFill.BackgroundColor3 = Color3.fromRGB(255, 40, 40)
+                            end
+                        end)
+                    end
+                    data.label.Visible = true
+                    local parts = {}
+                    if namePart then parts[#parts+1] = namePart end
+                    if levelPart then parts[#parts+1] = levelPart end
+                    if pvpPart then parts[#parts+1] = pvpPart end
+                    if fruitPart then parts[#parts+1] = fruitPart end
+                    if bountyPart then parts[#parts+1] = bountyPart end
+                    if distPart then parts[#parts+1] = distPart end
+                    if hpPart then parts[#parts+1] = hpPart end
+                    data.label.Text = table.concat(parts, "\n")
             
                     if _G.G_ESP_Highlight then
                         local hlColor = hexToColor3(_G.G_ESP_HighlightColor)
@@ -1848,6 +2015,82 @@ RJR["ESP"]:Colorpicker({
             math.floor(color.G * 255 + 0.5),
             math.floor(color.B * 255 + 0.5))
         SaveConfiguration()
+    end
+})
+RJR["ESP"]:Divider()
+RJR["ESP"]:Dropdown({
+    Title = L("ESP 排版"),
+    Values = {"经典", "血条样式"},
+    Value = NormalizeLayout(_G.G_ESP_Layout),
+    Callback = function(v)
+        _G.G_ESP_Layout = v
+        SaveConfiguration()
+    end
+})
+RJR["ESP"]:Toggle({
+    Title = L("显示玩家头像"),
+    Value = _G.G_ESP_Avatar,
+    Callback = function(v)
+        _G.G_ESP_Avatar = v
+        SaveConfiguration()
+    end
+})
+RJR["ESP"]:Dropdown({
+    Title = L("头像位置"),
+    Values = {"左边", "右边"},
+    Value = _G.G_ESP_AvatarSide or "右边",
+    Callback = function(v)
+        _G.G_ESP_AvatarSide = v
+        SaveConfiguration()
+    end
+})
+local function SaveHexColor(key, color)
+    _G[key] = string.format("%02X%02X%02X",
+        math.floor(color.R * 255 + 0.5),
+        math.floor(color.G * 255 + 0.5),
+        math.floor(color.B * 255 + 0.5))
+    SaveConfiguration()
+end
+RJR["ESP"]:Colorpicker({
+    Title = L("名字颜色"),
+    Default = hexToColor3(_G.G_ESP_NameColor),
+    Callback = function(color)
+        SaveHexColor("G_ESP_NameColor", color)
+    end
+})
+RJR["ESP"]:Colorpicker({
+    Title = L("等级颜色"),
+    Default = hexToColor3(_G.G_ESP_LevelColor),
+    Callback = function(color)
+        SaveHexColor("G_ESP_LevelColor", color)
+    end
+})
+RJR["ESP"]:Colorpicker({
+    Title = L("赏金颜色"),
+    Default = hexToColor3(_G.G_ESP_BountyColor),
+    Callback = function(color)
+        SaveHexColor("G_ESP_BountyColor", color)
+    end
+})
+RJR["ESP"]:Colorpicker({
+    Title = L("果实颜色"),
+    Default = hexToColor3(_G.G_ESP_FruitColor),
+    Callback = function(color)
+        SaveHexColor("G_ESP_FruitColor", color)
+    end
+})
+RJR["ESP"]:Colorpicker({
+    Title = L("距离颜色"),
+    Default = hexToColor3(_G.G_ESP_DistanceColor),
+    Callback = function(color)
+        SaveHexColor("G_ESP_DistanceColor", color)
+    end
+})
+RJR["ESP"]:Colorpicker({
+    Title = L("血量颜色"),
+    Default = hexToColor3(_G.G_ESP_HPColor),
+    Callback = function(color)
+        SaveHexColor("G_ESP_HPColor", color)
     end
 })
 RJR["ESP"]:Slider({
@@ -3364,8 +3607,7 @@ RJR[L("传送")]:Toggle({
 })
 
 RJR[L("传送")]:Toggle({
-    Title = L("环绕锁人"),
-    Desc = L("靠近敌人后完全随机偏移，幅度 25-75"),
+    Title = L("随机偏移锁人"),
     Value = _G.G_LockOrbit,
     Callback = function(v)
         _G.G_LockOrbit = v
@@ -3701,88 +3943,162 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-local LockHotkeyLabel
-local LockHotkeyConn
-local LockHotkeyLoopConn
-local lockHotkeyActive = false
-local lockHotkeyTarget = nil
-local Lock2EntranceTick = 0
+local LockHotkey = {
+    gui = nil,
+    panel = nil,
+    title = nil,
+    status = nil,
+    info = nil,
+    btn = nil,
+    conns = {},
+    conn = nil,
+    loop = nil,
+    active = false,
+    target = nil,
+    distance = 0,
+    entranceTick = 0,
+    uiTick = 0,
+}
+
+local function GetLockHotkeyName()
+    local hotkey = _G.G_LockHotkeyKey or "H"
+    if type(hotkey) ~= "string" then hotkey = "H" end
+    hotkey = tostring(hotkey):upper()
+    if hotkey == "" or hotkey == "NONE" then hotkey = "H" end
+    return hotkey
+end
+
+local function DestroyLockHotkeyGui()
+    for _, conn in pairs(LockHotkey.conns) do
+        pcall(function() conn:Disconnect() end)
+    end
+    table.clear(LockHotkey.conns)
+    if LockHotkey.gui then
+        pcall(function() LockHotkey.gui:Destroy() end)
+    end
+    LockHotkey.gui = nil
+    LockHotkey.panel = nil
+    LockHotkey.title = nil
+    LockHotkey.status = nil
+    LockHotkey.info = nil
+    LockHotkey.btn = nil
+end
 
 local function LockHotkeyUpdateUI()
-    if LockHotkeyLabel then
-        if lockHotkeyActive and lockHotkeyTarget then
-            LockHotkeyLabel.Text = L("正在锁人: ") .. lockHotkeyTarget.Name
-            LockHotkeyLabel.Visible = true
-        elseif lockHotkeyActive then
-            LockHotkeyLabel.Text = L("正在锁人...")
-            LockHotkeyLabel.Visible = true
-        else
-            LockHotkeyLabel.Visible = false
-        end
+    local status = LockHotkey.status
+    local info = LockHotkey.info
+    local btn = LockHotkey.btn
+    local title = LockHotkey.title
+    if not status or not info or not btn then return end
+    local hotkeyText = GetLockHotkeyName()
+    if title then
+        title.Text = L("快捷锁人")
+    end
+    if LockHotkey.active and LockHotkey.target then
+        status.Text = L("正在锁人: ") .. LockHotkey.target.Name
+        status.TextColor3 = Color3.fromRGB(90, 255, 140)
+        info.Text = L("距离: ") .. math.floor(LockHotkey.distance) .. L("米") .. "  |  " .. L("快捷键: ") .. hotkeyText
+        btn.Text = L("解除锁定")
+        btn.BackgroundColor3 = Color3.fromRGB(160, 50, 50)
+    elseif LockHotkey.active then
+        status.Text = L("正在锁人...")
+        status.TextColor3 = Color3.fromRGB(255, 200, 70)
+        info.Text = L("快捷键: ") .. hotkeyText
+        btn.Text = L("解除锁定")
+        btn.BackgroundColor3 = Color3.fromRGB(160, 50, 50)
+    else
+        status.Text = L("未锁定")
+        status.TextColor3 = Color3.fromRGB(255, 95, 95)
+        info.Text = L("快捷键: ") .. hotkeyText .. "  |  " .. L("按下按键开始锁定")
+        btn.Text = L("开始锁定")
+        btn.BackgroundColor3 = Color3.fromRGB(45, 120, 70)
     end
 end
 
 RefreshDynamicLanguageUI = LockHotkeyUpdateUI
 
+local function LockHotkeyStopLoop()
+    LockHotkey.active = false
+    if LockHotkey.loop then
+        LockHotkey.loop:Disconnect()
+        LockHotkey.loop = nil
+    end
+    StopTween()
+    LockHotkey.target = nil
+    LockHotkey.distance = 0
+    LockHotkeyUpdateUI()
+end
+
 local function LockHotkeyStartLoop()
-   
-    lockHotkeyTarget = nil
+    if LockHotkey.active then return end
+
     local firstTarget = GetClosestTargetToMouse()
+    local targetPlayer = nil
     if firstTarget then
         local tc = firstTarget.Parent
         if tc and tc:IsA("Model") then
-            lockHotkeyTarget = Players:GetPlayerFromCharacter(tc)
+            targetPlayer = Players:GetPlayerFromCharacter(tc)
         end
     end
-    if not lockHotkeyTarget then return end
-
-    if LockHotkeyLoopConn then
-        LockHotkeyLoopConn:Disconnect()
-        LockHotkeyLoopConn = nil
+    if not targetPlayer then
+        WindUI:Notify({ Title = L("快捷锁人"), Content = L("请先选择目标玩家"), Duration = 1.5 })
+        return
     end
 
-    lockHotkeyActive = true
-    LockHotkeyUpdateUI()
-    Lock2EntranceTick = 0
-    local VirtualUser = game:GetService("VirtualUser")
+    if LockHotkey.loop then
+        LockHotkey.loop:Disconnect()
+        LockHotkey.loop = nil
+    end
 
-    LockHotkeyLoopConn = RunService.Stepped:Connect(function()
-        if not lockHotkeyActive then
-            if LockHotkeyLoopConn then
-                LockHotkeyLoopConn:Disconnect()
-                LockHotkeyLoopConn = nil
+    LockHotkey.target = targetPlayer
+    LockHotkey.active = true
+    LockHotkey.entranceTick = 0
+    LockHotkey.uiTick = 0
+    LockHotkeyUpdateUI()
+
+    local VirtualUser = game:GetService("VirtualUser")
+    LockHotkey.loop = RunService.Heartbeat:Connect(function()
+        if not LockHotkey.active then
+            if LockHotkey.loop then
+                LockHotkey.loop:Disconnect()
+                LockHotkey.loop = nil
             end
             return
         end
 
-        pcall(function()
-            local tPlayer = lockHotkeyTarget
-            if not tPlayer or not tPlayer.Character then
+        local ok = pcall(function()
+            local tPlayer = LockHotkey.target
+            if not tPlayer or not tPlayer.Parent or not tPlayer.Character then
                 LockHotkeyStopLoop()
                 return
             end
+            local tHum = tPlayer.Character:FindFirstChildOfClass("Humanoid")
             local tHRP = tPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not tHRP then return end
+            if not tHRP or (tHum and tHum.Health <= 0) then
+                LockHotkeyStopLoop()
+                return
+            end
             local myChar = LocalPlayer.Character
             local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
             if not myHRP then return end
 
             local targetCFrame = GetPredictedCFrame(tHRP) + Vector3.new(_G.G_TeleportOffsetX, _G.G_TeleportOffsetY, _G.G_TeleportOffsetZ)
+            LockHotkey.distance = (targetCFrame.Position - myHRP.Position).Magnitude
 
             if _G.G_LockHotkeyMode == "锁人2" then
                 local targetPos = targetCFrame.Position
                 local myPos = myHRP.Position
-                local distance = (targetPos - myPos).Magnitude
-            
+                local distance = LockHotkey.distance
+
                 if math.abs(myPos.Y - targetPos.Y) > 0.5 then
                     myHRP.CFrame = CFrame.new(myPos.X, targetPos.Y, myPos.Z)
                 end
-      
-                if _G.G_LockQuickPath and distance > 1000 and tick() - Lock2EntranceTick > 3 then
+
+                if _G.G_LockQuickPath and distance > 1000 and tick() - LockHotkey.entranceTick > 3 then
                     local entName, entPos = GetNearestEntranceToTarget(targetPos, myPos)
                     if entName and entPos then
                         requestEntrance(entPos)
-                        Lock2EntranceTick = tick()
+                        LockHotkey.entranceTick = tick()
                         return
                     end
                 end
@@ -3801,53 +4117,206 @@ local function LockHotkeyStartLoop()
                 VirtualUser:Button1Down(Vector2.new(1280, 672))
             end
         end)
+
+        if ok and tick() - LockHotkey.uiTick > 0.1 then
+            LockHotkey.uiTick = tick()
+            LockHotkeyUpdateUI()
+        end
     end)
 end
 
-local function LockHotkeyStopLoop()
-    lockHotkeyActive = false
-    if LockHotkeyLoopConn then
-        LockHotkeyLoopConn:Disconnect()
-        LockHotkeyLoopConn = nil
+local function CreateLockHotkeyGui()
+    DestroyLockHotkeyGui()
+
+    local parentGui
+    pcall(function()
+        if gethui then
+            parentGui = gethui()
+        end
+    end)
+    if not parentGui then
+        pcall(function()
+            parentGui = game:GetService("CoreGui")
+        end)
     end
-    StopTween()
-    lockHotkeyTarget = nil
+    if not parentGui then
+        parentGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local sgui = Instance.new("ScreenGui")
+    sgui.Name = "LockHotkeyGui"
+    sgui.ResetOnSpawn = false
+    sgui.IgnoreGuiInset = true
+    sgui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    sgui.DisplayOrder = 999
+    sgui.Parent = parentGui
+    pcall(function()
+        if syn and syn.protect_gui then
+            syn.protect_gui(sgui)
+        elseif protect_gui then
+            protect_gui(sgui)
+        end
+    end)
+
+    local panel = Instance.new("Frame")
+    panel.Name = "Panel"
+    panel.AnchorPoint = Vector2.new(0, 1)
+    panel.Position = UDim2.new(0, 14, 1, -18)
+    panel.Size = UDim2.new(0, 250, 0, 112)
+    panel.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    panel.BackgroundTransparency = 0.12
+    panel.BorderSizePixel = 0
+    panel.Active = true
+    panel.Parent = sgui
+
+    local panelCorner = Instance.new("UICorner")
+    panelCorner.CornerRadius = UDim.new(0, 10)
+    panelCorner.Parent = panel
+
+    local panelStroke = Instance.new("UIStroke")
+    panelStroke.Color = Color3.fromRGB(255, 150, 55)
+    panelStroke.Thickness = 1.2
+    panelStroke.Transparency = 0.15
+    panelStroke.Parent = panel
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 28)
+    titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+    titleBar.BackgroundTransparency = 0.15
+    titleBar.BorderSizePixel = 0
+    titleBar.Active = true
+    titleBar.Parent = panel
+
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 10)
+    titleCorner.Parent = titleBar
+
+    local titleFix = Instance.new("Frame")
+    titleFix.Size = UDim2.new(1, 0, 0, 12)
+    titleFix.Position = UDim2.new(0, 0, 1, -12)
+    titleFix.BackgroundColor3 = Color3.fromRGB(30, 30, 36)
+    titleFix.BackgroundTransparency = 0.15
+    titleFix.BorderSizePixel = 0
+    titleFix.Parent = titleBar
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.BackgroundTransparency = 1
+    title.Size = UDim2.new(1, -12, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.TextColor3 = Color3.fromRGB(255, 190, 95)
+    title.Text = L("快捷锁人")
+    title.Parent = titleBar
+
+    local status = Instance.new("TextLabel")
+    status.Name = "Status"
+    status.BackgroundTransparency = 1
+    status.Position = UDim2.new(0, 12, 0, 36)
+    status.Size = UDim2.new(1, -24, 0, 20)
+    status.Font = Enum.Font.GothamBold
+    status.TextSize = 14
+    status.TextXAlignment = Enum.TextXAlignment.Left
+    status.TextColor3 = Color3.fromRGB(255, 95, 95)
+    status.Text = L("未锁定")
+    status.Parent = panel
+
+    local info = Instance.new("TextLabel")
+    info.Name = "Info"
+    info.BackgroundTransparency = 1
+    info.Position = UDim2.new(0, 12, 0, 56)
+    info.Size = UDim2.new(1, -24, 0, 16)
+    info.Font = Enum.Font.Gotham
+    info.TextSize = 12
+    info.TextXAlignment = Enum.TextXAlignment.Left
+    info.TextColor3 = Color3.fromRGB(190, 190, 200)
+    info.Text = ""
+    info.Parent = panel
+
+    local btn = Instance.new("TextButton")
+    btn.Name = "ToggleBtn"
+    btn.Position = UDim2.new(0, 12, 1, -32)
+    btn.Size = UDim2.new(1, -24, 0, 24)
+    btn.BackgroundColor3 = Color3.fromRGB(45, 120, 70)
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = true
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = L("开始锁定")
+    btn.Parent = panel
+
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+
+    LockHotkey.gui = sgui
+    LockHotkey.panel = panel
+    LockHotkey.title = title
+    LockHotkey.status = status
+    LockHotkey.info = info
+    LockHotkey.btn = btn
+
+    LockHotkey.conns.btn = btn.MouseButton1Click:Connect(function()
+        if LockHotkey.active then
+            LockHotkeyStopLoop()
+        else
+            LockHotkeyStartLoop()
+        end
+    end)
+
+    local dragging = false
+    local dragStart = Vector2.zero
+    local startPos = UDim2.new()
+    LockHotkey.conns.dragBegin = titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        dragging = true
+        dragStart = Vector2.new(input.Position.X, input.Position.Y)
+        startPos = panel.Position
+        local ended
+        ended = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                if ended then ended:Disconnect() end
+            end
+        end)
+    end)
+    LockHotkey.conns.dragMove = UIS.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+        local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStart
+        panel.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end)
+
     LockHotkeyUpdateUI()
 end
 
 local function StartLockHotkey()
-    if LockHotkeyConn then return end
-
-    pcall(function()
-        local old = LocalPlayer:FindFirstChild("PlayerGui") and LocalPlayer.PlayerGui:FindFirstChild("LockHotkeyGui")
-        if old then old:Destroy() end
-    end)
-    pcall(function()
-        local old = game:GetService("CoreGui"):FindFirstChild("LockHotkeyGui")
-        if old and old ~= LockHotkeyLabel then old:Destroy() end
-    end)
-    if not LockHotkeyLabel then
-        local sgui = Instance.new("ScreenGui")
-        sgui.Name = "LockHotkeyGui"
-        sgui.Parent = LocalPlayer:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
-        LockHotkeyLabel = Instance.new("TextLabel")
-        LockHotkeyLabel.Parent = sgui
-        LockHotkeyLabel.AnchorPoint = Vector2.new(0.5, 0)
-        LockHotkeyLabel.Position = UDim2.new(0.5, 0, 0, 5)
-        LockHotkeyLabel.Size = UDim2.new(0, 300, 0, 30)
-        LockHotkeyLabel.BackgroundTransparency = 1
-        LockHotkeyLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-        LockHotkeyLabel.TextStrokeTransparency = 0
-        LockHotkeyLabel.Font = Enum.Font.SourceSansBold
-        LockHotkeyLabel.TextSize = 20
+    if not LockHotkey.gui or not LockHotkey.gui.Parent then
+        CreateLockHotkeyGui()
+    else
+        LockHotkeyUpdateUI()
     end
 
-    LockHotkeyConn = game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if LockHotkey.conn then return end
+    LockHotkey.conn = UIS.InputBegan:Connect(function(input)
         if not _G.G_LockHotkey then return end
-        if gameProcessed then return end
+        if UIS:GetFocusedTextBox() then return end
         if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-        if input.KeyCode.Name ~= "H" then return end
-        if lockHotkeyActive then
+        if input.KeyCode.Name:upper() ~= GetLockHotkeyName() then return end
+        if LockHotkey.active then
             LockHotkeyStopLoop()
         else
             LockHotkeyStartLoop()
@@ -3857,16 +4326,15 @@ end
 
 local function StopLockHotkey()
     LockHotkeyStopLoop()
-    if LockHotkeyConn then
-        LockHotkeyConn:Disconnect()
-        LockHotkeyConn = nil
+    if LockHotkey.conn then
+        LockHotkey.conn:Disconnect()
+        LockHotkey.conn = nil
     end
-    if LockHotkeyLabel then
-        LockHotkeyLabel.Visible = false
-    end
+    DestroyLockHotkeyGui()
 end
 
 RJR[L("绘制")]:Divider()
+do
 local FOVSection = RJR[L("绘制")]:Section({ Title = L("自瞄范围设置") })
 
 
@@ -4011,9 +4479,10 @@ RJR[L("绘制")]:Button({
         end
     end
 })
+end
 
 RJR[L("绘制")]:Toggle({
-    Title = L("快捷键锁人(按键h)"),
+    Title = L("快捷键锁人"),
     Value = _G.G_LockHotkey,
     Callback = function(v)
         _G.G_LockHotkey = v
@@ -4022,6 +4491,16 @@ RJR[L("绘制")]:Toggle({
         else
             StopLockHotkey()
         end
+        SaveConfiguration()
+    end
+})
+
+RJR[L("绘制")]:Keybind({
+    Title = L("锁人快捷键"),
+    Value = _G.G_LockHotkeyKey or "H",
+    Callback = function(v)
+        _G.G_LockHotkeyKey = v
+        LockHotkeyUpdateUI()
         SaveConfiguration()
     end
 })
@@ -4040,98 +4519,91 @@ if _G.G_LockHotkey then StartLockHotkey() end
 
 RJR[L("绘制")]:Divider()
 
-local AutoSoruConn = nil
+do
+    local autoSoruConn = nil
 
-local function SoruTo(targetPosition)
-    local Character = LocalPlayer.Character
-    if not Character then return end
+    local function soruTo(targetPosition)
+        local Character = LocalPlayer.Character
+        if not Character then return end
 
-    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
-    local Humanoid = Character:FindFirstChild("Humanoid")
-    if not HumanoidRootPart or not Humanoid or Humanoid.Health <= 0 then return end
+        local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
+        local Humanoid = Character:FindFirstChild("Humanoid")
+        if not HumanoidRootPart or not Humanoid or Humanoid.Health <= 0 then return end
 
-    local startCFrame = HumanoidRootPart.CFrame
-    local finalPos = targetPosition
-    local finalCFrame = (startCFrame - startCFrame.Position) + finalPos + Vector3.new(0, HumanoidRootPart.Size.Y * 1.5, 0)
+        local startCFrame = HumanoidRootPart.CFrame
+        local finalCFrame = (startCFrame - startCFrame.Position) + targetPosition + Vector3.new(0, HumanoidRootPart.Size.Y * 1.5, 0)
 
-    local randomId = math.random(1, 999999999)
-    ReplicatedStorage.Remotes.CommE:FireServer(
-        "Soru",
-        startCFrame,
-        finalCFrame,
-        workspace:GetServerTimeNow(),
-        randomId
-    )
-end
-
-local function GetClosestPlayerForSoru()
-    local closestPlayer = nil
-    local shortestDistance = math.huge
-
-    local Character = LocalPlayer.Character
-    if not Character or not Character:FindFirstChild("HumanoidRootPart") then
-        return nil
+        ReplicatedStorage.Remotes.CommE:FireServer(
+            "Soru",
+            startCFrame,
+            finalCFrame,
+            workspace:GetServerTimeNow(),
+            math.random(1, 999999999)
+        )
     end
 
-    local myPos = Character.HumanoidRootPart.Position
+    local function soruToClosestPlayer()
+        local closestPlayer, shortestDistance = nil, math.huge
+        local Character = LocalPlayer.Character
+        local myRoot = Character and Character:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return end
+        local myPos = myRoot.Position
 
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local otherChar = player.Character
-            local otherHum = otherChar and otherChar:FindFirstChild("Humanoid")
-            local otherRoot = otherChar and otherChar:FindFirstChild("HumanoidRootPart")
-            if otherHum and otherRoot and otherHum.Health > 0 then
-                local distance = (otherRoot.Position - myPos).Magnitude
-                if distance < shortestDistance then
-                    shortestDistance = distance
-                    closestPlayer = player
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local otherChar = player.Character
+                local otherHum = otherChar and otherChar:FindFirstChild("Humanoid")
+                local otherRoot = otherChar and otherChar:FindFirstChild("HumanoidRootPart")
+                if otherHum and otherRoot and otherHum.Health > 0 then
+                    local distance = (otherRoot.Position - myPos).Magnitude
+                    if distance < shortestDistance then
+                        shortestDistance = distance
+                        closestPlayer = player
+                    end
                 end
             end
         end
-    end
 
-    return closestPlayer
-end
-
-local function SoruToClosestPlayer()
-    local targetPlayer = GetClosestPlayerForSoru()
-    local targetChar = targetPlayer and targetPlayer.Character
-    if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
-        local targetPos = (targetChar.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)).Position
-        SoruTo(targetPos)
-    end
-end
-
-local function StartAutoSoru()
-    if AutoSoruConn then return end
-    AutoSoruConn = task.spawn(function()
-        while _G.G_AutoSoru do
-            pcall(SoruToClosestPlayer)
-            task.wait(1)
+        local targetChar = closestPlayer and closestPlayer.Character
+        local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+        if targetRoot then
+            soruTo((targetRoot.CFrame * CFrame.new(0, 0, 3)).Position)
         end
-    end)
-end
-
-local function StopAutoSoru()
-    AutoSoruConn = nil
-end
-
-RJR[L("绘制")]:Toggle({
-    Title = L("自动瞬步"),
-    Desc = "每15秒强制打你2500血你气不气😂",
-    Value = _G.G_AutoSoru,
-    Callback = function(v)
-        _G.G_AutoSoru = v
-        if v then
-            StartAutoSoru()
-        else
-            StopAutoSoru()
-        end
-        SaveConfiguration()
     end
-})
 
-if _G.G_AutoSoru then StartAutoSoru() end
+    local function startAutoSoru()
+        if autoSoruConn then return end
+        autoSoruConn = task.spawn(function()
+            while _G.G_AutoSoru do
+                pcall(soruToClosestPlayer)
+                task.wait(1)
+            end
+            autoSoruConn = nil
+        end)
+    end
+
+    local function stopAutoSoru()
+        _G.G_AutoSoru = false
+        autoSoruConn = nil
+    end
+
+    RJR[L("绘制")]:Toggle({
+        Title = L("自动瞬步"),
+        Desc = "每15秒强制打你2500血你气不气😂",
+        Value = _G.G_AutoSoru,
+        Callback = function(v)
+            _G.G_AutoSoru = v
+            if v then
+                startAutoSoru()
+            else
+                stopAutoSoru()
+            end
+            SaveConfiguration()
+        end
+    })
+
+    if _G.G_AutoSoru then startAutoSoru() end
+end
 
 task.defer(function()
     SaveConfig(true)
