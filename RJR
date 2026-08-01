@@ -61,6 +61,7 @@ _G.G_SelectPly        = _G.G_SelectPly or ""
 _G.G_TeleportPly      = _G.G_TeleportPly or false
 _G.G_Teleport         = _G.G_Teleport or false
 _G.G_Lock2            = _G.G_Lock2 or false
+_G.G_LockOrbit        = _G.G_LockOrbit or false
 _G.G_TeleportPredict  = _G.G_TeleportPredict or false
 _G.G_LockQuickPath    = _G.G_LockQuickPath ~= false
 _G.G_SpectatePlys     = _G.G_SpectatePlys or false
@@ -142,6 +143,7 @@ local ConfigKeys = {
     "G_TeleportOffsetZ",
     "G_TeleportPredict",
     "G_LockQuickPath",
+    "G_LockOrbit",
     "G_ServerRegion",
     "G_HopPlayerRange",
     "G_HopBountyRange",
@@ -307,6 +309,7 @@ local Translations = {
         ["服务器"] = "Server",
         ["设置"] = "Settings",
         ["FOV"] = "FOV",
+        ["商店"] = "Shop",
         -- 杀戮光环
         ["开启快速攻击"] = "Enable Fast Attack",
         ["快速攻击模式"] = "Fast Attack Mode",
@@ -333,7 +336,7 @@ local Translations = {
         ["显示玩家名字"] = "Show Player Name",
         ["显示玩家等级"] = "Show Player Level",
         ["显示玩家赏金"] = "Show Bounty",
-        ["显示恶魔果实"] = "Show Devil Fruit",
+        ["显示恶魔果实"] = "Show Fruit",
         ["显示距离"] = "Show Distance",
         ["显示血量"] = "Show HP",
         ["高亮显示玩家"] = "Highlight Players",
@@ -348,10 +351,10 @@ local Translations = {
         ["移除岩浆 (需重进恢复)"] = "Remove Lava (Rejoin to restore)",
         ["移除雾 (需重进恢复)"] = "Remove Fog (Rejoin to restore)",
         ["移除玩家动作 (僵直)"] = "Remove Player Anim (Stun)",
-        ["移除鬼船 (保留传送点)"] = "Remove Ghost Ship (Keep TP)",
+        ["移除鬼船 (保留传送点)"] = "Remove Ghost Ship",
         ["水上行走"] = "Walk on Water",
         ["解帧数限制 (仅电脑)"] = "Unlock FPS (PC only)",
-        ["自动血拳卡帧"] = "Auto Blood FPS Lock",
+        ["自动血拳卡帧"] = "Auto sanguine FPS Lock",
         ["旋转"] = "Spin",
         ["旋转速度"] = "Spin Speed",
         ["反移动(释放技能不移动)"] = "Anti-Move (Skill no move)",
@@ -372,13 +375,21 @@ local Translations = {
         ["选择目标玩家"] = "Select Target Player",
         ["刷新玩家列表"] = "Refresh Player List",
         ["观战玩家"] = "Spectate Player",
-        ["平滑传送至玩家"] = "Smooth TP to Player",
-        ["直接传送至玩家"] = "Direct TP to Player",
+        ["平滑传送至玩家"] = "Twen TP",
+        ["直接传送至玩家"] = "Instant TP",
         ["锁人2"] = "Lock 2",
         ["锁人预判 (对抗飞行)"] = "Lock Predict (Anti-Fly)",
         ["X轴偏移"] = "X Offset",
         ["Y轴偏移"] = "Y Offset",
         ["Z轴偏移"] = "Z Offset",
+        ["豪宅"] = "Mansion",
+        ["天鹅房间"] = "Swan Room",
+        ["鬼船"] = "Ship Inside",
+        ["僵尸岛"] = "Ship Outside",
+        ["海洋城堡"] = "castle of the sea",
+        ["海龟豪宅"] = "Turtle Mansion",
+        ["司法"] = "Justice",
+        ["九头蛇"] = "Hydra",
         -- 绘制/FOV
         ["自瞄范围设置"] = "Aimbot Range Settings",
         ["显示 FOV 范围"] = "Show FOV Range",
@@ -400,6 +411,14 @@ local Translations = {
         ["选择玩家"] = "Selected Player",
         ["快捷键锁人(按键h)"] = "Hotkey Lock (Press H)",
         ["锁人模式"] = "Lock Mode",
+        ["M1 R 自瞄"] = "M1 R Aimbot",
+        ["选择瞄准玩家"] = "Select Aimbot Player",
+        ["重置数据"] = "Reset Stads",
+        ["重置种族"] = "Reroll Race",
+        ["切换海盗"] = "Join Pirates",
+        ["切换海军"] = "Join Marines",
+        ["更换吸血鬼"] = "Change to Ghoul",
+        ["更换机器人"] = "Change to Cyborg",
         -- 描述
         ["跳服时搜索的服务器区域"] = "Server region for server hop",
         ["切换窗口显示状态"] = "Toggle window visibility",
@@ -435,6 +454,8 @@ local Translations = {
         ["已停止锁定目标"] = "Stopped locking target",
         ["快捷传送点"] = "Quick TP Point",
         ["锁人快捷路径"] = "Lock Quick Path",
+        ["环绕锁人"] = "Orbit Lock",
+        ["靠近敌人后完全随机偏移，幅度 25-75"] = "Fully random offset around enemy when close, range 25-75",
         ["通过传送点快速接近目标"] = "Quickly approach target via TP points",
         ["公告"] = "Announcement",
         ["DC 服务器"] = "DC Server",
@@ -449,6 +470,33 @@ local Translations = {
         -- 其他
         ["正在锁人: "] = "Locking: ",
         ["正在锁人..."] = "Locking...",
+        -- 补充（下拉框显示值/通知）
+        ["锁人1"] = "Lock 1",
+        ["跟随鼠标"] = "Follow Mouse",
+        ["屏幕中心"] = "Screen Center",
+        ["模式1"] = "Mode 1",
+        ["模式2(部分账号失效用)"] = "Mode 2 (Some accounts fail)",
+        ["大于3m"] = ">3M",
+        ["大于5m"] = ">5M",
+        ["大于10m"] = ">10M",
+        ["大于15m"] = ">15M",
+        ["大于25m"] = ">25M",
+        ["大于35m"] = ">35M",
+        ["大于50m"] = ">50M",
+        ["人数: "] = "Players: ",
+        ["赏金: "] = "Bounty: ",
+        ["Rayfield ui版脚本链接"] = "Rayfield UI script link",
+        ["点击复制"] = "Click to copy",
+        ["已复制链接"] = "Link copied",
+        ["选择人数"] = "Select Players",
+        ["人数设置"] = "Players Setting",
+        ["选择赏金"] = "Select Bounty",
+        ["赏金设置"] = "Bounty Setting",
+        ["匹配到服务器"] = "Matched Server",
+        ["请先选择目标玩家"] = "Select target player first",
+        ["观战结束"] = "Spectate Ended",
+        ["已恢复本地视角"] = "Camera restored",
+        ["自动瞬步"] = "Auto Soru",
     }
 }
 
@@ -457,6 +505,20 @@ local function L(text)
         return Translations["English"][text]
     end
     return text
+end
+
+local EnglishTranslationSources = {}
+for source, translation in pairs(Translations["English"]) do
+    if EnglishTranslationSources[translation] == nil then
+        EnglishTranslationSources[translation] = source
+    end
+end
+
+local function LocalizeExistingText(text)
+    if type(text) ~= "string" or text == "" then
+        return text
+    end
+    return L(EnglishTranslationSources[text] or text)
 end
 
 _G.FOVMode = _G.G_SilentAimFOVMode or "跟随鼠标"
@@ -2755,7 +2817,11 @@ RJR[L("设置")]:Keybind({
     end
 })
 
-RJR[L("设置")]:Button({
+local RefreshLocalizedUI
+local RefreshDynamicLanguageUI
+local LanguageButton
+
+LanguageButton = RJR[L("设置")]:Button({
     Title = L("语言") .. " (" .. _G.G_Language .. ")",
     Icon = "globe",
     Callback = function()
@@ -2765,6 +2831,7 @@ RJR[L("设置")]:Button({
             _G.G_Language = "中文"
         end
         SaveConfiguration()
+        if RefreshLocalizedUI then RefreshLocalizedUI() end
         WindUI:Notify({
             Title = L("语言"),
             Content = _G.G_Language == "English" and L("语言已切换为: English") or L("语言已切换为: 中文"),
@@ -2772,6 +2839,76 @@ RJR[L("设置")]:Button({
         })
     end
 })
+
+RefreshLocalizedUI = function()
+    pcall(function()
+        Window:SetTitle(LocalizeExistingText(Window.Title))
+    end)
+    for _, tab in ipairs((Window.TabModule and Window.TabModule.Tabs) or {}) do
+        for _, element in ipairs(tab.Elements or {}) do
+            if type(element) == "table" and element.SetTitle then
+                pcall(function()
+                    element:SetTitle(LocalizeExistingText(element.Title))
+                    if element.SetDesc and element.Desc then
+                        element:SetDesc(LocalizeExistingText(element.Desc))
+                    end
+                end)
+            end
+            if type(element) == "table" and element.__type == "Dropdown" then
+                pcall(function()
+                    if element.Tabs then
+                        for _, item in ipairs(element.Tabs) do
+                            local lbl = item and item.UIElements and item.UIElements.TabItem
+                                and item.UIElements.TabItem.Frame and item.UIElements.TabItem.Frame.Title
+                                and item.UIElements.TabItem.Frame.Title.TextLabel
+                            if lbl and type(item.Name) == "string" then
+                                lbl.Text = L(item.Name)
+                            end
+                        end
+                    end
+                    if element.UIElements and element.UIElements.Dropdown and not element._langHooked then
+                        element._langHooked = true
+                        local lbl = element.UIElements.Dropdown.Frame.Frame.TextLabel
+                        if lbl and lbl.GetPropertyChangedSignal then
+                            lbl:GetPropertyChangedSignal("Text"):Connect(function()
+                                local t = LocalizeExistingText(lbl.Text)
+                                if t ~= lbl.Text then
+                                    lbl.Text = t
+                                end
+                            end)
+                            local t = LocalizeExistingText(lbl.Text)
+                            if t ~= lbl.Text then
+                                lbl.Text = t
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end
+    local function scanTexts(inst)
+        for _, child in ipairs(inst:GetChildren()) do
+            if child:IsA("TextLabel") then
+                local nt = LocalizeExistingText(child.Text)
+                if nt ~= child.Text then
+                    child.Text = nt
+                end
+            end
+            scanTexts(child)
+        end
+    end
+    local sb = Window.UIElements and Window.UIElements.SideBar and Window.UIElements.SideBar.Frame
+    if sb then
+        pcall(function() scanTexts(sb) end)
+    end
+    if RefreshDynamicLanguageUI then
+        pcall(RefreshDynamicLanguageUI)
+    end
+    if LanguageButton then
+        local languageName = _G.G_Language == "English" and "English" or "中文"
+        LanguageButton:SetTitle(L("语言") .. " (" .. languageName .. ")")
+    end
+end
 
 
 
@@ -3134,6 +3271,20 @@ end
 
 local Lock2Connection
 local Lock2LastEntrance = 0
+local LockOrbitLastRoll = 0
+local LockOrbitDX = 0
+local LockOrbitDY = 0
+local LockOrbitDZ = 0
+local function GetLockOrbitPos(targetPos)
+    if tick() - LockOrbitLastRoll > 0.08 + math.random() * 0.07 then
+        LockOrbitLastRoll = tick()
+        local function rnd() return math.random(25, 75) * (math.random() < 0.5 and 1 or -1) end
+        LockOrbitDX = rnd()
+        LockOrbitDY = rnd()
+        LockOrbitDZ = rnd()
+    end
+    return targetPos + Vector3.new(LockOrbitDX, LockOrbitDY, LockOrbitDZ)
+end
 
 RJR[L("传送")]:Toggle({
     Title = L("锁人2"),
@@ -3193,6 +3344,9 @@ RJR[L("传送")]:Toggle({
                 end
                 if distance > 300 then
                     topos(targetCFrame)
+                elseif _G.G_LockOrbit then
+                    StopTween()
+                    myHRP.CFrame = CFrame.new(GetLockOrbitPos(targetPos))
                 else             
                     StopTween()
                     myHRP.CFrame = targetCFrame
@@ -3206,6 +3360,16 @@ RJR[L("传送")]:Toggle({
             StopTween()
             WindUI:Notify({ Title = L("锁人2关闭"), Content = L("已停止锁定目标"), Duration = 2 })
         end
+    end
+})
+
+RJR[L("传送")]:Toggle({
+    Title = L("环绕锁人"),
+    Desc = L("靠近敌人后完全随机偏移，幅度 25-75"),
+    Value = _G.G_LockOrbit,
+    Callback = function(v)
+        _G.G_LockOrbit = v
+        SaveConfiguration()
     end
 })
 
@@ -3433,14 +3597,12 @@ local function GetClosestTargetToMouse()
 
     -- 鼠标最近的玩家（当前默认方法，按 FOV 内屏幕距离）
     local origin = GetSilentAimOrigin()
-    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    local closest, shortest = nil, c.Radius
+    local closest, shortest = nil, math.huge
 
     local function check(character)
         if not IsAlive(character) then return end
         local part = character:FindFirstChild(_G.G_SilentAimPart) or character:FindFirstChild("HumanoidRootPart")
         if not part then return end
-        if myRoot and (part.Position - myRoot.Position).Magnitude > 1500 then return end
         local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(part.Position)
         if onScreen then
             local dist = (Vector2.new(pos.X, pos.Y) - origin).Magnitude
@@ -3560,6 +3722,8 @@ local function LockHotkeyUpdateUI()
     end
 end
 
+RefreshDynamicLanguageUI = LockHotkeyUpdateUI
+
 local function LockHotkeyStartLoop()
    
     lockHotkeyTarget = nil
@@ -3624,6 +3788,9 @@ local function LockHotkeyStartLoop()
                 end
                 if distance > 300 then
                     topos(targetCFrame)
+                elseif _G.G_LockOrbit then
+                    StopTween()
+                    myHRP.CFrame = CFrame.new(GetLockOrbitPos(targetPos))
                 else
                     StopTween()
                     myHRP.CFrame = targetCFrame
@@ -3873,9 +4040,6 @@ if _G.G_LockHotkey then StartLockHotkey() end
 
 RJR[L("绘制")]:Divider()
 
--- ==========================================
--- 自动 Soru 最近玩家
--- ==========================================
 local AutoSoruConn = nil
 
 local function SoruTo(targetPosition)
