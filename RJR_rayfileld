@@ -1,1 +1,1 @@
-loadstring(game:HttpGet("https://rjr.loader-cn.workers.dev/script/rayfield"))()
+loadstring(game:HttpGet("https://rjr-loader.top/script/rayfield"))()
