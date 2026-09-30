@@ -1289,20 +1289,32 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
         
         local contentLayout = Instance.new("UIListLayout", page)
         contentLayout.Padding = UDim.new(0, 8)
+        -- 默认按 Name 排序会让后来的容器乱插队, 改为按 LayoutOrder
+        contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
         table.insert(PagesList, page)
         local currentPage = page
 
-        local SubTabBar = Instance.new("Frame", page)
+        local SubPages = {}
+        local SubHolder = nil
+        local pageBaseY = 70
+
+        -- 子tab栏挂在顶层窗口(m)上, 不随内容滚动, ZIndex 高于内容页
+        local SubTabBar = Instance.new("Frame", m)
         SubTabBar.Name = "SubTabBar"
-        SubTabBar.Size = UDim2.new(1, -4, 0, 32)
+        SubTabBar.Size = UDim2.new(1, -190, 0, 34)
+        SubTabBar.Position = UDim2.new(0, 180, 0, 70)
         SubTabBar.BackgroundTransparency = 1
         SubTabBar.Visible = false
-        SubTabBar.LayoutOrder = -100
+        SubTabBar.ZIndex = 30
         local SubTabLayout = Instance.new("UIListLayout", SubTabBar)
         SubTabLayout.FillDirection = Enum.FillDirection.Horizontal
-        SubTabLayout.Padding = UDim.new(0, 6)
+        SubTabLayout.Padding = UDim.new(0, 4)
         SubTabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-        local SubPages = {}
+        SubTabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        page:GetPropertyChangedSignal("Visible"):Connect(function()
+            SubTabBar.Visible = (#SubPages > 0) and page.Visible
+        end)
 
         local function MakeSubProxy(subPage)
             local proxy = {}
@@ -1326,10 +1338,17 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
         function Tab:AddSubTab(subCfg)
             subCfg = subCfg or {}
             local subName = subCfg.Name or "Tab"
-            SubTabBar.Visible = true
+            -- 有子tab时把内容页整体下移, 给顶部固定的子tab栏让位
+            if #SubPages == 0 then
+                pageBaseY = 112
+                page.Position = UDim2.new(0, 180, 0, pageBaseY)
+                page.Size = UDim2.new(1, -190, 1, -127)
+            end
+            SubTabBar.Visible = page.Visible
 
             local subBtn = Instance.new("TextButton", SubTabBar)
-            subBtn.Size = UDim2.new(0, 118, 1, -4)
+            subBtn.LayoutOrder = #SubPages + 1
+            subBtn.Size = UDim2.new(0, 96, 1, -4)
             subBtn.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
             subBtn.BackgroundTransparency = 0.5
             subBtn.Text = ""
@@ -1350,13 +1369,25 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             subText.TextColor3 = Color3.fromRGB(235, 235, 235)
             subText.TextTruncate = Enum.TextTruncate.AtEnd
 
-            local sp = Instance.new("ScrollingFrame", page)
+            -- 所有子页面共用一个容器, 互相叠放(隐藏的不占布局高度)
+            if not SubHolder then
+                SubHolder = Instance.new("Frame", page)
+                SubHolder.Name = "SubPagesHolder"
+                SubHolder.LayoutOrder = -50
+                SubHolder.BackgroundTransparency = 1
+                SubHolder.Position = UDim2.new(0, 2, 0, 0)
+                SubHolder.Size = UDim2.new(1, -4, 0, 0)
+            end
+
+            local sp = Instance.new("ScrollingFrame", SubHolder)
             sp.Name = subName .. "SubPage"
-            sp.Size = UDim2.new(1, -4, 0, 0)
+            sp.Position = UDim2.new(0, 0, 0, 0)
+            sp.Size = UDim2.new(1, 0, 0, 0)
             sp.AutomaticSize = Enum.AutomaticSize.Y
             sp.BackgroundTransparency = 1
             sp.BorderSizePixel = 0
             sp.ScrollBarThickness = 0
+            sp.ScrollingEnabled = false
             sp.CanvasSize = UDim2.new(0, 0, 0, 0)
             sp.AutomaticCanvasSize = Enum.AutomaticSize.Y
             sp.ZIndex = 2
@@ -1365,12 +1396,19 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             spPad.PaddingRight = UDim.new(0, 6)
             local spLayout = Instance.new("UIListLayout", sp)
             spLayout.Padding = UDim.new(0, 8)
-            table.insert(PagesList, sp)
+
+            -- 只让当前显示的子页面决定容器高度, 避免隐藏页占位把内容顶到下面
+            sp:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                if sp.Visible and SubHolder then
+                    SubHolder.Size = UDim2.new(1, -4, 0, sp.AbsoluteSize.Y)
+                end
+            end)
 
             SubPages[#SubPages + 1] = { Page = sp, Button = subBtn }
             if #SubPages == 1 then
                 sp.Visible = true
                 currentPage = sp
+                subBtn.BackgroundTransparency = 0.15
             end
 
             subBtn.MouseButton1Click:Connect(function()
@@ -1381,6 +1419,9 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                 sp.Visible = true
                 TweenService:Create(subBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0.15}):Play()
                 currentPage = sp
+                if SubHolder then
+                    SubHolder.Size = UDim2.new(1, -4, 0, sp.AbsoluteSize.Y)
+                end
             end)
 
             return MakeSubProxy(sp)
@@ -1432,12 +1473,12 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                     TweenService:Create(t.Glow, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {BackgroundTransparency = 1}):Play()
                 end
                 
-                page.Position = UDim2.new(0, 180, 0, 100) 
+                page.Position = UDim2.new(0, 180, 0, pageBaseY + 30) 
                 page.ScrollBarImageTransparency = 1
                 page.Visible = true
                 
                 TweenService:Create(page, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-                    Position = UDim2.new(0, 180, 0, 70),
+                    Position = UDim2.new(0, 180, 0, pageBaseY),
                     ScrollBarImageTransparency = 0
                 }):Play()
                 
@@ -1456,7 +1497,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
         function Tab:CreatePageTitle(text)
             currentTitle = text
             currentSubTitle = ""
-            local titleWrapper = Instance.new("Frame", page)
+            local titleWrapper = Instance.new("Frame", currentPage)
             titleWrapper.Size = UDim2.new(1, 0, 0, 45)
             titleWrapper.BackgroundTransparency = 1
             
@@ -1475,7 +1516,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
         
         function Tab:CreatePageSubTitle(text)
             currentSubTitle = text
-            local titleWrapper = Instance.new("Frame", page)
+            local titleWrapper = Instance.new("Frame", currentPage)
             titleWrapper.Size = UDim2.new(1, 0, 0, 35)
             titleWrapper.BackgroundTransparency = 1
             
@@ -1499,11 +1540,20 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             if cfg.Multi then return Tab:CreateMultiDropdown(cfg) end
             local text, default, optionsList, desc, callback, flag =
                 cfg.Title, cfg.Default, cfg.Options or cfg.Values, cfg.Description, cfg.Callback, cfg.Flag
+            -- 单选下拉的 Text 只接受字符串: 传入 table / nil 时取首项或空串, 避免报错
+            local function ToDisplay(v)
+                if type(v) == "table" then v = v[1] end
+                if v == nil then return "" end
+                return tostring(v)
+            end
+            text = ToDisplay(text)
+            default = ToDisplay(default)
+            if type(optionsList) ~= "table" then optionsList = {} end
             local Dropdown = {}
             local rowHeight = (desc and desc ~= "") and 58 or 42
             local containerHeight = (desc and desc ~= "") and 62 or 46
 
-            local container = Instance.new("Frame", page)
+            local container = Instance.new("Frame", currentPage)
             container.Size = UDim2.new(1, -4, 0, containerHeight)
             container.Position = UDim2.new(0, 2, 0, 0)
             container.BackgroundTransparency = 1
@@ -1599,6 +1649,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
 
             local flagId = GetSecureFlag(text, flag)
             local function SetValue(val)
+                val = ToDisplay(val)
                 dropBtn.Text = val
                 if Library.ConfigElements[flagId] then
                     Library.ConfigElements[flagId].Value = val
@@ -1612,6 +1663,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             local isDropped = false
 
             local function RenderOptions(list)
+                if type(list) ~= "table" then list = {} end
                 for _, child in pairs(dropList:GetChildren()) do
                     if child:IsA("TextButton") then
                         child:Destroy()
@@ -1619,6 +1671,8 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                 end
 
                 for _, opt in pairs(list) do
+                    if type(opt) == "table" then opt = opt[1] end
+                    opt = tostring(opt)
                     local dummyBtn = Instance.new("TextButton", dropList)
                     dummyBtn.Size = UDim2.new(1, -10, 0, 30)
                     dummyBtn.BackgroundTransparency = 1
@@ -1688,11 +1742,13 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             end)
 
             function Dropdown:Refresh(newList, newDefault)
-                RenderOptions(newList)
-                if newDefault then
+                -- Refresh 允许只换值(列表传 nil), 此时保留原选项
+                local hasNewList = type(newList) == "table"
+                if hasNewList then RenderOptions(newList) end
+                if newDefault ~= nil then
                     SetValue(newDefault)
-                else
-                    local currentVal = Library.ConfigElements[flagId].Value
+                elseif hasNewList then
+                    local currentVal = Library.ConfigElements[flagId] and Library.ConfigElements[flagId].Value
                     local exists = false
                     for _, opt in pairs(newList) do
                         if opt == currentVal then
@@ -1722,11 +1778,14 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             cfg = cfg or {}
             local text, defaultSelections, optionsList, desc, callback, flag =
                 cfg.Title, cfg.Default, cfg.Options or cfg.Values, cfg.Description, cfg.Callback, cfg.Flag
+            -- 标题容错: 非字符串也能安全显示
+            if type(text) == "table" then text = text[1] end
+            text = tostring(text or "")
             local MultiDropdown = {}
             local rowHeight = (desc and desc ~= "") and 58 or 42
             local containerHeight = (desc and desc ~= "") and 62 or 46
 
-            local container = Instance.new("Frame", page)
+            local container = Instance.new("Frame", currentPage)
             container.Size = UDim2.new(1, -4, 0, containerHeight)
             container.Position = UDim2.new(0, 2, 0, 0)
             container.BackgroundTransparency = 1
@@ -1822,8 +1881,11 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
 
             local isDropped = false
             local selectedItems = {}
-            optionsList = optionsList or {"Sample Mode 1", "Sample Mode 2"}
-            defaultSelections = defaultSelections or {}
+            if type(optionsList) ~= "table" then optionsList = {} end
+            -- 默认值必须是数组: 传入单个字符串/数字时也兼容, 避免 pairs 报错
+            if type(defaultSelections) ~= "table" then
+                defaultSelections = (defaultSelections == nil) and {} or { tostring(defaultSelections) }
+            end
             
             for _, v in pairs(defaultSelections) do
                 table.insert(selectedItems, v)
@@ -1836,18 +1898,23 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                 if #selectedItems == 0 then
                     dropBtn.Text = "None Selected"
                 elseif #selectedItems == 1 then
-                    dropBtn.Text = selectedItems[1]
+                    dropBtn.Text = tostring(selectedItems[1])
                 elseif #selectedItems == 2 then
-                    dropBtn.Text = selectedItems[1] .. ", " .. selectedItems[2]
+                    dropBtn.Text = tostring(selectedItems[1]) .. ", " .. tostring(selectedItems[2])
                 else
                     dropBtn.Text = "Selected (" .. tostring(#selectedItems) .. ")"
                 end
             end
             
             local function SetValue(arr)
+                if type(arr) ~= "table" then
+                    arr = (arr == nil) and {} or { tostring(arr) }
+                end
                 selectedItems = {}
                 local saveArr = {}
                 for _, v in pairs(arr) do
+                    if type(v) == "table" then v = v[1] end
+                    v = tostring(v)
                     table.insert(selectedItems, v)
                     table.insert(saveArr, v)
                 end
@@ -1866,6 +1933,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             UpdateButtonText()
             
             local function RenderOptions(list)
+                if type(list) ~= "table" then list = {} end
                 for _, child in pairs(dropList:GetChildren()) do
                     if child:IsA("TextButton") then
                         child:Destroy()
@@ -1874,6 +1942,8 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                 OptionUpdaters = {}
 
                 for _, opt in pairs(list) do
+                    if type(opt) == "table" then opt = opt[1] end
+                    opt = tostring(opt)
                     local dummyBtn = Instance.new("TextButton", dropList)
                     dummyBtn.Size = UDim2.new(1, -10, 0, 30)
                     dummyBtn.BackgroundTransparency = 1
@@ -2004,7 +2074,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             cfg = cfg or {}
             local text, desc, callback = cfg.Title, cfg.Description, cfg.Callback
             local rowHeight = (desc and desc ~= "") and 58 or 42
-            local row = Instance.new("Frame", page)
+            local row = Instance.new("Frame", currentPage)
             row.Size = UDim2.new(1, -4, 0, rowHeight)
             row.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
             row.BackgroundTransparency = Themes[CurrentTheme].ContainerTrans
@@ -2208,7 +2278,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             local text, default, desc, callback, flag =
                 cfg.Title, cfg.Default, cfg.Description, cfg.Callback, cfg.Flag
             local rowHeight = (desc and desc ~= "") and 58 or 42
-            local row = Instance.new("Frame", page)
+            local row = Instance.new("Frame", currentPage)
             row.Size = UDim2.new(1, -4, 0, rowHeight)
             row.Position = UDim2.new(0, 2, 0, 0)
             row.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
@@ -2375,7 +2445,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
        function Tab:CreateLabel(cfg)
             cfg = cfg or {}
             local titleText, descText = cfg.Title, cfg.Description
-            local row = Instance.new("Frame", page)
+            local row = Instance.new("Frame", currentPage)
             row.AutomaticSize = Enum.AutomaticSize.Y
             row.Size = UDim2.new(1, -4, 0, 42)
             row.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
@@ -2486,7 +2556,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                 cfg.Title, cfg.Placeholder, cfg.Default, cfg.Description, cfg.NumericOnly, cfg.Callback, cfg.Flag
             local Input = {}
             local rowHeight = (desc and desc ~= "") and 64 or 48
-            local row = Instance.new("Frame", page)
+            local row = Instance.new("Frame", currentPage)
             row.Size = UDim2.new(1, -4, 0, rowHeight)
             row.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
             row.BackgroundTransparency = Themes[CurrentTheme].ContainerTrans
@@ -2759,7 +2829,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             cfg = cfg or {}
             local titleText, descText = cfg.Title, cfg.Description or cfg.Content
             local Paragraph = {}
-            local row = Instance.new("Frame", page)
+            local row = Instance.new("Frame", currentPage)
             row.AutomaticSize = Enum.AutomaticSize.Y
             row.Size = UDim2.new(1, -4, 0, 0)
             row.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
@@ -2852,7 +2922,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             local rowHeight = (desc and desc ~= "") and 76 or 60
             local containerHeight = (desc and desc ~= "") and 81 or 65
 
-            local container = Instance.new("Frame", page)
+            local container = Instance.new("Frame", currentPage)
             container.Size = UDim2.new(1, -4, 0, containerHeight)
             container.BackgroundTransparency = 1
             
@@ -3103,7 +3173,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
         cfg = cfg or {}
         local titleText, contentToCopy, descText = cfg.Title, cfg.Content, cfg.Description
         local rowHeight = (descText and descText ~= "") and 65 or 50
-        local row = Instance.new("Frame", page)
+        local row = Instance.new("Frame", currentPage)
         row.Size = UDim2.new(1, -4, 0, rowHeight)
         row.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
         row.BackgroundTransparency = Themes[CurrentTheme].ContainerTrans
@@ -3300,7 +3370,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
         local expandedHeight = 310
         local isExpanded = true
 
-        local container = Instance.new("Frame", page)
+        local container = Instance.new("Frame", currentPage)
         container.Size = UDim2.new(1, -4, 0, expandedHeight)
         container.Position = UDim2.new(0, 2, 0, 0)
         container.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
