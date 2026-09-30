@@ -334,7 +334,11 @@ function Library:SendNotification(titleText, descText)
         label.AnchorPoint = Vector2.new(0.5, 0)
         label.BackgroundTransparency = 1
         label.Font = Enum.Font.GothamBold
+        -- 通知文本按当前语言显示(运行时 DisplayText 已就绪)
         label.Text = text
+        if type(text) == "string" and Library.DisplayText then
+            label.Text = Library:DisplayText(text)
+        end
         label.TextSize = size or 12
         -------------------------
         ApplyTextGradient(label)
@@ -2527,14 +2531,15 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                 end
             end
             function LabelObj:Set(title, desc)
-                if title and labelTitle then labelTitle.Text = tostring(title) end
-                if desc and labelDesc then labelDesc.Text = tostring(desc) end
+                if title and labelTitle then Library.SetDisplayText(labelTitle, title) end
+                if desc and labelDesc then Library.SetDisplayText(labelDesc, desc) end
             end
             function LabelObj:SetDescription(desc)
+                -- 动态文本按当前语言显示, 并记住原文以便切语言时刷新
                 if labelDesc then
-                    labelDesc.Text = tostring(desc)
+                    Library.SetDisplayText(labelDesc, desc)
                 elseif labelTitle then
-                    labelTitle.Text = tostring(desc)
+                    Library.SetDisplayText(labelTitle, desc)
                 end
             end
             function LabelObj:SetStatus(status, text)
@@ -2546,7 +2551,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                 local c = colors[status]
                 if labelDesc then labelDesc.TextColor3 = c or Color3.fromRGB(200, 200, 205) end
                 if c and labelTitle then labelTitle.TextColor3 = c end
-                if text and labelDesc then labelDesc.Text = tostring(text) end
+                if text and labelDesc then Library.SetDisplayText(labelDesc, text) end
             end
             return LabelObj
         end
@@ -2896,21 +2901,21 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             end
             
             function Paragraph:SetDescription(v)
-                if paragraphDesc then paragraphDesc.Text = tostring(v) end
+                if paragraphDesc then Library.SetDisplayText(paragraphDesc, v) end
             end
             function Paragraph:Set(arg1, arg2)
                 if type(arg1) == "table" then
                     if arg1.Title and labelTitle then
-                        labelTitle.Text = arg1.Title
+                        Library.SetDisplayText(labelTitle, arg1.Title)
                     end
                     if arg1.Content and labelDesc then
-                        labelDesc.Text = arg1.Content
+                        Library.SetDisplayText(labelDesc, arg1.Content)
                     end
                 elseif type(arg1) == "string" and type(arg2) == "string" then
-                    if labelTitle then labelTitle.Text = arg1 end
-                    if labelDesc then labelDesc.Text = arg2 end
+                    if labelTitle then Library.SetDisplayText(labelTitle, arg1) end
+                    if labelDesc then Library.SetDisplayText(labelDesc, arg2) end
                 elseif type(arg1) == "string" and not arg2 then
-                    if labelDesc then labelDesc.Text = arg1 end
+                    if labelDesc then Library.SetDisplayText(labelDesc, arg1) end
                 end
             end
 
@@ -3861,12 +3866,37 @@ Library.CreateWindow = function(self, cfg)
 		local rows = gcfg.Rows or {}
 		local obj = {}
 		local box = nil
+		-- 保存每一行的(名称, 值)原文, 渲染时按当前语言翻译
+		-- 调用方可能传当前语言的显示名, 统一归一成原文, 后续 Set 才能对上
+		local rawRows = {}
+		local function toRaw(s)
+			s = tostring(s)
+			if Library.ToRawText then s = Library:ToRawText(s) end
+			return s
+		end
+		for i, r in ipairs(rows) do
+			rawRows[i] = { Name = toRaw(r.Name), Value = tostring(r.Value) }
+		end
+		local function render()
+			if not box then return end
+			local lines = {}
+			for _, r in ipairs(rawRows) do
+				local n = Library.DisplayText and Library:DisplayText(r.Name) or r.Name
+				local v = Library.DisplayText and Library:DisplayText(r.Value) or r.Value
+				lines[#lines + 1] = n .. ": " .. v
+			end
+			box.Text = table.concat(lines, "\n")
+			box.Size = UDim2.new(0, box.Size.X.Offset, 0, 26 + #lines * 18)
+		end
+		-- 切语言时重绘
+		Library._RenderHooks = Library._RenderHooks or {}
+		table.insert(Library._RenderHooks, render)
 		pcall(function()
 			local parent = getgenv().MainUI_Library
 			if not parent then return end
 			local lines = {}
-			for _, r in ipairs(rows) do
-				lines[#lines + 1] = tostring(r.Name) .. ": " .. tostring(r.Value)
+			for _, r in ipairs(rawRows) do
+				lines[#lines + 1] = r.Name .. ": " .. r.Value
 			end
 			box = Instance.new("TextLabel")
 			box.Name = "LumuStatusPanel"
@@ -3887,22 +3917,33 @@ Library.CreateWindow = function(self, cfg)
 			pad.PaddingTop = UDim.new(0, 5)
 			Instance.new("UICorner", box).CornerRadius = UDim.new(0, 8)
 			box.Parent = parent
+			render()
 		end)
 		function obj:Destroy()
+			for i, h in ipairs(Library._RenderHooks) do
+				if h == render then table.remove(Library._RenderHooks, i) break end
+			end
 			pcall(function()
 				if box then box:Destroy() end
 			end)
 		end
 		function obj:Set(name, value)
 			if not box then return end
-			local out = {}
-			local key = tostring(name) .. ":"
-			for l in tostring(box.Text):gmatch("[^\n]+") do
-				if l:sub(1, #key) ~= key then out[#out + 1] = l end
+			name = tostring(name)
+			value = tostring(value)
+			-- 调用方可能传显示语言的名字, 先归一成原文再匹配
+			local rawName = Library.ToRawText and Library:ToRawText(name) or name
+			local found = false
+			for _, r in ipairs(rawRows) do
+				if r.Name == rawName or r.Name == name then
+					r.Value = value
+					found = true
+				end
 			end
-			out[#out + 1] = key .. " " .. tostring(value)
-			box.Text = table.concat(out, "\n")
-			box.Size = UDim2.new(0, box.Size.X.Offset, 0, 26 + #out * 18)
+			if not found then
+				rawRows[#rawRows + 1] = { Name = rawName, Value = value }
+			end
+			render()
 		end
 		return obj
 	end
@@ -3926,6 +3967,9 @@ Library.ApplyFontScale = function() end
 ------------------------------------------------------------------
 Library._LangMaps = Library._LangMaps or {}
 Library._LangReverse = Library._LangReverse or {}
+Library._PatZh2En = Library._PatZh2En or {}
+Library._PatEn2Zh = Library._PatEn2Zh or {}
+Library._RenderHooks = Library._RenderHooks or {}
 Library.BaseLanguage = Library.BaseLanguage or nil
 Library.CurrentLanguage = Library.CurrentLanguage or nil
 
@@ -3955,8 +3999,46 @@ Library.AddTranslations = function(self, lang, map)
 	end
 end
 
--- 把任意语言的文本还原成基准语言原文
-local function ToBaseText(self, text)
+-- 动态文案的模式翻译: 带数字/坐标等变量的句子(正则+替换, 双向)
+-- Library:AddPatterns({ {"^钓鱼位置: (.+)$", "Fishing Position: %1"} }, { {"^Fishing Position: (.+)$", "钓鱼位置: %1"} })
+Library.AddPatterns = function(self, zh2en, en2zh)
+	for _, p in ipairs(zh2en or {}) do
+		if type(p) == "table" and type(p[1]) == "string" and type(p[2]) == "string" then
+			table.insert(self._PatZh2En, { p[1], p[2] })
+		end
+	end
+	for _, p in ipairs(en2zh or {}) do
+		if type(p) == "table" and type(p[1]) == "string" and type(p[2]) == "string" then
+			table.insert(self._PatEn2Zh, { p[1], p[2] })
+		end
+	end
+end
+
+local function ApplyPatterns(text, list)
+	for _, p in ipairs(list) do
+		local ok, out = pcall(string.gsub, text, p[1], p[2])
+		if ok and out ~= text then return out end
+	end
+	return nil
+end
+
+-- 多行文本按行处理(保留空行)
+local function MapLines(text, fn)
+	local out, start = {}, 1
+	while true do
+		local nl = text:find("\n", start, true)
+		if not nl then
+			out[#out + 1] = fn(text:sub(start))
+			break
+		end
+		out[#out + 1] = fn(text:sub(start, nl - 1))
+		start = nl + 1
+	end
+	return table.concat(out, "\n")
+end
+
+-- 单行归一(不含多行逻辑)
+local function ToBaseLine(self, text)
 	local base = self.BaseLanguage or "中文"
 	local baseMap = self._LangMaps[base]
 	if baseMap and baseMap[text] ~= nil then return text end
@@ -3965,52 +4047,127 @@ local function ToBaseText(self, text)
 			return rev[text]
 		end
 	end
+	-- 模式反查: 英文句子 -> 中文
+	local byPat = ApplyPatterns(text, self._PatEn2Zh)
+	if byPat then return byPat end
+	-- "名称: 值" 复合: 左侧名称单独反查
+	local l, r = text:match("^(.-): (.+)$")
+	if l and r then
+		local nl = ToBaseLine(self, l)
+		if nl ~= l then return nl .. ": " .. r end
+	end
 	return text
+end
+
+-- 把任意语言的文本还原成基准语言原文
+local function ToBaseText(self, text)
+	if type(text) ~= "string" or text == "" then return text end
+	if text:find("\n", 1, true) then
+		return MapLines(text, function(line) return ToBaseLine(self, line) end)
+	end
+	return ToBaseLine(self, text)
 end
 
 -- UI 库自身产生的英文文本 <-> 中文
 local LIB_TEXT_ZH = {
 	["None Selected"] = "未选择",
+	["None"] = "无",
 	["Search Tab..."] = "搜索标签...",
+	["Type here..."] = "在此输入...",
+	["Paste your JSON config here to sync..."] = "在此粘贴 JSON 配置以同步...",
 	["Enabled"] = "已开启",
 	["Disabled"] = "已关闭",
+	["Copied Successfully"] = "复制成功",
+	["Config System"] = "配置系统",
+	["Config Error"] = "配置错误",
+	["Failed to parse JSON"] = "JSON 解析失败",
+	["File not found"] = "文件不存在",
+	["Synced settings from pasted JSON!"] = "已从粘贴的 JSON 同步设置!",
+	["Invalid JSON format!"] = "JSON 格式无效!",
+	["Status"] = "状态",
+	["Hub Initialized!"] = "中心已初始化!",
+	["Saved"] = "已保存",
 }
 local LIB_TEXT_EN = {}
 for en, zh in pairs(LIB_TEXT_ZH) do LIB_TEXT_EN[zh] = en end
 
+-- 库内含变量的句子: 英文匹配式/中文替换模板 + 中文匹配式/英文替换模板
+local LIB_PATS = {
+	{ enMatch = "^Selected %((%d+)%)$", toZh = "已选择 (%1)",
+	  zhMatch = "^已选择 %((%d+)%)$", toEn = "Selected (%1)" },
+	{ enMatch = "^Saved (.+)$", toZh = "已保存 %1",
+	  zhMatch = "^已保存 (.+)$", toEn = "Saved %1" },
+	{ enMatch = "^Loaded (.+)$", toZh = "已载入 %1",
+	  zhMatch = "^已载入 (.+)$", toEn = "Loaded %1" },
+}
+
 local function TranslateLibText(text, target)
-	-- "Selected (3)" 这类带数字的
-	local cnt = text:match("^Selected %((%d+)%)$") or text:match("^已选择 %((%d+)%)$")
-	if cnt then
-		if target == "English" then return "Selected (" .. cnt .. ")" end
-		if target == "中文" then return "已选择 (" .. cnt .. ")" end
-		return nil
+	for _, p in ipairs(LIB_PATS) do
+		if target == "English" and text:match(p.zhMatch) then
+			local ok, out = pcall(string.gsub, text, p.zhMatch, p.toEn)
+			if ok then return out end
+		elseif (target == "中文" or target == "Chinese") and text:match(p.enMatch) then
+			local ok, out = pcall(string.gsub, text, p.enMatch, p.toZh)
+			if ok then return out end
+		end
 	end
 	local canon = LIB_TEXT_ZH[text] and text or LIB_TEXT_EN[text]
 	if not canon then return nil end
 	if target == "English" then return canon end
-	if target == "中文" then return LIB_TEXT_ZH[canon] end
+	if target == "中文" or target == "Chinese" then return LIB_TEXT_ZH[canon] end
 	return nil
 end
 
-local function TranslateText(self, text)
-	if type(text) ~= "string" or text == "" then return text end
+-- 单行翻译(不含多行逻辑)
+local function TranslateLine(self, text)
 	local base = self.BaseLanguage or "中文"
 	local target = self.CurrentLanguage or base
-	local baseText = ToBaseText(self, text)
+	local baseText = ToBaseLine(self, text)
 	if target == base then
 		return TranslateLibText(baseText, target) or baseText
 	end
 	local map = self._LangMaps[target]
 	if map and map[baseText] ~= nil then return map[baseText] end
+	-- 动态句子: 先归一成中文原文, 再套目标语言模板
+	local byPat = ApplyPatterns(baseText, self._PatZh2En)
+	if byPat then return byPat end
+	-- "名称: 值" 复合: 两侧分别翻译(值的部分通常无中文, 原样保留)
+	local l, r = baseText:match("^(.-): (.+)$")
+	if l and r then
+		local nl = TranslateLine(self, l)
+		local nr = TranslateLine(self, r)
+		if nl ~= l or nr ~= r then
+			return nl .. ": " .. nr
+		end
+	end
 	return TranslateLibText(baseText, target) or baseText
 end
 
--- 给外部用: 拿到当前语言下的显示文本(不改动内部保存的值)
+local function TranslateText(self, text)
+	if type(text) ~= "string" or text == "" then return text end
+	if text:find("\n", 1, true) then
+		return MapLines(text, function(line) return TranslateLine(self, line) end)
+	end
+	return TranslateLine(self, text)
+end
+
 Library.DisplayText = function(self, text)
 	if text == nil then return "" end
 	if type(text) ~= "string" then text = tostring(text) end
 	return TranslateText(self, text)
+end
+
+Library.ToRawText = function(self, text)
+	if type(text) ~= "string" or text == "" then return text end
+	return ToBaseText(self, text)
+end
+
+function Library.SetDisplayText(inst, text)
+	if not inst or text == nil then return end
+	text = tostring(text)
+	pcall(function() inst:SetAttribute("LumuRaw", text) end)
+	local shown = TranslateText(Library, text)
+	pcall(function() inst.Text = shown end)
 end
 
 Library.ApplyLanguage = function(self)
@@ -4018,12 +4175,13 @@ Library.ApplyLanguage = function(self)
 	if not root or not root.Parent then return end
 	for _, d in ipairs(root:GetDescendants()) do
 		if d:IsA("TextLabel") or d:IsA("TextButton") then
-			local newText = TranslateText(self, d.Text)
+			local raw
+			pcall(function() raw = d:GetAttribute("LumuRaw") end)
+			local newText = TranslateText(self, raw or d.Text)
 			if newText ~= d.Text then
 				pcall(function() d.Text = newText end)
 			end
 		elseif d:IsA("TextBox") then
-			-- 只翻译占位符, 用户输入内容不动
 			local ph = TranslateText(self, d.PlaceholderText)
 			if ph ~= d.PlaceholderText then
 				pcall(function() d.PlaceholderText = ph end)
@@ -4036,6 +4194,9 @@ Library.SetLanguage = function(self, lang)
 	if type(lang) ~= "string" or lang == "" then return end
 	self.CurrentLanguage = lang
 	self:ApplyLanguage()
+	for _, h in ipairs(self._RenderHooks or {}) do
+		pcall(h)
+	end
 end
 
 getgenv().meyyUI = Library
