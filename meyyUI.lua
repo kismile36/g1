@@ -853,42 +853,45 @@ UserInputService.InputEnded:Connect(function(input)
     end
 end)
 
-ToggleIcon.MouseButton1Click:Connect(function()
-    if toggleMoved then return end
-    if not m then return end
-    if m.Size.X.Offset > 0 or m.Size.X.Scale > 0 then
-        TweenService:Create(m, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+    -- 最小化到悬浮球: 收起窗口, 悬浮球保留可见, 点悬浮球还原
+    local function MinimizeToBall()
+        if isMini then return end
+        isMini = true
+        TweenService:Create(m, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
             Size = UDim2.new(0, 0, 0, 0),
             Position = UDim2.new(1, 0, 0.5, 0)
         }):Play()
-        task.wait(0.3)
-        m.Visible = false
-    else
-        m.Visible = true
-        local targetSize = isMini and UDim2.new(0, 600, 0, 525) or (isMax and UDim2.new(1, 0, 1, 0) or UDim2.new(0, 600, 0, 525))
-        local targetPos = isMini and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(0.5, 0, 0.5, 0)
-        TweenService:Create(m, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = targetSize, Position = targetPos}):Play()
+        task.delay(0.5, function()
+            if isMini then
+                m.Visible = false
+                -- 右侧边缘条: 双击拉出 3D 迷你图标(原有功能保留)
+                EdgeBarHitbox.Visible = true
+                EdgeBarVisual.BackgroundTransparency = 0.8
+                EdgeBarVisual.Size = UDim2.new(0, 4, 0, 120)
+            end
+        end)
     end
-end)
----------
-    ---------
+
+    local function RestoreFromBall()
+        isMini = false
+        m.Visible = true
+        EdgeBarHitbox.Visible = false
+        local targetSize = isMax and UDim2.new(1, 0, 1, 0) or UDim2.new(0, 600, 0, 525)
+        TweenService:Create(m, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = targetSize,
+            Position = UDim2.new(0.5, 0, 0.5, 0)
+        }):Play()
+    end
+
     ToggleIcon.MouseButton1Click:Connect(function()
+        if toggleMoved then return end
         if not m then return end
-        if m.Size.X.Offset > 0 or m.Size.X.Scale > 0 then
-            TweenService:Create(m, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-                Size = UDim2.new(0, 0, 0, 0),
-                Position = UDim2.new(1, 0, 0.5, 0)
-            }):Play()
-            task.wait(0.3)
-            m.Visible = false
+        if m.Visible and (m.Size.X.Offset > 0 or m.Size.X.Scale > 0) then
+            MinimizeToBall()
         else
-            m.Visible = true
-            local targetSize = isMini and UDim2.new(0, 600, 0, 525) or (isMax and UDim2.new(1, 0, 1, 0) or UDim2.new(0, 600, 0, 525))
-            local targetPos = isMini and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(0.5, 0, 0.5, 0)
-            TweenService:Create(m, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = targetSize, Position = targetPos}):Play()
+            RestoreFromBall()
         end
     end)
-    ---------
     
     local u = Instance.new("UIStroke", m)
     u.Thickness = 4.5
@@ -937,25 +940,7 @@ end)
 
 
     minBtn.MouseButton1Click:Connect(function()
-        if not isMini then
-            isMini = true
-            
-            local tgIcon = g:FindFirstChild("ToggleIcon")
-            if tgIcon then tgIcon.Visible = false end
-            
-            TweenService:Create(m, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-                Size = UDim2.new(0, 0, 0, 0),
-                Position = UDim2.new(1, 0, 0.5, 0)
-            }):Play()
-            task.delay(0.5, function()
-                if isMini then
-                    m.Visible = false
-                    EdgeBarHitbox.Visible = true
-                    EdgeBarVisual.BackgroundTransparency = 0.8
-                    EdgeBarVisual.Size = UDim2.new(0, 4, 0, 120)
-                end
-            end)
-        end
+        MinimizeToBall()
     end)
 ---------
 
@@ -4151,17 +4136,21 @@ local function TranslateText(self, text)
 	return TranslateLine(self, text)
 end
 
+-- 给外部用: 拿到当前语言下的显示文本(不改动内部保存的值)
 Library.DisplayText = function(self, text)
 	if text == nil then return "" end
 	if type(text) ~= "string" then text = tostring(text) end
 	return TranslateText(self, text)
 end
 
+-- 反向: 把任意语言的显示文本还原成基准语言原文
 Library.ToRawText = function(self, text)
 	if type(text) ~= "string" or text == "" then return text end
 	return ToBaseText(self, text)
 end
 
+-- 设置动态文本: 记住中文原文(属性), 显示当前语言版本.
+-- 这样切语言时 ApplyLanguage 能准确还原, 不依赖反向查表.
 function Library.SetDisplayText(inst, text)
 	if not inst or text == nil then return end
 	text = tostring(text)
@@ -4182,6 +4171,7 @@ Library.ApplyLanguage = function(self)
 				pcall(function() d.Text = newText end)
 			end
 		elseif d:IsA("TextBox") then
+			-- 只翻译占位符, 用户输入内容不动
 			local ph = TranslateText(self, d.PlaceholderText)
 			if ph ~= d.PlaceholderText then
 				pcall(function() d.PlaceholderText = ph end)
@@ -4194,6 +4184,7 @@ Library.SetLanguage = function(self, lang)
 	if type(lang) ~= "string" or lang == "" then return end
 	self.CurrentLanguage = lang
 	self:ApplyLanguage()
+	-- 重绘多行组件(状态面板等)
 	for _, h in ipairs(self._RenderHooks or {}) do
 		pcall(h)
 	end
