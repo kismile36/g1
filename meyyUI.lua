@@ -1606,7 +1606,7 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             dropBtn.BackgroundColor3 = Themes[CurrentTheme].ContainerBg
             dropBtn.BackgroundTransparency = Themes[CurrentTheme].ContainerTrans
             table.insert(UI_Elements.Containers, dropBtn)
-            dropBtn.Text = default
+            dropBtn.Text = Library:DisplayText(default)
             dropBtn.Font = Enum.Font.GothamBold
             ApplyTextGradient(dropBtn)
             dropBtn.TextSize = 12.5
@@ -1650,7 +1650,8 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             local flagId = GetSecureFlag(text, flag)
             local function SetValue(val)
                 val = ToDisplay(val)
-                dropBtn.Text = val
+                -- 内部保存原值, 界面显示按当前语言翻译
+                dropBtn.Text = Library:DisplayText(val)
                 if Library.ConfigElements[flagId] then
                     Library.ConfigElements[flagId].Value = val
                 end
@@ -1676,7 +1677,8 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
                     local dummyBtn = Instance.new("TextButton", dropList)
                     dummyBtn.Size = UDim2.new(1, -10, 0, 30)
                     dummyBtn.BackgroundTransparency = 1
-                    dummyBtn.Text = opt
+                    -- 显示按当前语言, 值仍保存原文
+                    dummyBtn.Text = Library:DisplayText(opt)
                     dummyBtn.Font = Enum.Font.GothamBold
                     ApplyTextGradient(dummyBtn)
                     dummyBtn.TextSize = 12
@@ -1895,12 +1897,13 @@ SearchIconDisplay.AnchorPoint = Vector2.new(1, 0.5)
             local flagId = GetSecureFlag(text, flag)
 
             local function UpdateButtonText()
+                local disp = function(v) return Library:DisplayText(tostring(v)) end
                 if #selectedItems == 0 then
-                    dropBtn.Text = "None Selected"
+                    dropBtn.Text = Library:DisplayText("None Selected")
                 elseif #selectedItems == 1 then
-                    dropBtn.Text = tostring(selectedItems[1])
+                    dropBtn.Text = disp(selectedItems[1])
                 elseif #selectedItems == 2 then
-                    dropBtn.Text = tostring(selectedItems[1]) .. ", " .. tostring(selectedItems[2])
+                    dropBtn.Text = disp(selectedItems[1]) .. ", " .. disp(selectedItems[2])
                 else
                     dropBtn.Text = "Selected (" .. tostring(#selectedItems) .. ")"
                 end
@@ -3912,10 +3915,128 @@ Library.CreateWindow = function(self, cfg)
 end
 
 Library.RegisterIcons = function() end
-Library.AddTranslations = function() end
-Library.SetLanguage = function() end
 Library.ApplyFont = function() end
 Library.ApplyFontScale = function() end
+
+------------------------------------------------------------------
+-- 语言系统 (支持运行时即时切换)
+-- 用法: Library:AddTranslations("中文", {})  -- 基准语言(原文)
+--       Library:AddTranslations("English", { ["刷怪"] = "Farming", ... })
+--       Library:SetLanguage("English")      -- 立刻把界面上所有文本切成目标语言
+------------------------------------------------------------------
+Library._LangMaps = Library._LangMaps or {}
+Library._LangReverse = Library._LangReverse or {}
+Library.BaseLanguage = Library.BaseLanguage or nil
+Library.CurrentLanguage = Library.CurrentLanguage or nil
+
+local function BuildReverseMap(map)
+	local rev = {}
+	for k, v in pairs(map) do
+		if type(k) == "string" and type(v) == "string" and k ~= v and rev[v] == nil then
+			rev[v] = k
+		end
+	end
+	return rev
+end
+
+Library.AddTranslations = function(self, lang, map)
+	if type(lang) ~= "string" or type(map) ~= "table" then return end
+	self._LangMaps[lang] = map
+	self._LangReverse[lang] = BuildReverseMap(map)
+	-- 先注册的语言或空映射的语言作为基准(原文)语言
+	if not self.BaseLanguage then
+		self.BaseLanguage = lang
+	end
+	if next(map) == nil then
+		self.BaseLanguage = lang
+	end
+	if not self.CurrentLanguage then
+		self.CurrentLanguage = self.BaseLanguage
+	end
+end
+
+-- 把任意语言的文本还原成基准语言原文
+local function ToBaseText(self, text)
+	local base = self.BaseLanguage or "中文"
+	local baseMap = self._LangMaps[base]
+	if baseMap and baseMap[text] ~= nil then return text end
+	for lang, rev in pairs(self._LangReverse) do
+		if lang ~= base and rev[text] ~= nil then
+			return rev[text]
+		end
+	end
+	return text
+end
+
+-- UI 库自身产生的英文文本 <-> 中文
+local LIB_TEXT_ZH = {
+	["None Selected"] = "未选择",
+	["Search Tab..."] = "搜索标签...",
+	["Enabled"] = "已开启",
+	["Disabled"] = "已关闭",
+}
+local LIB_TEXT_EN = {}
+for en, zh in pairs(LIB_TEXT_ZH) do LIB_TEXT_EN[zh] = en end
+
+local function TranslateLibText(text, target)
+	-- "Selected (3)" 这类带数字的
+	local cnt = text:match("^Selected %((%d+)%)$") or text:match("^已选择 %((%d+)%)$")
+	if cnt then
+		if target == "English" then return "Selected (" .. cnt .. ")" end
+		if target == "中文" then return "已选择 (" .. cnt .. ")" end
+		return nil
+	end
+	local canon = LIB_TEXT_ZH[text] and text or LIB_TEXT_EN[text]
+	if not canon then return nil end
+	if target == "English" then return canon end
+	if target == "中文" then return LIB_TEXT_ZH[canon] end
+	return nil
+end
+
+local function TranslateText(self, text)
+	if type(text) ~= "string" or text == "" then return text end
+	local base = self.BaseLanguage or "中文"
+	local target = self.CurrentLanguage or base
+	local baseText = ToBaseText(self, text)
+	if target == base then
+		return TranslateLibText(baseText, target) or baseText
+	end
+	local map = self._LangMaps[target]
+	if map and map[baseText] ~= nil then return map[baseText] end
+	return TranslateLibText(baseText, target) or baseText
+end
+
+-- 给外部用: 拿到当前语言下的显示文本(不改动内部保存的值)
+Library.DisplayText = function(self, text)
+	if text == nil then return "" end
+	if type(text) ~= "string" then text = tostring(text) end
+	return TranslateText(self, text)
+end
+
+Library.ApplyLanguage = function(self)
+	local root = getgenv and getgenv().MainUI_Library
+	if not root or not root.Parent then return end
+	for _, d in ipairs(root:GetDescendants()) do
+		if d:IsA("TextLabel") or d:IsA("TextButton") then
+			local newText = TranslateText(self, d.Text)
+			if newText ~= d.Text then
+				pcall(function() d.Text = newText end)
+			end
+		elseif d:IsA("TextBox") then
+			-- 只翻译占位符, 用户输入内容不动
+			local ph = TranslateText(self, d.PlaceholderText)
+			if ph ~= d.PlaceholderText then
+				pcall(function() d.PlaceholderText = ph end)
+			end
+		end
+	end
+end
+
+Library.SetLanguage = function(self, lang)
+	if type(lang) ~= "string" or lang == "" then return end
+	self.CurrentLanguage = lang
+	self:ApplyLanguage()
+end
 
 getgenv().meyyUI = Library
 return Library
