@@ -84,6 +84,12 @@ T, ModeDisplay = (function()
         ["craft.status.noRecipe"] = { en = "Recipe not found: {name}", es = "Receta no encontrada: {name}", zh = "配方不存在: {name}" },
         ["craft.status.none"] = { en = "Off", es = "Desactivado", zh = "未开启" },
         ["craft.store"] = { en = "Auto Store Fruits", es = "Guardar frutas automáticamente", zh = "自动存果实" },
+        ["dc.popup.close"] = { en = "Close", es = "Cerrar", zh = "关闭" },
+        ["dc.popup.copied"] = { en = "Copied!", es = "¡Copiado!", zh = "已复制!" },
+        ["dc.popup.copy"] = { en = "Copy Invite Link", es = "Copiar invitación", zh = "复制邀请链接" },
+        ["dc.popup.desc"] = { en = "Join our Discord server for updates, keys and support.", es = "Únete a nuestro Discord para ver novedades, conseguir claves y recibir ayuda.", zh = "加入我们的 Discord 服务器，获取最新更新、钥匙和技术支持。" },
+        ["dc.popup.hint"] = { en = "You can also select the link and copy it manually.", es = "También puedes seleccionar el enlace y copiarlo a mano.", zh = "也可以直接选中链接手动复制。" },
+        ["dc.popup.title"] = { en = "Join our Discord", es = "Únete a nuestro Discord", zh = "加入我们的 DC 服务器" },
         ["detail.bribe"] = { en = "Spy Bribe", es = "Soborno al espía", zh = "间谍贿赂" },
         ["detail.follow"] = { en = "Following", es = "Siguiendo a", zh = "跟随" },
         ["detail.no.boat"] = { en = "No boat", es = "Sin barco", zh = "船不存在" },
@@ -6821,5 +6827,289 @@ task.defer(function()
     if _G.AutoFastMode then pcall(PerformanceAPI.ApplyAutoFastMode) end
     if _G.FPSBoost then pcall(PerformanceAPI.ApplyFPSBoost) end
 end)
+do
+    local DISCORD_INVITE = "https://discord.gg/Y3YM58Uxvj"
+    local UserInputService = game:GetService("UserInputService")
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    do
+        local containers = {}
+        if gethui then
+            local ok, hui = pcall(gethui)
+            if ok and hui then
+                containers[#containers + 1] = hui
+            end
+        end
+        pcall(function()
+            containers[#containers + 1] = game:GetService("CoreGui")
+        end)
+        containers[#containers + 1] = playerGui
+        for _, container in ipairs(containers) do
+            local old = container:FindFirstChild("RJR_Hub_DiscordPopup")
+            if old then
+                pcall(function()
+                    old:Destroy()
+                end)
+            end
+        end
+    end
+    local Gui = Instance.new("ScreenGui")
+    Gui.Name = "RJR_Hub_DiscordPopup"
+    Gui.ResetOnSpawn = false
+    Gui.IgnoreGuiInset = true
+    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    Gui.DisplayOrder = 1000
+    local Panel = Instance.new("Frame")
+    Panel.Name = "Panel"
+    Panel.AnchorPoint = Vector2.new(0.5, 0.5)
+    Panel.Position = UDim2.fromScale(0.5, 0.42)
+    Panel.Size = UDim2.fromOffset(420, 230)
+    Panel.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+    Panel.BorderSizePixel = 0
+    Panel.Parent = Gui
+    local PanelCorner = Instance.new("UICorner")
+    PanelCorner.CornerRadius = UDim.new(0, 14)
+    PanelCorner.Parent = Panel
+    local PanelStroke = Instance.new("UIStroke")
+    PanelStroke.Thickness = 1.5
+    PanelStroke.Color = Color3.fromRGB(96, 205, 255)
+    PanelStroke.Transparency = 0.25
+    PanelStroke.Parent = Panel
+    local Scale = Instance.new("UIScale")
+    Scale.Scale = 1
+    Scale.Parent = Panel
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Name = "TitleBar"
+    TitleBar.Size = UDim2.new(1, 0, 0, 46)
+    TitleBar.BackgroundTransparency = 1
+    TitleBar.Parent = Panel
+    local Title = Instance.new("TextLabel")
+    Title.Name = "Title"
+    Title.BackgroundTransparency = 1
+    Title.Position = UDim2.fromOffset(20, 11)
+    Title.Size = UDim2.new(1, -40, 0, 24)
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 17
+    Title.TextColor3 = Color3.fromRGB(240, 240, 245)
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Text = T("dc.popup.title")
+    Title.Parent = TitleBar
+    local Separator = Instance.new("Frame")
+    Separator.Size = UDim2.new(1, 0, 0, 1)
+    Separator.Position = UDim2.fromOffset(0, 46)
+    Separator.BackgroundColor3 = Color3.fromRGB(42, 42, 50)
+    Separator.BorderSizePixel = 0
+    Separator.Parent = Panel
+    local Desc = Instance.new("TextLabel")
+    Desc.Name = "Desc"
+    Desc.BackgroundTransparency = 1
+    Desc.Position = UDim2.fromOffset(20, 58)
+    Desc.Size = UDim2.new(1, -40, 0, 32)
+    Desc.Font = Enum.Font.Gotham
+    Desc.TextSize = 13
+    Desc.TextWrapped = true
+    Desc.TextColor3 = Color3.fromRGB(160, 160, 172)
+    Desc.TextXAlignment = Enum.TextXAlignment.Left
+    Desc.TextYAlignment = Enum.TextYAlignment.Top
+    Desc.Text = T("dc.popup.desc")
+    Desc.Parent = Panel
+    local LinkBox = Instance.new("TextBox")
+    LinkBox.Name = "LinkBox"
+    LinkBox.Position = UDim2.fromOffset(20, 96)
+    LinkBox.Size = UDim2.new(1, -40, 0, 36)
+    LinkBox.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+    LinkBox.BorderSizePixel = 0
+    LinkBox.ClearTextOnFocus = false
+    LinkBox.Font = Enum.Font.Code
+    LinkBox.TextSize = 14
+    LinkBox.TextColor3 = Color3.fromRGB(150, 220, 255)
+    LinkBox.TextXAlignment = Enum.TextXAlignment.Left
+    LinkBox.Text = DISCORD_INVITE
+    LinkBox.Parent = Panel
+    local LinkCorner = Instance.new("UICorner")
+    LinkCorner.CornerRadius = UDim.new(0, 8)
+    LinkCorner.Parent = LinkBox
+    local LinkPadding = Instance.new("UIPadding")
+    LinkPadding.PaddingLeft = UDim.new(0, 10)
+    LinkPadding.PaddingRight = UDim.new(0, 10)
+    LinkPadding.Parent = LinkBox
+    local LinkStroke = Instance.new("UIStroke")
+    LinkStroke.Thickness = 1
+    LinkStroke.Color = Color3.fromRGB(62, 62, 72)
+    LinkStroke.Parent = LinkBox
+    local Hint = Instance.new("TextLabel")
+    Hint.Name = "Hint"
+    Hint.BackgroundTransparency = 1
+    Hint.Position = UDim2.fromOffset(20, 138)
+    Hint.Size = UDim2.new(1, -40, 0, 18)
+    Hint.Font = Enum.Font.Gotham
+    Hint.TextSize = 11
+    Hint.TextColor3 = Color3.fromRGB(120, 120, 132)
+    Hint.TextXAlignment = Enum.TextXAlignment.Left
+    Hint.Text = T("dc.popup.hint")
+    Hint.Parent = Panel
+    local function MakeButton(text, baseColor, hoverColor, x, width)
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.fromOffset(width, 36)
+        button.Position = UDim2.fromOffset(x, 174)
+        button.BackgroundColor3 = baseColor
+        button.BorderSizePixel = 0
+        button.AutoButtonColor = false
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 14
+        button.TextColor3 = Color3.fromRGB(245, 245, 250)
+        button.Text = text
+        button.Parent = Panel
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = button
+        button.MouseEnter:Connect(function()
+            TweenService:Create(button, TweenInfo.new(0.15), { BackgroundColor3 = hoverColor }):Play()
+        end)
+        button.MouseLeave:Connect(function()
+            TweenService:Create(button, TweenInfo.new(0.15), { BackgroundColor3 = baseColor }):Play()
+        end)
+        return button
+    end
+    local CopyButton = MakeButton(T("dc.popup.copy"), Color3.fromRGB(58, 118, 214), Color3.fromRGB(72, 138, 240), 130, 168)
+    local CloseButton = MakeButton(T("dc.popup.close"), Color3.fromRGB(44, 44, 52), Color3.fromRGB(58, 58, 68), 310, 90)
+    local copiedLabelActive = false
+    local function CopyInvite()
+        local attempts = {
+            function()
+                if type(setclipboard) == "function" then
+                    setclipboard(DISCORD_INVITE)
+                    return true
+                end
+                return false
+            end,
+            function()
+                if type(toclipboard) == "function" then
+                    toclipboard(DISCORD_INVITE)
+                    return true
+                end
+                return false
+            end,
+            function()
+                if type(Clipboard) == "table" and type(Clipboard.set) == "function" then
+                    Clipboard.set(DISCORD_INVITE)
+                    return true
+                end
+                return false
+            end,
+            function()
+                if type(syn) == "table" and type(syn.write_clipboard) == "function" then
+                    syn.write_clipboard({ DISCORD_INVITE })
+                    return true
+                end
+                return false
+            end,
+            function()
+                if type(writeclipboard) == "function" then
+                    writeclipboard(DISCORD_INVITE)
+                    return true
+                end
+                return false
+            end,
+        }
+        local copied = false
+        for _, attempt in ipairs(attempts) do
+            local ok, done = pcall(attempt)
+            if ok and done then
+                copied = true
+                break
+            end
+        end
+        if copied then
+            copiedLabelActive = true
+            CopyButton.Text = T("dc.popup.copied")
+            task.delay(1.6, function()
+                if CopyButton and CopyButton.Parent then
+                    copiedLabelActive = false
+                    CopyButton.Text = T("dc.popup.copy")
+                end
+            end)
+            SendNotify(T("ann.dc"), T("ann.copied"))
+        else
+            SendNotify(T("ann.dc"), DISCORD_INVITE)
+        end
+    end
+    CopyButton.MouseButton1Click:Connect(function()
+        CopyInvite()
+    end)
+    local function SelectInviteText()
+        pcall(function()
+            LinkBox.SelectionStart = 1
+            LinkBox.CursorPosition = -1
+        end)
+    end
+    LinkBox.Focused:Connect(function()
+        SelectInviteText()
+        task.defer(SelectInviteText)
+    end)
+    local dragging, dragStart, dragOrigin = false, nil, nil
+    TitleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            dragOrigin = Panel.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging or not dragOrigin then
+            return
+        end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            Panel.Position = UDim2.new(
+                dragOrigin.X.Scale,
+                dragOrigin.X.Offset + delta.X,
+                dragOrigin.Y.Scale,
+                dragOrigin.Y.Offset + delta.Y
+            )
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    local function HideDiscordPopup()
+        local tween = TweenService:Create(Scale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.9 })
+        tween:Play()
+        task.delay(0.18, function()
+            Gui.Enabled = false
+        end)
+    end
+    CloseButton.MouseButton1Click:Connect(HideDiscordPopup)
+    local function RefreshDiscordPopupTexts()
+        Title.Text = T("dc.popup.title")
+        Desc.Text = T("dc.popup.desc")
+        Hint.Text = T("dc.popup.hint")
+        LinkBox.Text = DISCORD_INVITE
+        CopyButton.Text = copiedLabelActive and T("dc.popup.copied") or T("dc.popup.copy")
+        CloseButton.Text = T("dc.popup.close")
+    end
+    local function ShowDiscordPopup()
+        copiedLabelActive = false
+        RefreshDiscordPopupTexts()
+        Gui.Enabled = true
+        Scale.Scale = 0.9
+        TweenService:Create(Scale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+    end
+    _G.RJR_ShowDiscordPopup = ShowDiscordPopup
+    local previousApplyLanguage = ApplyLanguage
+    ApplyLanguage = function(...)
+        local results = { previousApplyLanguage(...) }
+        pcall(RefreshDiscordPopupTexts)
+        return table.unpack(results)
+    end
+    local parentOk = pcall(function()
+        Gui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+    end)
+    if not parentOk or not Gui.Parent then
+        Gui.Parent = playerGui
+    end
+    ShowDiscordPopup()
+end
 SendNotify(T("notify.title"), T("notify.ready"))
 end)()
