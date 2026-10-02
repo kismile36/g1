@@ -1526,6 +1526,74 @@ local function TargetPos(inst)
     end
     return nil
 end
+local function GetMapHeart()
+    local Map = workspace:FindFirstChild("Map")
+    return Map and Map:FindFirstChild("FrozenHeart") or nil
+end
+local function GetHeartInside(Heart)
+    if not Heart then
+        return nil
+    end
+    local Inside = Heart:FindFirstChild("Inside")
+    if Inside and Inside:IsA("BasePart") then
+        return Inside
+    end
+    return nil
+end
+local function GetHeartCore(Heart)
+    if not Heart then
+        return nil
+    end
+    if typeof(Heart) == "Instance" and Heart:IsA("BasePart") then
+        return Heart
+    end
+    return Heart:FindFirstChild("Inside")
+        or Heart:FindFirstChild("Cube")
+        or Heart:FindFirstChild("Hitbox")
+        or Heart.PrimaryPart
+        or Heart:FindFirstChildWhichIsA("BasePart")
+        or Heart:FindFirstChildWhichIsA("BasePart", true)
+end
+-- La deteccion real del enganche es el atributo Harpooned de FrozenHeart.Inside.
+-- Devuelve true/false cuando el atributo existe y nil cuando el juego todavia
+-- no lo replica (en ese caso se usa el fallback por nivel del agua).
+local function IsHeartHarpooned(Heart)
+    local Inside = GetHeartInside(Heart)
+    if not Inside then
+        return nil
+    end
+    local ok, Value = pcall(function()
+        return Inside:GetAttribute("Harpooned")
+    end)
+    if not ok or Value == nil then
+        return nil
+    end
+    return Value == true
+end
+local function IsHeartHooked(Heart)
+    if not Heart then
+        return false
+    end
+    local Harpooned = IsHeartHarpooned(Heart)
+    if Harpooned ~= nil then
+        return Harpooned
+    end
+    local Core = GetHeartCore(Heart)
+    if not Core then
+        return false
+    end
+    local Pos = Core.Position
+    -- Ultimo recurso: el nucleo hundido por debajo de la superficie del mar
+    -- solo ocurre cuando el arpon ya lo arrastra.
+    local Water = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("WaterBase-Plane")
+    if Water then
+        local WaterY = Water.Position.Y + (Water.Size.Y / 2)
+        if Pos.Y < WaterY then
+            return true
+        end
+    end
+    return false
+end
 local HeartPosCache = { inst = nil, part = nil }
 local function GetHeartPos(Heart)
     if not Heart then
@@ -1539,10 +1607,8 @@ local function GetHeartPos(Heart)
     if not part or not part.Parent then
         if Heart:IsA("BasePart") then
             part = Heart
-        elseif Heart:IsA("Model") then
-            part = Heart.PrimaryPart
-                or Heart:FindFirstChildWhichIsA("BasePart")
-                or Heart:FindFirstChildWhichIsA("BasePart", true)
+        else
+            part = GetHeartCore(Heart)
         end
         HeartPosCache.part = part
     end
@@ -1726,8 +1792,49 @@ local function OwnedBoatsOf(player)
     end
     return result
 end
-local function OwnBoatUnusable(player, isCrew)
+-- Si el jugador ya está a menos de esta distancia del vendedor de barcos,
+-- conviene caminar/volar hasta él y comprar en el sitio en vez de morir para
+-- reaparecer en Tiki (que además tarda mucho más).
+local BoatDealerWalkRange = 1000
+local function DistToBoatDealer()
+    local _, hrp = GetCharacterParts()
+    if not hrp then
+        return nil
+    end
+    return (hrp.Position - BoatDealerCF.Position).Magnitude
+end
+-- ¿Hay algún barco vivo mío a más de BoatFindRange? Entonces se considera
+-- perdido (mismo criterio que el script de referencia). A propósito NO mira
+-- _G.RJR_AbandonedBoats: si GetOwnBoat ya lo marcó como abandonado, aquí
+-- seguimos teniéndolo en cuenta para poder disparar el reinicio.
+local function HasLiveBoatTooFar(player)
+    if not player then
+        return false
+    end
+    local boats = workspace:FindFirstChild("Boats")
+    if not boats then
+        return false
+    end
+    local _, hrp = GetCharacterParts()
+    if not hrp then
+        return false
+    end
+    for _, boat in ipairs(boats:GetChildren()) do
+        if IsBeastHunterBoat(boat) and BoatOwnerMatch(boat, player) and not IsBoatDead(boat) then
+            local seat = boat:FindFirstChild("VehicleSeat") or boat.PrimaryPart
+                or boat:FindFirstChildWhichIsA("BasePart", true)
+            if seat and (seat.Position - hrp.Position).Magnitude > BoatFindRange then
+                return true
+            end
+        end
+    end
+    return false
+end
+local function OwnBoatUnusable(player, isCrew, treatFarAsLost)
     if _G.RJR_Resetting then
+        return true
+    end
+    if treatFarAsLost and HasLiveBoatTooFar(player) then
         return true
     end
     local boats = OwnedBoatsOf(player)
@@ -2126,6 +2233,10 @@ local function DebugDumpBoats()
     end
 end
 local function BuyOwnBoat(Message)
+    -- El barco a más de BoatFindRange ya queda marcado como abandonado en
+    -- GetOwnBoat, así que aquí NO se puede tratar "lejos" como inservible:
+    -- eso haría imposible recomprar tras el reinicio (el barco viejo sigue
+    -- a más de 5000 y bloquearía la compra para siempre).
     if OwnBoatUnusable(LocalPlayer, false) then
         SetStatus("Barco viejo inservible: espero el reinicio para recomprar")
         return false
@@ -2663,9 +2774,11 @@ local function FightSeaEvent(Mob, Root, Skill, ShouldBreak)
         AttackModel = Mob
         AttackStandFn = CurrentStand
         local _, _, humSE = GetCharacterParts()
-        if humSE and (humSE.Sit or humSE.SeatPart ~= nil) then
-            SetStatus("Farmeo marino: comprobando salir del asiento")
-            ForceUnseat(5)
+        if humSE and humSE.Sit then
+            pcall(function()
+                humSE.Sit = false
+            end)
+            task.wait(0.1)
         end
         local Stand = CurrentStand()
         if Stand then
@@ -2787,76 +2900,37 @@ local function Leviathan_Stand(model, part)
     local standPos = Vector3.new(Root.Position.X, Root.Position.Y + 75, Root.Position.Z)
     return FaceTargetCF(standPos, model) or CFrame.new(standPos)
 end
-local LeviathanWaitDone = false
-task.spawn(function()
-    local LastSeenAt = os.clock()
-    while true do
-        task.wait(0.5)
-        if Leviathan_Find() then
-            LastSeenAt = os.clock()
-        elseif os.clock() - LastSeenAt > 15 then
-            LeviathanWaitDone = false
-        end
-    end
-end)
-local function FightLeviathan(ShouldBreak, WaitSec)
+-- Igual que el script de referencia: NADA de espera al aparecer el Leviathan,
+-- el objetivo se recalcula cada ciclo y no hay tope de tiempo de pelea.
+local function FightLeviathan(ShouldBreak)
     local model, part = Leviathan_Find()
     if not model then
         return false
     end
-    if not LeviathanWaitDone then
-        WaitSec = WaitSec or 10
-        local WaitStart = os.clock()
-        local Completed = true
-        while _G.AutoLeviathanFull and os.clock() - WaitStart < WaitSec do
-            if ShouldBreak and ShouldBreak() then
-                Completed = false
-                break
-            end
-            if not Leviathan_Find() then
-                Completed = false
-                break
-            end
-            SetStatus("El Leviathan apareció: ataco en " .. string.format("%.1f", WaitSec - (os.clock() - WaitStart)) .. " s")
-            task.wait(0.2)
-        end
-        LeviathanWaitDone = Completed
-    end
     local Killed = false
-    local start = os.clock()
     local LastFind = 0
-    local MissingSince = nil
-    local MissingGrace = 15
-    while _G.AutoLeviathanFull and os.clock() - start < 900 do
+    while _G.AutoLeviathanFull do
         if ShouldBreak and ShouldBreak() then
             break
         end
         if not Character or not HRP or not HD or HD.Health <= 0 then
             break
         end
+        -- Salir del asiento como en el script de referencia: directo, sin
+        -- reintentos que puedan abortar el combate.
         local _, _, humNow = GetCharacterParts()
-        if humNow and (humNow.Sit or humNow.SeatPart ~= nil) then
-            SetStatus("Pelea a pie: comprobando salir del asiento")
-            if not ForceUnseat(20) then
-                SetStatus("No consigo bajarme: salgo de este combate")
-                break
-            end
+        if humNow and humNow.Sit then
+            pcall(function()
+                humNow.Sit = false
+            end)
+            task.wait(0.1)
         end
         if os.clock() - LastFind >= 0.4 then
             LastFind = os.clock()
             model, part = Leviathan_Find()
-            if model then
-                MissingSince = nil
-                if Leviathan_IsDead(model) then
-                    Killed = true
-                    break
-                end
-            else
-                MissingSince = MissingSince or os.clock()
-                if os.clock() - MissingSince >= MissingGrace then
-                    Killed = true
-                    break
-                end
+            if model and Leviathan_IsDead(model) then
+                Killed = true
+                break
             end
         end
         if not model then
@@ -2904,11 +2978,6 @@ local function FightLeviathan(ShouldBreak, WaitSec)
                 task.wait(0.5)
             end
             if model then
-                local _, _, humPre = GetCharacterParts()
-                if humPre and (humPre.Sit or humPre.SeatPart ~= nil) then
-                    SetStatus("Sigo sentado antes de atacar: me bajo a la fuerza")
-                    ForceUnseat(5)
-                end
                 local HPNow = Leviathan_GetHP(model)
                 SetStatus("Atacando al Leviathan: " .. model.Name .. (HPNow and (" - vida " .. string.format("%.0f", HPNow)) or ""))
                 local function CurrentStand()
@@ -2984,11 +3053,11 @@ _G.RJR_LeviathanPresent = function()
 end
 _G.RJR_ResetCharacterAtTiki = function(reason)
     if _G.RJR_Resetting then
-        return
+        return false
     end
     if _G.RJR_LeviathanPresent() then
         SetStatus("Leviathan, puerta o corazón presentes: no reinicio")
-        return
+        return false
     end
     _G.RJR_Resetting = true
     local WaitStart = os.clock()
@@ -3003,7 +3072,33 @@ _G.RJR_ResetCharacterAtTiki = function(reason)
     if _G.RJR_LeviathanPresent() then
         SetStatus("Leviathan, puerta o corazón presentes: no reinicio")
         _G.RJR_Resetting = false
-        return
+        return false
+    end
+    -- Ya estoy cerca del vendedor: no hace falta morir para reaparecer aquí,
+    -- camino/vuelo hasta él y compro el barco en el sitio. Devuelve false
+    -- para que quien me llamó no dé el reinicio por hecho (y no lo repita
+    -- en bucle mientras dure el viaje).
+    local DealerDist = DistToBoatDealer()
+    if _G.AutoLeviathanFull and DealerDist and DealerDist <= BoatDealerWalkRange then
+        SetStatus(reason .. ": estoy a " .. math.floor(DealerDist)
+            .. " del vendedor, voy andando a comprar")
+        _G.RJR_Resetting = false
+        -- El barco viejo puede seguir existiendo en el servidor (solo lo
+        -- marcamos como abandonado), y en ese caso BuyBoat lo rechazaría.
+        -- Si está hundido o ya lo perdí de vista, lo libero antes de comprar
+        -- (mismo criterio que el script de referencia con thuyenCu:Destroy()).
+        for _, boat in ipairs(OwnedBoatsOf(LocalPlayer)) do
+            _G.RJR_AbandonedBoats[boat] = true
+            if IsBoatDead(boat) or boat.Parent == nil then
+                pcall(function()
+                    boat:Destroy()
+                end)
+                print("[Leviathan] Barco viejo liberado antes de recomprar: " .. boat.Name)
+            end
+        end
+        pcall(Unseat)
+        BuyOwnBoat(reason .. ": comprando barco en el sitio")
+        return false
     end
     SetStatus(reason .. ": reiniciando en Tiki para comprar barco")
     pcall(Unseat)
@@ -3032,6 +3127,7 @@ _G.RJR_ResetCharacterAtTiki = function(reason)
         print("[Leviathan] Reinicio hecho, barco viejo abandonado: " .. boat.Name)
     end
     _G.RJR_Resetting = false
+    return true
 end
 _G.RJR_StartBoatDeadMonitor = function()
     if _G.RJR_BoatDeadMonitorRunning then
@@ -3073,8 +3169,9 @@ _G.RJR_StartBoatDeadMonitor = function()
                             Trigger = "Barco del capitán desaparecido"
                         end
                     end
-                    if not Trigger and OwnBoatUnusable(target, not isCaptain) then
-                        Trigger = isCaptain and "Barco destruido (vida 0)" or "Barco del capitán inservible"
+                    if not Trigger and OwnBoatUnusable(target, not isCaptain, isCaptain) then
+                        Trigger = isCaptain and "Barco destruido o a más de 5000 (perdido)"
+                            or "Barco del capitán inservible"
                     end
                     if not isCaptain then
                         local CChar = target.Character
@@ -3104,14 +3201,26 @@ _G.RJR_StartBoatDeadMonitor = function()
                 end
                 if Trigger then
                     if _G.RJR_BoatDeadArmed and os.clock() - StartAt > 8 then
-                        _G.RJR_BoatDeadArmed = false
+                        local DidReset = false
                         LastResetAt = os.clock()
-                        SawRealBoat = false
-                        BoatGoneSince = nil
                         if Trigger == CaptainDeathReason then
                             CaptainDeathFollowed = true
                         end
-                        task.spawn(_G.RJR_ResetCharacterAtTiki, Trigger)
+                        if _G.RJR_ResetCharacterAtTiki(Trigger) then
+                            -- Reinicio real: rearmar el disparador y volver a
+                            -- vigilar el barco nuevo.
+                            DidReset = true
+                            _G.RJR_BoatDeadArmed = false
+                            SawRealBoat = false
+                            BoatGoneSince = nil
+                        end
+                        if not DidReset then
+                            -- No hubo reinicio (p. ej. ya estaba en el muelle y
+                            -- fue andando a comprar): seguir armado para que el
+                            -- siguiente ciclo vuelva a comprobar, y no resetear
+                            -- SawRealBoat para no re-disparar "barco desaparecido".
+                            _G.RJR_BoatDeadArmed = true
+                        end
                     elseif not _G.RJR_BoatDeadArmed and os.clock() - LastResetAt > 120 then
                         _G.RJR_BoatDeadArmed = true
                     end
@@ -3234,6 +3343,41 @@ local function ComputeHarpoonPitch(FromPos, ToPos)
     local Horizontal = math.sqrt(dx * dx + dz * dz)
     return math.atan2(dy, Horizontal)
 end
+-- Angulos balisticos del arpon (v=400, gravedad del juego), como en el
+-- script de referencia. El barco dispara con pitch/yaw respecto al casco.
+local function CalculateHarpoonAngles(Harpoon, TargetPos, FireOrigin)
+    local Seat = Harpoon:FindFirstChild("Seat")
+    local BaseCF
+    local BoatWeld = Seat and Seat:FindFirstChild("BoatWeld")
+    if BoatWeld and BoatWeld.Part0 then
+        BaseCF = BoatWeld.Part0.CFrame
+    elseif Seat and Seat:IsA("BasePart") then
+        BaseCF = Seat.CFrame
+    elseif FireOrigin and FireOrigin:IsA("BasePart") then
+        BaseCF = FireOrigin.CFrame
+    elseif Harpoon.PrimaryPart then
+        BaseCF = Harpoon.PrimaryPart.CFrame
+    elseif typeof(Harpoon.GetPivot) == "function" then
+        BaseCF = Harpoon:GetPivot()
+    else
+        return nil
+    end
+    local LocalDir = BaseCF:PointToObjectSpace(TargetPos)
+    local Yaw = math.clamp(math.atan2(LocalDir.X, -LocalDir.Z), -1.1344640137963142, 1.1344640137963142)
+    local X = math.sqrt(LocalDir.X * LocalDir.X + LocalDir.Z * LocalDir.Z)
+    local Y = LocalDir.Y
+    local V = 400
+    local G = workspace.Gravity
+    local Pitch
+    local Root = V ^ 4 - G * (G * X * X + 2 * Y * V * V)
+    if Root >= 0 then
+        Pitch = math.atan2(V * V - math.sqrt(Root), G * X)
+    else
+        Pitch = math.atan2(Y, X)
+    end
+    Pitch = math.clamp(Pitch, -0.17453292519943295, 0.7853981633974483)
+    return Pitch, Yaw
+end
 local function HarpoonHeart()
     local boat = GetOwnBoat()
     if not boat then
@@ -3250,8 +3394,8 @@ local function HarpoonHeart()
         SetStatus("Enganche fallido: no hay corazón")
         return false
     end
-    if HeartPos.Y < 110 then
-        SetStatus("Corazón enganchado (Y=" .. string.format("%.0f", HeartPos.Y) .. ")")
+    if IsHeartHooked(Heart) then
+        SetStatus("Corazón ya enganchado")
         return true
     end
     local Harpoon = boat:FindFirstChild("Harpoon")
@@ -3273,8 +3417,8 @@ local function HarpoonHeart()
         if not CurrentHeart or not CurrentHeartPos then
             break
         end
-        if CurrentHeartPos.Y < 110 then
-            SetStatus("Corazón enganchado (Y=" .. string.format("%.0f", CurrentHeartPos.Y) .. ")")
+        if IsHeartHooked(CurrentHeart) then
+            SetStatus("Corazón ya enganchado (antes del disparo " .. Fires + 1 .. ")")
             break
         end
         SetStatus("Enganche: subo al timón (intento " .. Fires + 1 .. ")")
@@ -3358,23 +3502,52 @@ local function HarpoonHeart()
             end
             task.wait(0.2)
         end
+        local GrabbedNow = false
+        local HeartAtFire = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("FrozenHeart")
+        local HeartPosAtFire = HeartAtFire and GetHeartPos(HeartAtFire)
+        if HeartAtFire and IsHeartHooked(HeartAtFire) then
+            SetStatus("Enganche: enganchado antes de disparar")
+            GrabbedNow = true
+        end
         local FireOrigin = Harpoon:FindFirstChild("Muzzle")
             or Harpoon:FindFirstChild("Tip")
             or Harpoon.PrimaryPart
             or HarpoonSeat
-        local HeartAtFire = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("FrozenHeart")
-        local HeartPosAtFire = HeartAtFire and GetHeartPos(HeartAtFire)
-        local Pitch = (FireOrigin and HeartPosAtFire)
-            and (ComputeHarpoonPitch(FireOrigin.Position, HeartPosAtFire) + math.rad(3))
-            or 0.7853981633974483
-        if CommF2 then
-            SetStatus("Enganche: disparo el arpón nº " .. Fires + 1 .. " (ángulo " .. string.format("%.1f", math.deg(Pitch)) .. "°)")
+        local Pitch, Yaw
+        if HeartPosAtFire then
+            Pitch, Yaw = CalculateHarpoonAngles(Harpoon, HeartPosAtFire, FireOrigin)
+        end
+        if not Pitch then
+            Pitch = 0.7853981633974483
+        end
+        -- Orientar el arpón antes de disparar: el servidor usa los welds.
+        local BoatWeld = HarpoonSeat:FindFirstChild("BoatWeld")
+        local CannonWeld = HarpoonSeat:FindFirstChild("CannonWeld")
+        local AimPitch = Pitch - math.rad(3)
+        local AimYawW = Yaw or 0
+        if BoatWeld then
             pcall(function()
-                CommF2:InvokeServer("FireHarpoon", Pitch, 0, Harpoon, workspace:GetServerTimeNow())
+                BoatWeld.C0 = CFrame.Angles(0, AimYawW, 0)
+                BoatWeld.C1 = CFrame.Angles(0, AimYawW * 2, 0)
+            end)
+        end
+        if CannonWeld then
+            pcall(function()
+                local Lift = math.max(AimPitch - 0.4363323129985824, 0) / 0.6108652381980153 * 2.5
+                CannonWeld.C0 = CFrame.new(0, Lift, 0)
+                    * CFrame.Angles(AimPitch, 0, 0)
+                    * CFrame.new(0, 0, -Lift / 1.4142135623730951)
+            end)
+        end
+        task.wait(0.1)
+        if not GrabbedNow and CommF2 then
+            SetStatus("Enganche: disparo el arpón nº " .. Fires + 1
+                .. " (ángulo " .. string.format("%.1f", math.deg(Pitch)) .. "°)")
+            pcall(function()
+                CommF2:InvokeServer("FireHarpoon", Pitch, AimYawW, Harpoon, workspace:GetServerTimeNow())
             end)
         end
         Fires = Fires + 1
-        local GrabbedNow = false
         local PostWaitStart = os.clock()
         while _G.AutoLeviathanFull and os.clock() - PostWaitStart < 10 do
             if DriverSeat and DriverSeat.Parent then
@@ -3390,8 +3563,8 @@ local function HarpoonHeart()
                 SetStatus("Enganche: el corazón desapareció")
                 break
             end
-            if HeartPos3.Y < 110 then
-                SetStatus("Corazón enganchado (Y=" .. string.format("%.0f", HeartPos3.Y) .. ")")
+            if IsHeartHooked(Heart3) then
+                SetStatus("Enganche: el atributo Harpooned confirma el enganche")
                 GrabbedNow = true
                 break
             end
@@ -3408,10 +3581,8 @@ local function HarpoonHeart()
         task.wait(0.3)
     end
     Unseat()
-    local MapFinal = workspace:FindFirstChild("Map")
-    local HeartFinal = MapFinal and MapFinal:FindFirstChild("FrozenHeart")
-    local HeartPosFinal = HeartFinal and GetHeartPos(HeartFinal)
-    if HeartPosFinal and HeartPosFinal.Y < 110 then
+    local HeartFinal = GetMapHeart()
+    if HeartFinal and IsHeartHooked(HeartFinal) then
         SetStatus("¡Corazón enganchado!")
         return true
     end
@@ -3656,7 +3827,30 @@ local function ReturnTiki(Speed)
     end
     local TotalStart = os.clock()
     local Returned = false
+    -- Salvaguarda: no arrastrar el barco a Tiki si el corazon no quedo
+    -- enganchado. Si el atributo aun no se replica, se sigue igual.
+    local HookConfirmed = false
+    local HookGraceEnd = os.clock() + 10
+    local function HookOk()
+        if HookConfirmed then
+            return true
+        end
+        local H = GetMapHeart()
+        local Harpooned = IsHeartHarpooned(H)
+        if Harpooned == false and os.clock() > HookGraceEnd then
+            SetStatus("Volviendo a Tiki: el corazón no está enganchado, cancelo")
+            print("[ReturnTiki] heart not harpooned, abort")
+            return false
+        end
+        if Harpooned == true then
+            HookConfirmed = true
+        end
+        return true
+    end
     while _G.AutoLeviathanFull and os.clock() - TotalStart < 1800 do
+        if not HookOk() then
+            break
+        end
         local Map = workspace:FindFirstChild("Map")
         local Heart = Map and Map:FindFirstChild("FrozenHeart")
         if not Heart then
@@ -4197,7 +4391,7 @@ local function CaptainHuntPhase()
         return
     end
     OpenLeviathanGate()
-    local Killed = SeaAPI.FightLeviathan(nil, 6)
+    local Killed = SeaAPI.FightLeviathan(nil)
     if not Killed then
         SetStatus("Leviathan no derrotado: reinicio")
         return
@@ -4374,8 +4568,7 @@ local function FollowerHeartWait()
     local StatusAt = 0
     local LastTPPos = nil
     while _G.AutoLeviathanFull and _G.Mode == "Seguidor" do
-        local Map = workspace:FindFirstChild("Map")
-        local Heart = Map and Map:FindFirstChild("FrozenHeart")
+        local Heart = GetMapHeart()
         if not Heart then
             SetStatus("El corazón desapareció: subo al barco a seguir")
             return
@@ -4411,30 +4604,11 @@ local function StartFollower()
                 local boat = GetCaptainBoat()
                 local DriverSeat = boat and boat:FindFirstChild("VehicleSeat")
                 local CaptainOn = boat ~= nil and IsCaptainOnBoat(boat)
-                local Map = workspace:FindFirstChild("Map")
-                local Heart = Map and Map:FindFirstChild("FrozenHeart")
-                local HeartPos = Heart and GetHeartPos(Heart)
-                local HeartGrabbed = HeartPos ~= nil and HeartPos.Y < 110
+                local Heart = GetMapHeart()
                 if Heart then
+                    -- El seguidor solo sigue al corazón: se teletransporta a su
+                    -- posición (encima de él) hasta que desaparezca.
                     FollowerHeartWait()
-                    return
-                end
-                if HeartGrabbed then
-                    if boat then
-                        if not IsOnCaptainBoat(boat) then
-                            SetStatus("Corazón enganchado: subo al cañón")
-                            FollowerBoardSeat(boat)
-                        else
-                            SetStatus("En espera en el barco (corazón enganchado)")
-                        end
-                    else
-                        if GetCaptainHRP() then
-                            SetStatus("Corazón enganchado: sigo al capitán")
-                            _tp(LiveCaptainTopCF(35), function()
-                                return not _G.AutoLeviathanFull
-                            end)
-                        end
-                    end
                     return
                 end
                 local LV = SeaAPI.Leviathan_Find()
@@ -4458,7 +4632,7 @@ local function StartFollower()
                         end
                     end
                     LastLeviathanSeen = os.clock()
-                    SeaAPI.FightLeviathan(CaptainBackOnBoat, 10)
+                    SeaAPI.FightLeviathan(CaptainBackOnBoat)
                     return
                 end
                 if boat and CaptainOn then
@@ -4621,8 +4795,7 @@ local function GetTargetStatus()
     local Map2 = workspace:FindFirstChild("Map")
     local Heart = Map2 and Map2:FindFirstChild("FrozenHeart")
     if Heart then
-        local P = GetHeartPos(Heart)
-        if P and P.Y < 110 then
+        if IsHeartHooked(Heart) then
             lines[#lines + 1] = T("target.heart") .. ": " .. T("target.hooked")
         else
             lines[#lines + 1] = T("target.heart") .. ": " .. T("target.spawned")
@@ -4673,8 +4846,7 @@ local function BuildInfoUIContent()
     local Map = workspace:FindFirstChild("Map")
     local Heart = Map and Map:FindFirstChild("FrozenHeart")
     if Heart then
-        local P = GetHeartPos(Heart)
-        if P and P.Y < 110 then
+        if IsHeartHooked(Heart) then
             lines[#lines + 1] = T("target.heart") .. ": " .. T("target.hooked")
         else
             lines[#lines + 1] = T("target.heart") .. ": " .. T("target.spawned")
@@ -6526,10 +6698,8 @@ do
                         PrevHeartSpawn = NowSpawn
                     end
                     if _G.WebhookSendHeartGot then
-                        local Map = workspace:FindFirstChild("Map")
-                        local Heart = Map and Map:FindFirstChild("FrozenHeart")
-                        local HP = Heart and GetHeartPos(Heart)
-                        local Got = HP ~= nil and HP.Y < 110
+                        local Heart = GetMapHeart()
+                        local Got = Heart ~= nil and IsHeartHooked(Heart)
                         if Got and not PrevHeartGot then
                             SendWebhookUI(T("wh.msg.heartgot"), T("wh.title.heartgot"))
                         end
