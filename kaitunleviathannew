@@ -4191,6 +4191,79 @@ end
 local function RunNav(fn)
     return pcall(fn)
 end
+-- Suspensión compartida sobre el corazón (capitán y seguidor), sin _tp:
+-- _tp bloquea el hilo hasta quedar a <=5 studs y además activa TpActive, que
+-- apaga el bucle de hover, así que "llega y se para". Aquí el objetivo se
+-- recalcula cada frame y el personaje queda flotando encima del corazón.
+-- stopCheck / stopAfter: condiciones de salida.
+-- Devuelve true si el corazón desapareció, false si se agotó el tiempo o lo
+-- pidió stopCheck.
+local function HeartFloat(stopCheck, stopAfter)
+    local StartAt = os.clock()
+    local StatusAt = 0
+    local LastNoticePos = nil
+    while _G.AutoLeviathanFull do
+        local dt = RunService.Heartbeat:Wait() or (1 / 60)
+        if stopCheck and stopCheck() then
+            break
+        end
+        if stopAfter and os.clock() - StartAt >= stopAfter then
+            break
+        end
+        local _, hrpF, humF = GetCharacterParts()
+        if not hrpF or not humF then
+            break
+        end
+        if humF.SeatPart ~= nil then
+            pcall(function()
+                humF.Sit = false
+            end)
+        else
+            local hp = GetHeartPos(GetMapHeart())
+            if not hp then
+                SetStatus("El corazón desapareció: dejo de flotar")
+                ClearHover()
+                return true
+            end
+            if not _G.StopTween then
+                local goal = CFrame.new(hp.X, hp.Y + 35, hp.Z)
+                hrpF.AssemblyLinearVelocity = Vector3.zero
+                hrpF.AssemblyAngularVelocity = Vector3.zero
+                local char = LocalPlayer.Character
+                if char then
+                    for _, p in ipairs(char:GetDescendants()) do
+                        if p:IsA("BasePart") then
+                            p.CanCollide = false
+                        end
+                    end
+                end
+                local dist = (goal.Position - hrpF.Position).Magnitude
+                if dist <= 3 then
+                    hrpF.CFrame = goal
+                else
+                    local step = math.min(dist, HoverSpeedNow() * dt)
+                    hrpF.CFrame = hrpF.CFrame:Lerp(goal, step / dist)
+                end
+            end
+            if LastNoticePos == nil or (hp - LastNoticePos).Magnitude > 20 then
+                LastNoticePos = hp
+                print("[Heart] flotando sobre el corazón a " .. math.floor((hrpF.Position - hp).Magnitude) .. " studs")
+            end
+        end
+        if os.clock() - StatusAt > 2 then
+            StatusAt = os.clock()
+            SetStatus("Flotando sobre el corazón (llevo " .. math.floor(os.clock() - StartAt) .. " s)")
+        end
+    end
+    ClearHover()
+    pcall(function()
+        local _, hrpEnd = GetCharacterParts()
+        if hrpEnd then
+            hrpEnd.AssemblyLinearVelocity = Vector3.zero
+        end
+    end)
+    return false
+end
 local function HeartFinishPhase()
     if _G.AutoLeviathanFull and not GetOwnBoat() then
         BuyOwnBoat("Corazón presente y sin barco: voy a comprar uno")
@@ -4441,20 +4514,23 @@ local function CaptainHuntPhase()
             task.wait(0.5)
         end
     end
+    -- Esperar a que aparezca el corazón (máx. 900 s). En cuanto se ve, el
+    -- capitán sube y se queda flotando encima; los 25 s de margen antes de
+    -- disparar el arpón se cumplen ya flotando.
     local HeartStart = os.clock()
+    local HeartSeen = false
     while _G.AutoLeviathanFull and os.clock() - HeartStart < 900 do
         local Map = workspace:FindFirstChild("Map")
         if Map and Map:FindFirstChild("FrozenHeart") then
-            SetStatus("El corazón apareció: engancho en 20 s")
+            HeartSeen = true
+            SetStatus("El corazón apareció: floto encima y engancho en 25 s")
             break
         end
         SetStatus("Esperando a que aparezca el corazón (llevo " .. math.floor(os.clock() - HeartStart) .. " s)")
         task.wait(1)
     end
-    local PostHeartStart = os.clock()
-    while _G.AutoLeviathanFull and os.clock() - PostHeartStart < 25 do
-        SetStatus("El corazón apareció: engancho en 25 s (llevo " .. math.floor(os.clock() - PostHeartStart) .. " s)")
-        task.wait(0.5)
+    if HeartSeen then
+        HeartFloat(nil, 25)
     end
     HeartFinishPhase()
 end
@@ -4471,7 +4547,10 @@ local function StartCaptain()
                 local Map = workspace:FindFirstChild("Map")
                 local Heart = Map and Map:FindFirstChild("FrozenHeart")
                 if Heart then
-                    SetStatus("Corazón detectado: continúo con el enganche")
+                    SetStatus("Corazón detectado: floto encima y continúo con el enganche")
+                    -- Igual que en CaptainHuntPhase: flota sobre el corazón
+                    -- durante el margen de 25 s antes de disparar el arpón.
+                    HeartFloat(nil, 25)
                     HeartFinishPhase()
                     return
                 end
@@ -4598,28 +4677,11 @@ local function FollowerHeartWait()
     end)
     Tweening = false
     Unseat()
-    local StartAt = os.clock()
-    local StatusAt = 0
-    local LastTPPos = nil
-    while _G.AutoLeviathanFull and _G.Mode == "Seguidor" do
-        local Heart = GetMapHeart()
-        if not Heart then
-            SetStatus("El corazón desapareció: subo al barco a seguir")
-            return
-        end
-        local hp = GetHeartPos(Heart)
-        if hp and (LastTPPos == nil or (hp - LastTPPos).Magnitude > 20) then
-            LastTPPos = hp
-            _tp(LiveHeartCF(35), function()
-                return not _G.AutoLeviathanFull
-            end)
-        end
-        if os.clock() - StatusAt > 2 then
-            StatusAt = os.clock()
-            SetStatus("Esperando el corazón: me teletransporto (llevo " .. math.floor(os.clock() - StartAt) .. " s)")
-        end
-        task.wait(1)
-    end
+    -- El seguidor solo sigue al corazón: flota encima hasta que desaparezca.
+    -- No toca el arpón ni engancha nada.
+    HeartFloat(function()
+        return _G.Mode ~= "Seguidor"
+    end)
 end
 local function StartFollower()
     if FollowerRunning then
