@@ -371,7 +371,7 @@ TranslateStatus, SetStatus = (function(LanguageCode)
         ["No pude bajarme: reintento"] = { en = "Unseat failed, retrying", zh = "下船失败 回主循环重试" },
         ["Leviathan no derrotado: reinicio"] = { en = "Leviathan not defeated, restarting", zh = "利维坦未击败 重新开始" },
         ["Leviathan derrotado"] = { en = "Leviathan defeated", zh = "利维坦已击败" },
-        ["El corazón apareció: engancho en 20 s"] = { en = "Heart spawned, hooking in 20s", zh = "心脏已出现 等待20秒后再勾" },
+        ["El corazón apareció: engancho en 5 s"] = { en = "Heart spawned, hooking in 5s", zh = "心脏已出现 等待5秒后勾心脏" },
         ["Corazón detectado: continúo con el enganche"] = { en = "Heart detected, continuing hook", zh = "检测到心脏 继续勾心脏流程" },
         ["Esperando el estado del soborno (no disponible)"] = { en = "Could not get bribe status", zh = "等待贿赂状态 无法获取" },
         ["Leviathan detectado: voy a cazarlo"] = { en = "Leviathan detected, hunting", zh = "检测到利维坦 直接猎杀" },
@@ -416,7 +416,7 @@ TranslateStatus, SetStatus = (function(LanguageCode)
         { es = "Compañero lejos, recompra en espera: aguardo ({1} s)", en = "Teammate far, rebuy on cooldown, waiting ({1}s)", zh = "最近队员过远 重买冷却中 等待队友 ({1} 秒)", nested = false },
         { es = "Esperando a que el corazón desaparezca (llevo {1} s)", en = "Waiting for heart to vanish ({1}s)", zh = "等待心脏消失 (已等 {1} 秒)", nested = false },
         { es = "[Auto Leviathan] Soborno disponible - progreso {1}/5", en = "[Auto Leviathan] Bribe ready - progress {1}/5", zh = "[Auto Leviathan] 贿赂CD已好 进度 {1}/5", nested = false },
-        { es = "El corazón apareció: engancho en 25 s (llevo {1} s)", en = "Heart spawned, hooking in 25s ({1}s)", zh = "心脏已出现 等待25秒后勾心脏 (已等 {1} 秒)", nested = false },
+        { es = "El corazón apareció: engancho en 5 s (llevo {1} s)", en = "Heart spawned, hooking in 5s ({1}s)", zh = "心脏已出现 等待5秒后勾心脏 (已等 {1} 秒)", nested = false },
         { es = "Enganche: navego a X+300 del corazón (intento {1})", en = "Hook: sailing to heart X+300 (attempt {1})", zh = "勾心脏 开船前往心脏X+300位置 (第{1}次尝试)", nested = false },
         { es = "Enganche: navegando a X+300 del corazón (dist {1})", en = "Hook: sailing to heart X+300 (dist {1})", zh = "勾心脏 开船前往心脏X+300 (距离 {1})", nested = false },
         { es = "Volviendo a Tiki: corazón a {1} del barco, cancelo", en = "Returning, heart {1} from boat, aborting", zh = "回Tiki 心脏离船 {1} 中断航程", nested = false },
@@ -2847,6 +2847,12 @@ local function FightLeviathan(ShouldBreak, WaitSec)
         if not Character or not HRP or not HD or HD.Health <= 0 then
             break
         end
+        local HeartMap = workspace:FindFirstChild("Map")
+        if HeartMap and HeartMap:FindFirstChild("FrozenHeart") then
+            Killed = true
+            SetStatus("Corazón detectado: continúo con el enganche")
+            break
+        end
         local _, _, humNow = GetCharacterParts()
         if humNow and (humNow.Sit or humNow.SeatPart ~= nil) then
             SetStatus("Pelea a pie: comprobando salir del asiento")
@@ -4230,15 +4236,15 @@ local function CaptainHuntPhase()
     while _G.AutoLeviathanFull and os.clock() - HeartStart < 900 do
         local Map = workspace:FindFirstChild("Map")
         if Map and Map:FindFirstChild("FrozenHeart") then
-            SetStatus("El corazón apareció: engancho en 20 s")
+            SetStatus("El corazón apareció: engancho en 5 s")
             break
         end
         SetStatus("Esperando a que aparezca el corazón (llevo " .. math.floor(os.clock() - HeartStart) .. " s)")
         task.wait(1)
     end
     local PostHeartStart = os.clock()
-    while _G.AutoLeviathanFull and os.clock() - PostHeartStart < 25 do
-        SetStatus("El corazón apareció: engancho en 25 s (llevo " .. math.floor(os.clock() - PostHeartStart) .. " s)")
+    while _G.AutoLeviathanFull and os.clock() - PostHeartStart < 5 do
+        SetStatus("El corazón apareció: engancho en 5 s (llevo " .. math.floor(os.clock() - PostHeartStart) .. " s)")
         task.wait(0.5)
     end
     HeartFinishPhase()
