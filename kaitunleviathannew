@@ -1884,6 +1884,43 @@ local function GetOwnBoat(includeDead)
     end
     return nil
 end
+-- Busca el barco propio más cercano SIN el límite de BoatFindRange, para
+-- poder ir a por él cuando se quedó lejos. Si el barco está dentro del rango
+-- deja que GetOwnBoat haga su trabajo (y su marcado de abandonado); si está
+-- más lejos, lo devuelve igualmente y limpia el marcado, porque al ir a su
+-- lado vuelve a ser utilizable (si no, GetOwnBoat seguiría devolviendo nil
+-- tras el teletransporte y no se podría enganchar el corazón).
+local function FindOwnBoatNearest()
+    if GetOwnBoat() then
+        return GetOwnBoat()
+    end
+    local boats = workspace:FindFirstChild("Boats")
+    if not boats then
+        return nil
+    end
+    local _, hrp = GetCharacterParts()
+    if not hrp then
+        return nil
+    end
+    local myPos = hrp.Position
+    local best, bestDist = nil, nil
+    for _, boat in ipairs(boats:GetChildren()) do
+        if IsBeastHunterBoat(boat) and BoatOwnerMatch(boat, LocalPlayer) and not IsBoatDead(boat) then
+            local seat = boat:FindFirstChild("VehicleSeat") or boat.PrimaryPart
+                or boat:FindFirstChildWhichIsA("BasePart", true)
+            if seat then
+                local d = (seat.Position - myPos).Magnitude
+                if bestDist == nil or d < bestDist then
+                    best, bestDist = boat, d
+                end
+            end
+        end
+    end
+    if best then
+        _G.RJR_AbandonedBoats[best] = nil
+    end
+    return best
+end
 local function GetCaptainBoat()
     local boats = workspace:FindFirstChild("Boats")
     if not boats then
@@ -3403,7 +3440,58 @@ local function CalculateHarpoonAngles(Harpoon, TargetPos, FireOrigin)
 end
 local function HarpoonHeart()
     local boat = GetOwnBoat()
+    -- El barco puede haberse quedado a más de BoatFindRange (o marcado como
+    -- abandonado). Antes se salía sin enganchar nada; ahora se busca el barco
+    -- propio más cercano, se vuela hasta él y se sigue con el enganche.
     if not boat then
+        local NearestBoat, NearestSeat = FindOwnBoatNearest()
+        if NearestBoat then
+            local _, _, humNB = GetCharacterParts()
+            if humNB and (humNB.Sit or humNB.SeatPart ~= nil) then
+                pcall(Unseat)
+            end
+            local GoStart = os.clock()
+            while _G.AutoLeviathanFull and os.clock() - GoStart < 60 do
+                local _, hrpB = GetCharacterParts()
+                if not hrpB then
+                    break
+                end
+                NearestSeat = NearestBoat:FindFirstChild("VehicleSeat")
+                    or NearestBoat.PrimaryPart
+                    or NearestBoat:FindFirstChildWhichIsA("BasePart", true)
+                if not NearestSeat then
+                    break
+                end
+                -- La meta se recalcula en vivo: el barco puede seguir moviéndose
+                _tp(function()
+                    local s = NearestBoat:FindFirstChild("VehicleSeat")
+                        or NearestBoat.PrimaryPart
+                        or NearestBoat:FindFirstChildWhichIsA("BasePart", true)
+                    if not s then
+                        return nil
+                    end
+                    local _, h = GetCharacterParts()
+                    if not h then
+                        return nil
+                    end
+                    -- Se fija la altura actual: así aunque el barco vaya por
+                    -- debajo no se vuela hasta el fondo del mar
+                    local p = s.Position
+                    return CFrame.new(p.X, h.Position.Y, p.Z)
+                end, function()
+                    local _, h = GetCharacterParts()
+                    if not h or not NearestSeat or not NearestSeat.Parent then
+                        return true
+                    end
+                    return (NearestSeat.Position - h.Position).Magnitude <= 40
+                end)
+                task.wait(0.1)
+            end
+            boat = GetOwnBoat() or (NearestBoat.Parent and NearestBoat or nil)
+        end
+    end
+    if not boat then
+        SetStatus("Enganche fallido: no encuentro ningún barco propio")
         return false
     end
     local DriverSeat = boat:FindFirstChild("VehicleSeat")
@@ -4255,7 +4343,11 @@ local function HeartFloat(stopCheck, stopAfter)
     return false
 end
 local function HeartFinishPhase()
-    if _G.AutoLeviathanFull and not GetOwnBoat() then
+    -- Si el barco existe pero se quedó lejos, GetOwnBoat devuelve nil y antes
+    -- se iba a comprar otro: el servidor lo rechaza (ya tienes barco) y se
+    -- perdían 30 s. Se busca primero el barco propio más cercano.
+    local BoatNow = FindOwnBoatNearest()
+    if _G.AutoLeviathanFull and not BoatNow then
         BuyOwnBoat("Corazón presente y sin barco: voy a comprar uno")
         local BoatWaitStart = os.clock()
         while _G.AutoLeviathanFull and not _G.RJR_Resetting and os.clock() - BoatWaitStart < 30 do
