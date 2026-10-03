@@ -2801,14 +2801,19 @@ local function Leviathan_Stand(model, part)
     return FaceTargetCF(standPos, model) or CFrame.new(standPos)
 end
 local LeviathanWaitDone = false
+local LeviathanPartsAt = nil
 task.spawn(function()
     local LastSeenAt = os.clock()
     while true do
         task.wait(0.5)
         if Leviathan_Find() then
             LastSeenAt = os.clock()
+            if not LeviathanPartsAt then
+                LeviathanPartsAt = LastSeenAt
+            end
         elseif os.clock() - LastSeenAt > 15 then
             LeviathanWaitDone = false
+            LeviathanPartsAt = nil
         end
     end
 end)
@@ -2819,21 +2824,17 @@ local function FightLeviathan(ShouldBreak, WaitSec)
     end
     if not LeviathanWaitDone then
         WaitSec = WaitSec or 10
-        local WaitStart = os.clock()
-        local Completed = true
-        while _G.AutoLeviathanFull and os.clock() - WaitStart < WaitSec do
+        local Since = LeviathanPartsAt or os.clock()
+        local Aborted = false
+        while _G.AutoLeviathanFull and os.clock() - Since < WaitSec do
             if ShouldBreak and ShouldBreak() then
-                Completed = false
+                Aborted = true
                 break
             end
-            if not Leviathan_Find() then
-                Completed = false
-                break
-            end
-            SetStatus("El Leviathan apareció: ataco en " .. string.format("%.1f", WaitSec - (os.clock() - WaitStart)) .. " s")
+            SetStatus("El Leviathan apareció: ataco en " .. string.format("%.1f", WaitSec - (os.clock() - Since)) .. " s")
             task.wait(0.2)
         end
-        LeviathanWaitDone = Completed
+        LeviathanWaitDone = not Aborted
     end
     local Killed = false
     local start = os.clock()
@@ -4477,7 +4478,7 @@ local function StartFollower()
                         end
                     end
                     LastLeviathanSeen = os.clock()
-                    SeaAPI.FightLeviathan(CaptainBackOnBoat, 10)
+                    SeaAPI.FightLeviathan(CaptainBackOnBoat, 8)
                     return
                 end
                 if boat and CaptainOn then
