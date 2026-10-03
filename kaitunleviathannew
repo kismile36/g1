@@ -1551,19 +1551,18 @@ local function GetHeartPos(Heart)
     end
     return nil
 end
-local HeartHookY = 110
-local function IsHeartHooked(Heart)
-    local Map = workspace:FindFirstChild("Map")
-    local H = Heart or (Map and Map:FindFirstChild("FrozenHeart"))
-    if not H then
-        return false
+local function IsFrozenHeartHarpooned()
+    local mapFolder = game:GetService("Workspace"):FindFirstChild("Map")
+    if mapFolder then
+        local frozenHeart = mapFolder:FindFirstChild("FrozenHeart")
+        if frozenHeart then
+            local inside = frozenHeart:FindFirstChild("Inside")
+            if inside then
+                return inside:GetAttribute("Harpooned") or false
+            end
+        end
     end
-    local Inside = H:FindFirstChild("Inside")
-    if Inside and Inside:GetAttribute("Harpooned") then
-        return true
-    end
-    local P = GetHeartPos(H)
-    return P ~= nil and P.Y < HeartHookY
+    return false
 end
 local function Leviathan_CommF()
     local CommF2 = CommF
@@ -3264,7 +3263,7 @@ local function HarpoonHeart()
         SetStatus("Enganche fallido: no hay corazón")
         return false
     end
-    if IsHeartHooked(Heart) then
+    if IsFrozenHeartHarpooned() then
         SetStatus("Corazón enganchado (Y=" .. string.format("%.0f", HeartPos.Y) .. ")")
         return true
     end
@@ -3287,7 +3286,7 @@ local function HarpoonHeart()
         if not CurrentHeart or not CurrentHeartPos then
             break
         end
-        if IsHeartHooked(CurrentHeart) then
+        if IsFrozenHeartHarpooned() then
             SetStatus("Corazón enganchado (Y=" .. string.format("%.0f", CurrentHeartPos.Y) .. ")")
             break
         end
@@ -3404,7 +3403,7 @@ local function HarpoonHeart()
                 SetStatus("Enganche: el corazón desapareció")
                 break
             end
-            if IsHeartHooked(Heart3) then
+            if IsFrozenHeartHarpooned() then
                 SetStatus("Corazón enganchado (Y=" .. string.format("%.0f", HeartPos3.Y) .. ")")
                 GrabbedNow = true
                 break
@@ -3425,7 +3424,7 @@ local function HarpoonHeart()
     local MapFinal = workspace:FindFirstChild("Map")
     local HeartFinal = MapFinal and MapFinal:FindFirstChild("FrozenHeart")
     local HeartPosFinal = HeartFinal and GetHeartPos(HeartFinal)
-    if HeartPosFinal and IsHeartHooked(HeartFinal) then
+    if HeartPosFinal and IsFrozenHeartHarpooned() then
         SetStatus("¡Corazón enganchado!")
         return true
     end
@@ -4428,7 +4427,7 @@ local function StartFollower()
                 local Map = workspace:FindFirstChild("Map")
                 local Heart = Map and Map:FindFirstChild("FrozenHeart")
                 local HeartPos = Heart and GetHeartPos(Heart)
-                local HeartGrabbed = HeartPos ~= nil and IsHeartHooked(Heart)
+                local HeartGrabbed = HeartPos ~= nil and IsFrozenHeartHarpooned()
                 if Heart then
                     FollowerHeartWait()
                     return
@@ -4636,7 +4635,7 @@ local function GetTargetStatus()
     local Heart = Map2 and Map2:FindFirstChild("FrozenHeart")
     if Heart then
         local P = GetHeartPos(Heart)
-        if P and IsHeartHooked(Heart) then
+        if P and IsFrozenHeartHarpooned() then
             lines[#lines + 1] = T("target.heart") .. ": " .. T("target.hooked")
         else
             lines[#lines + 1] = T("target.heart") .. ": " .. T("target.spawned")
@@ -4688,7 +4687,7 @@ local function BuildInfoUIContent()
     local Heart = Map and Map:FindFirstChild("FrozenHeart")
     if Heart then
         local P = GetHeartPos(Heart)
-        if P and IsHeartHooked(Heart) then
+        if P and IsFrozenHeartHarpooned() then
             lines[#lines + 1] = T("target.heart") .. ": " .. T("target.hooked")
         else
             lines[#lines + 1] = T("target.heart") .. ": " .. T("target.spawned")
@@ -6543,7 +6542,7 @@ do
                         local Map = workspace:FindFirstChild("Map")
                         local Heart = Map and Map:FindFirstChild("FrozenHeart")
                         local HP = Heart and GetHeartPos(Heart)
-                        local Got = HP ~= nil and IsHeartHooked(Heart)
+                        local Got = HP ~= nil and IsFrozenHeartHarpooned()
                         if Got and not PrevHeartGot then
                             SendWebhookUI(T("wh.msg.heartgot"), T("wh.title.heartgot"))
                         end
