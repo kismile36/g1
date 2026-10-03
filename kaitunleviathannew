@@ -2900,12 +2900,41 @@ local function Leviathan_Stand(model, part)
     local standPos = Vector3.new(Root.Position.X, Root.Position.Y + 75, Root.Position.Z)
     return FaceTargetCF(standPos, model) or CFrame.new(standPos)
 end
--- Igual que el script de referencia: NADA de espera al aparecer el Leviathan,
--- el objetivo se recalcula cada ciclo y no hay tope de tiempo de pelea.
-local function FightLeviathan(ShouldBreak)
+-- Igual que el script de referencia: el objetivo se recalcula cada ciclo y no
+-- hay tope de tiempo de pelea. Solo se espera WaitSec la primera vez de cada
+-- aparición (capitán 5 s / seguidor 7 s).
+local LeviathanWaitDone = false
+local function FightLeviathan(ShouldBreak, WaitSec)
     local model, part = Leviathan_Find()
     if not model then
         return false
+    end
+    if not LeviathanWaitDone and WaitSec then
+        local WaitStart = os.clock()
+        local WaitInterrupted = false
+        while _G.AutoLeviathanFull and os.clock() - WaitStart < WaitSec do
+            if ShouldBreak and ShouldBreak() then
+                WaitInterrupted = true
+                break
+            end
+            local WaitModel = Leviathan_Find()
+            if not WaitModel or Leviathan_IsDead(WaitModel) then
+                -- Se fue o murió durante la espera: la próxima vez se vuelve
+                -- a esperar (a diferencia de "ya peleé contra este").
+                LeviathanWaitDone = false
+                SetStatus("El Leviathan se fue durante la espera")
+                return false
+            end
+            SetStatus("El Leviathan apareció: ataco en "
+                .. string.format("%.1f", WaitSec - (os.clock() - WaitStart)) .. " s")
+            task.wait(0.2)
+        end
+        if not WaitInterrupted then
+            LeviathanWaitDone = true
+        end
+        if not _G.AutoLeviathanFull then
+            return false
+        end
     end
     local Killed = false
     local LastFind = 0
@@ -3023,6 +3052,10 @@ local function FightLeviathan(ShouldBreak)
     AttackModel = nil
     AttackStandFn = nil
     FightTarget = nil
+    if Killed then
+        -- Leviathan derrotado: la próxima aparición vuelve a esperar.
+        LeviathanWaitDone = false
+    end
     return Killed
 end
 SeaAPI.Sea_Mob = Sea_Mob
@@ -4391,7 +4424,8 @@ local function CaptainHuntPhase()
         return
     end
     OpenLeviathanGate()
-    local Killed = SeaAPI.FightLeviathan(nil)
+    -- Capitán: 5 s de espera antes de atacar
+    local Killed = SeaAPI.FightLeviathan(nil, 5)
     if not Killed then
         SetStatus("Leviathan no derrotado: reinicio")
         return
@@ -4632,7 +4666,8 @@ local function StartFollower()
                         end
                     end
                     LastLeviathanSeen = os.clock()
-                    SeaAPI.FightLeviathan(CaptainBackOnBoat)
+                    -- Seguidor: 7 s de espera antes de atacar
+                    SeaAPI.FightLeviathan(CaptainBackOnBoat, 7)
                     return
                 end
                 if boat and CaptainOn then
