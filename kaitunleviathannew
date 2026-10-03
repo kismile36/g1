@@ -2939,7 +2939,7 @@ local function Leviathan_Stand(model, part)
 end
 -- Igual que el script de referencia: el objetivo se recalcula cada ciclo y no
 -- hay tope de tiempo de pelea. Solo se espera WaitSec la primera vez de cada
--- aparición (capitán 5 s / seguidor 7 s).
+-- aparición (capitán 8 s / seguidor 10 s).
 local LeviathanWaitDone = false
 local function FightLeviathan(ShouldBreak, WaitSec)
     local model, part = Leviathan_Find()
@@ -4579,8 +4579,8 @@ local function CaptainHuntPhase()
         return
     end
     OpenLeviathanGate()
-    -- Capitán: 5 s de espera antes de atacar
-    local Killed = SeaAPI.FightLeviathan(nil, 5)
+    -- Capitán: 8 s de espera antes de atacar
+    local Killed = SeaAPI.FightLeviathan(nil, 8)
     if not Killed then
         SetStatus("Leviathan no derrotado: reinicio")
         return
@@ -4810,8 +4810,8 @@ local function StartFollower()
                         end
                     end
                     LastLeviathanSeen = os.clock()
-                    -- Seguidor: 7 s de espera antes de atacar
-                    SeaAPI.FightLeviathan(CaptainBackOnBoat, 7)
+                    -- Seguidor: 10 s de espera antes de atacar
+                    SeaAPI.FightLeviathan(CaptainBackOnBoat, 10)
                     return
                 end
                 if boat and CaptainOn then
