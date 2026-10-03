@@ -3116,19 +3116,9 @@ _G.RJR_ResetCharacterAtTiki = function(reason)
         SetStatus(reason .. ": estoy a " .. math.floor(DealerDist)
             .. " del vendedor, voy andando a comprar")
         _G.RJR_Resetting = false
-        -- El barco viejo puede seguir existiendo en el servidor (solo lo
-        -- marcamos como abandonado), y en ese caso BuyBoat lo rechazaría.
-        -- Si está hundido o ya lo perdí de vista, lo libero antes de comprar
-        -- (mismo criterio que el script de referencia con thuyenCu:Destroy()).
-        for _, boat in ipairs(OwnedBoatsOf(LocalPlayer)) do
-            _G.RJR_AbandonedBoats[boat] = true
-            if IsBoatDead(boat) or boat.Parent == nil then
-                pcall(function()
-                    boat:Destroy()
-                end)
-                print("[Leviathan] Barco viejo liberado antes de recomprar: " .. boat.Name)
-            end
-        end
+        -- No se destruye el barco viejo: el servidor es quien lo libera.
+        -- Si sigue existiendo, OwnBoatUnusable bloquea la compra y esperamos
+        -- al reinicio, igual que hacía el script original.
         pcall(Unseat)
         BuyOwnBoat(reason .. ": comprando barco en el sitio")
         return false
