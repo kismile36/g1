@@ -371,8 +371,8 @@ TranslateStatus, SetStatus = (function(LanguageCode)
         ["No pude bajarme: reintento"] = { en = "Unseat failed, retrying", zh = "下船失败 回主循环重试" },
         ["Leviathan no derrotado: reinicio"] = { en = "Leviathan not defeated, restarting", zh = "利维坦未击败 重新开始" },
         ["Leviathan derrotado"] = { en = "Leviathan defeated", zh = "利维坦已击败" },
-        ["El corazón apareció: engancho en 20 s"] = { en = "Heart spawned, hooking in 20s", zh = "心脏已出现 等待20秒后再勾" },
-        ["Corazón detectado: continúo con el enganche"] = { en = "Heart detected, continuing hook", zh = "检测到心脏 继续勾心脏流程" },
+        ["El corazón apareció: floto encima y engancho en 5 s"] = { en = "Heart spawned, floating above and hooking in 5s", zh = "心脏已出现 悬浮在上方 等待5秒后勾" },
+        ["Corazón detectado: floto encima y continúo con el enganche"] = { en = "Heart detected, floating above and continuing hook", zh = "检测到心脏 悬浮在上方 继续勾心脏" },
         ["Esperando el estado del soborno (no disponible)"] = { en = "Could not get bribe status", zh = "等待贿赂状态 无法获取" },
         ["Leviathan detectado: voy a cazarlo"] = { en = "Leviathan detected, hunting", zh = "检测到利维坦 直接猎杀" },
         ["Soborno completado: empiezo la caza del Leviathan"] = { en = "Bribe done, hunting Leviathan", zh = "贿赂完毕 开始猎杀利维坦" },
@@ -416,7 +416,7 @@ TranslateStatus, SetStatus = (function(LanguageCode)
         { es = "Compañero lejos, recompra en espera: aguardo ({1} s)", en = "Teammate far, rebuy on cooldown, waiting ({1}s)", zh = "最近队员过远 重买冷却中 等待队友 ({1} 秒)", nested = false },
         { es = "Esperando a que el corazón desaparezca (llevo {1} s)", en = "Waiting for heart to vanish ({1}s)", zh = "等待心脏消失 (已等 {1} 秒)", nested = false },
         { es = "[Auto Leviathan] Soborno disponible - progreso {1}/5", en = "[Auto Leviathan] Bribe ready - progress {1}/5", zh = "[Auto Leviathan] 贿赂CD已好 进度 {1}/5", nested = false },
-        { es = "El corazón apareció: engancho en 25 s (llevo {1} s)", en = "Heart spawned, hooking in 25s ({1}s)", zh = "心脏已出现 等待25秒后勾心脏 (已等 {1} 秒)", nested = false },
+        { es = "El corazón apareció: floto encima y engancho en 5 s (llevo {1} s)", en = "Heart spawned, floating above and hooking in 5s ({1}s)", zh = "心脏已出现 悬浮在上方 等待5秒后勾 (已等 {1} 秒)", nested = false },
         { es = "Enganche: navego a X+300 del corazón (intento {1})", en = "Hook: sailing to heart X+300 (attempt {1})", zh = "勾心脏 开船前往心脏X+300位置 (第{1}次尝试)", nested = false },
         { es = "Enganche: navegando a X+300 del corazón (dist {1})", en = "Hook: sailing to heart X+300 (dist {1})", zh = "勾心脏 开船前往心脏X+300 (距离 {1})", nested = false },
         { es = "Volviendo a Tiki: corazón a {1} del barco, cancelo", en = "Returning, heart {1} from boat, aborting", zh = "回Tiki 心脏离船 {1} 中断航程", nested = false },
@@ -4597,7 +4597,7 @@ local function CaptainHuntPhase()
         end
     end
     -- Esperar a que aparezca el corazón (máx. 900 s). En cuanto se ve, el
-    -- capitán sube y se queda flotando encima; los 25 s de margen antes de
+    -- capitán sube y se queda flotando encima; los 5 s de margen antes de
     -- disparar el arpón se cumplen ya flotando.
     local HeartStart = os.clock()
     local HeartSeen = false
@@ -4605,14 +4605,14 @@ local function CaptainHuntPhase()
         local Map = workspace:FindFirstChild("Map")
         if Map and Map:FindFirstChild("FrozenHeart") then
             HeartSeen = true
-            SetStatus("El corazón apareció: floto encima y engancho en 25 s")
+            SetStatus("El corazón apareció: floto encima y engancho en 5 s")
             break
         end
         SetStatus("Esperando a que aparezca el corazón (llevo " .. math.floor(os.clock() - HeartStart) .. " s)")
         task.wait(1)
     end
     if HeartSeen then
-        HeartFloat(nil, 25)
+        HeartFloat(nil, 5)
     end
     HeartFinishPhase()
 end
@@ -4631,8 +4631,8 @@ local function StartCaptain()
                 if Heart then
                     SetStatus("Corazón detectado: floto encima y continúo con el enganche")
                     -- Igual que en CaptainHuntPhase: flota sobre el corazón
-                    -- durante el margen de 25 s antes de disparar el arpón.
-                    HeartFloat(nil, 25)
+                    -- durante el margen de 5 s antes de disparar el arpón.
+                    HeartFloat(nil, 5)
                     HeartFinishPhase()
                     return
                 end
