@@ -1260,6 +1260,12 @@ local function Equip_Auto(Tool)
         end
     end
 end
+local function HasDragonstormEquipped()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local tool = hum and hum:FindFirstChildOfClass("Tool")
+    return tool ~= nil and tool.Name == "Dragonstorm"
+end
 local function Skill_Auto(Key)
     local Code
     if Key == "Space" then
@@ -2953,7 +2959,9 @@ local function FightLeviathan(ShouldBreak, WaitSec)
                 end
                 if _G.DragonGunLeviathan and CheckItem("Dragonstorm") then
                     initDragon()
-                    Equip_Auto("Dragonstorm")
+                    if not HasDragonstormEquipped() then
+                        Equip_Auto("Dragonstorm")
+                    end
                     local target = getClosestSeaTarget()
                     if target then
                         fireShot(target.Position, target)
@@ -4217,7 +4225,7 @@ local function CaptainHuntPhase()
         return
     end
     OpenLeviathanGate()
-    local Killed = SeaAPI.FightLeviathan(nil, 6)
+    local Killed = SeaAPI.FightLeviathan(nil, 8)
     if not Killed then
         SetStatus("Leviathan no derrotado: reinicio")
         return
@@ -4478,7 +4486,7 @@ local function StartFollower()
                         end
                     end
                     LastLeviathanSeen = os.clock()
-                    SeaAPI.FightLeviathan(CaptainBackOnBoat, 8)
+                    SeaAPI.FightLeviathan(CaptainBackOnBoat, 10)
                     return
                 end
                 if boat and CaptainOn then
