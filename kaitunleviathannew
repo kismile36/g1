@@ -2332,6 +2332,78 @@ end
 local SeaAPI = {}
 do
 local Sea_MobStillAlive
+local SEA_EVENT_OPTIONS = {
+    "Shark",
+    "Piranha",
+    "Fish Crew Member",
+    "Terrorshark",
+    "Sea Beast",
+    "Ghost Ship",
+    "Pirate Brigade Ship",
+    "Pirate Grand Brigade Ship",
+    "Pirate Basic Ship",
+}
+local SEA_EVENT_OPTIONS_BY_MOB = {
+    ["Shark"] = "Shark",
+    ["Piranha"] = "Piranha",
+    ["Fish Crew Member"] = "Fish Crew Member",
+    ["Terrorshark"] = "Terrorshark",
+    ["SeaBeast1"] = "Sea Beast",
+    ["FishBoat"] = "Ghost Ship",
+    ["PirateBrigade"] = "Pirate Brigade Ship",
+    ["PirateGrandBrigade"] = "Pirate Grand Brigade Ship",
+    ["PirateBasic"] = "Pirate Basic Ship",
+}
+-- Fluent 的多选值可能是数组 / 字典 / 两者混合(旧值带数组部分时再勾选就变成混合表),
+-- 这里统一成干净的名字数组, 只保留下拉里存在的选项, 避免新增的选择被丢掉
+local function Sea_NormalizeSelection(Value)
+    local Raw = {}
+    if type(Value) == "table" then
+        for _, Name in ipairs(Value) do
+            if type(Name) == "string" and Name ~= "" then
+                Raw[#Raw + 1] = Name
+            end
+        end
+        for Key, Flag in pairs(Value) do
+            if Flag == true and type(Key) == "string" then
+                Raw[#Raw + 1] = Key
+            elseif type(Flag) == "string" and Flag ~= "" then
+                Raw[#Raw + 1] = Flag
+            end
+        end
+    elseif type(Value) == "string" and Value ~= "" then
+        Raw[1] = Value
+    end
+    local Seen, Out = {}, {}
+    for _, Name in ipairs(Raw) do
+        if not Seen[Name] and table.find(SEA_EVENT_OPTIONS, Name) then
+            Seen[Name] = true
+            Out[#Out + 1] = Name
+        end
+    end
+    return Out
+end
+-- 返回 nil 表示不筛选(空选择 = 全部事件)
+local function Sea_SelectionSet()
+    local Clean = Sea_NormalizeSelection(_G.HuntSelectEvents)
+    if #Clean == 0 then
+        return nil
+    end
+    local Set = {}
+    for _, Name in ipairs(Clean) do
+        Set[Name] = true
+    end
+    return Set
+end
+-- 下拉里没有的海上怪(例如 Haunted Crew Member)不受筛选影响
+local function Sea_SelectionAllows(MobName)
+    local Option = SEA_EVENT_OPTIONS_BY_MOB[MobName]
+    if not Option then
+        return true
+    end
+    local Set = Sea_SelectionSet()
+    return Set == nil or Set[Option] == true
+end
 local function Sea_Mob(MaxDistance, Exclude)
     MaxDistance = MaxDistance or 1500
     local Enemies = workspace:FindFirstChild("Enemies")
@@ -2347,11 +2419,10 @@ local function Sea_Mob(MaxDistance, Exclude)
         {Name = "PirateBasic", ConfigName = "Pirate Basic Ship", Folder = Enemies, Skill = true},
         {Name = "SeaBeast1", ConfigName = "Sea Beast", Folder = SeaBeasts, Skill = true},
     }
-    local Selected = _G.HuntSelectEvents
-    local HasFilter = type(Selected) == "table" and #Selected > 0
+    local SelectedSet = Sea_SelectionSet()
+    local Best, BestRoot, BestSkill, BestDist = nil, nil, false, MaxDistance
     for _, Data in ipairs(MobList) do
-        if HasFilter and not table.find(Selected, Data.ConfigName) then
-        elseif Data.Folder then
+        if not (SelectedSet and not SelectedSet[Data.ConfigName]) and Data.Folder then
             for _, Mob in ipairs(Data.Folder:GetChildren()) do
                 if Mob.Name == Data.Name and not (Exclude and Exclude[Mob]) then
                     local Alive = Sea_MobStillAlive(Mob)
@@ -2360,15 +2431,17 @@ local function Sea_Mob(MaxDistance, Exclude)
                         or Mob.PrimaryPart
                         or Mob:FindFirstChild("Head")
                         or Mob:FindFirstChildWhichIsA("BasePart", true)
-                    if Alive and Root and Root.Position and HRP
-                    and (Root.Position - HRP.Position).Magnitude <= MaxDistance then
-                        return Mob, Root, Data.Skill == true
+                    if Alive and Root and Root.Position and HRP then
+                        local Dist = (Root.Position - HRP.Position).Magnitude
+                        if Dist < BestDist then
+                            Best, BestRoot, BestSkill, BestDist = Mob, Root, Data.Skill == true, Dist
+                        end
                     end
                 end
             end
         end
     end
-    return nil, nil, false
+    return Best, BestRoot, BestSkill
 end
 Sea_MobStillAlive = function(Mob)
     if not Mob or not Mob.Parent then
@@ -2584,7 +2657,8 @@ local function getClosestSeaTarget()
     local enemies = workspace:FindFirstChild("Enemies")
     if enemies then
         for _, e in ipairs(enemies:GetChildren()) do
-            if table.find(VALID_SEA_ENEMIES, e.Name) and not playerBoats[e.Name] then
+            if table.find(VALID_SEA_ENEMIES, e.Name) and not playerBoats[e.Name]
+            and Sea_SelectionAllows(e.Name) then
                 local engine = e:FindFirstChild("Engine")
                 local isBoat = engine and e:FindFirstChild("VehicleSeat")
                 if isBoat then
@@ -2996,6 +3070,26 @@ SeaAPI.Leviathan_Find = Leviathan_Find
 SeaAPI.Leviathan_SegmentsExist = Leviathan_SegmentsExist
 SeaAPI.Leviathan_Stand = Leviathan_Stand
 SeaAPI.FightLeviathan = FightLeviathan
+SeaAPI.SeaEventOptions = SEA_EVENT_OPTIONS
+SeaAPI.NormalizeSelection = Sea_NormalizeSelection
+do
+    -- 启动时把配置里的选择归一化: 旧格式(字典/混合表)或写错的名字都不会再把筛选弄坏
+    local RawSelection = _G.HuntSelectEvents
+    local CleanSelection = Sea_NormalizeSelection(RawSelection)
+    local Dirty = type(RawSelection) ~= "table" or #RawSelection ~= #CleanSelection
+    if not Dirty then
+        for Index, Name in ipairs(CleanSelection) do
+            if RawSelection[Index] ~= Name then
+                Dirty = true
+                break
+            end
+        end
+    end
+    if Dirty then
+        _G.HuntSelectEvents = CleanSelection
+        SaveConfig()
+    end
+end
 end
 _G.RJR_BoatDeadArmed = true
 _G.RJR_BoatDeadMonitorRunning = false
@@ -4549,7 +4643,10 @@ local function StartFollower()
                             end)
                         end
                     else
-                        local Mob, Root, Skill = SeaAPI.Sea_Mob(5000)
+                        local Mob, Root, Skill = nil, nil, false
+                        if _G.HuntFightEvents then
+                            Mob, Root, Skill = SeaAPI.Sea_Mob(5000)
+                        end
                         if Mob and Root then
                             SeaAPI.FightSeaEvent(Mob, Root, Skill, CaptainBackOnBoat)
                         else
@@ -5550,8 +5647,6 @@ task.spawn(function()
     end
 end)
 local playerListLocked = false
-local huntFightLocked = false
-local huntSelectLocked = false
 local rjrAutoFullLocked = false
 local SuppressModeNotify = false
 local LastLockNotice = 0
@@ -5574,8 +5669,6 @@ end
 local function UpdateModeLocks()
     local isCaptain = _G.Mode == "Capitán"
     playerListLocked = isCaptain
-    huntFightLocked = not isCaptain
-    huntSelectLocked = not isCaptain
 end
 local ModeSection = Tabs.Status:AddSection(T("sec.mode"))
 SectionKeys[#SectionKeys + 1] = { element = ModeSection, key = "sec.mode" }
@@ -6006,45 +6099,21 @@ do
             if SuppressLockCallback then
                 return
             end
-            if huntFightLocked then
-                NotifyLocked("notify.locked.hunt")
-                RevertLockedOption(Fluent.Options["hunt.events"], _G.HuntFightEvents)
-                return
-            end
-            _G.HuntFightEvents = State
+            _G.HuntFightEvents = State and true or false
             SaveConfig()
         end,
     })
     HuntSection:AddDropdown("hunt.select.events", {
         Title = T("hunt.select.events"),
         Description = T("hunt.select.events.desc"),
-        Values = {
-            "Shark",
-            "Piranha",
-            "Fish Crew Member",
-            "Terrorshark",
-            "Sea Beast",
-            "Ghost Ship",
-            "Pirate Brigade Ship",
-            "Pirate Grand Brigade Ship",
-            "Pirate Basic Ship",
-        },
+        Values = SeaAPI.SeaEventOptions,
         Default = ArrayCopy(_G.HuntSelectEvents),
         Multi = true,
         Callback = function(Value)
             if SuppressLockCallback then
                 return
             end
-            if huntSelectLocked then
-                NotifyLocked("notify.locked.hunt")
-                local selection = {}
-                for _, name in ipairs(CheckSkillTable(_G.HuntSelectEvents)) do
-                    selection[name] = true
-                end
-                RevertLockedOption(Fluent.Options["hunt.select.events"], selection)
-                return
-            end
-            _G.HuntSelectEvents = CheckSkillTable(Value)
+            _G.HuntSelectEvents = SeaAPI.NormalizeSelection(Value)
             SaveConfig()
         end,
     })
