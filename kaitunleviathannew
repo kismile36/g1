@@ -6623,12 +6623,12 @@ end
 do
     Tabs.Announce:AddParagraph({
         Title = T("ann.dc"),
-        Content = "https://discord.gg/862SZpM7Qk",
+        Content = "https://discord.gg/rjrhub",
     })
     local CopyButton = Tabs.Announce:AddButton({
         Title = T("ann.copy"),
         Callback = function()
-            pcall(setclipboard, "https://discord.gg/862SZpM7Qk")
+            pcall(setclipboard, "https://discord.gg/rjrhub")
             SendNotify(T("notify.title"), T("ann.copied"))
         end,
     })
