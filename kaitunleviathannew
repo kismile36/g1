@@ -56,7 +56,7 @@ T, ModeDisplay = (function()
         ["auto.fast.desc"] = { en = "Enables Fast Mode and reduces map materials", es = "Activa el modo rápido del juego y reduce los materiales del mapa", zh = "启用游戏快速模式并降低地图材质" },
         ["auto.full"] = { en = "Auto Leviathan Full", es = "Leviathan automático completo", zh = "全自动利维坦" },
         ["auto.ken"] = { en = "Auto Ken (Observation)", es = "Ken automático (Observacion)", zh = "自动见闻色 (Ken)" },
-        ["auto.ken.desc"] = { en = "Auto-enables Observation Haki every 5s", es = "Activa la Observacion cada 5 segundos", zh = "每5秒自动开启见闻色霸气" },
+        ["auto.ken.desc"] = { en = "Keeps Observation (Ken) on: presses the key, checks the game state and retries with the remote if needed", es = "Mantiene la Observacion (Ken) activa: pulsa la tecla, comprueba el estado y reintenta con el remote si hace falta", zh = "保持见闻色开启：先按键，用游戏状态确认，必要时改用 remote 重试" },
         ["auto.v3"] = { en = "Auto V3", es = "V3 automático", zh = "自动 V3" },
         ["auto.v3.desc"] = { en = "Auto activate race V3", es = "Activa la habilidad V3 de la raza", zh = "自动开启种族 V3" },
         ["auto.v4"] = { en = "Auto V4", es = "V4 automático", zh = "自动 V4" },
@@ -118,6 +118,11 @@ T, ModeDisplay = (function()
         ["hunt.select.events.desc"] = { en = "Only fight selected events, skip others (empty = all)", es = "Solo ataca los eventos marcados; el resto los ignora (vacio = todos)", zh = "只攻击选择的事件，未选择的不攻击继续开船（不选=全部）" },
         ["info.ui"] = { en = "Info Display UI", es = "Panel de información", zh = "信息显示 UI" },
         ["info.ui.desc"] = { en = "Show live info overlay at top", es = "Muestra un panel con información en vivo en pantalla", zh = "开启后屏幕顶部生成实时信息浮层" },
+        ["ken.status"] = { en = "Observation (Ken)", es = "Observacion (Ken)", zh = "见闻色 (Ken)" },
+        ["ken.status.fail"] = { en = "Could not enable (no uses left or not unlocked)", es = "No se pudo activar (sin usos o sin desbloquear)", zh = "无法开启（次数用尽或未解锁）" },
+        ["ken.status.off"] = { en = "Off", es = "Desactivado", zh = "未开启" },
+        ["ken.status.on"] = { en = "Active", es = "Activo", zh = "已开启" },
+        ["ken.status.trying"] = { en = "Enabling...", es = "Activando...", zh = "正在开启..." },
         ["language"] = { en = "Language", es = "Idioma", zh = "语言" },
         ["language.desc"] = { en = "Interface language, applied instantly", es = "Idioma de la interfaz, se aplica al instante", zh = "界面语言，立即生效" },
         ["menu.keybind"] = { en = "Menu Keybind", es = "Tecla del menu", zh = "菜单快捷键" },
@@ -152,8 +157,8 @@ T, ModeDisplay = (function()
         ["sec.team"] = { en = "Teammates", es = "Compañeros", zh = "队友" },
         ["sec.travel"] = { en = "Travel Settings", es = "Ajustes de navegación", zh = "航行设置" },
         ["sel.weapon"] = { en = "Select Weapon", es = "Seleccionar arma", zh = "选择武器" },
-        ["silent.aim"] = { en = "Silent aim (skills)", es = "Apuntado asistido (silent aim)", zh = "静默瞄准（技能）" },
-        ["silent.aim.desc"] = { en = "Skills are aimed at the current mob or Leviathan, ignoring camera and mouse", es = "Las habilidades apuntan al mob o al Leviathan, ignorando camara y raton", zh = "技能自动瞄准当前怪物或利维坦，忽略视角和鼠标" },
+        ["silent.aim"] = { en = "Silent aim (skills and shots)", es = "Aim assist (skills y disparos)", zh = "静默瞄准（技能与射击）" },
+        ["silent.aim.desc"] = { en = "Skills and gun shots are aimed at the current mob or Leviathan by rewriting the game remotes and the mouse module, without moving the camera", es = "Las habilidades y los disparos apuntan al mob o al Leviathan reescribiendo los remotes y el modulo del raton, sin mover la camara", zh = "技能和射击自动对准当前怪物或利维坦，改写游戏 remote 与鼠标模块，不移动视角" },
         ["skill.fruit"] = { en = "Skill Keys Fruit", es = "Teclas de habilidad (fruta)", zh = "技能按键 Fruit" },
         ["skill.gun"] = { en = "Skill Keys Gun", es = "Teclas de habilidad (pistola)", zh = "技能按键 Gun" },
         ["skill.melee"] = { en = "Skill Keys Melee", es = "Teclas de habilidad (puños)", zh = "技能按键 Melee" },
@@ -1274,6 +1279,7 @@ local function HasDragonstormEquipped()
     local tool = hum and hum:FindFirstChildOfClass("Tool")
     return tool ~= nil and tool.Name == "Dragonstorm"
 end
+local RJR_AimBegin, RJR_AimEndSoon
 local function Skill_Auto(Key)
     local Code
     if Key == "Space" then
@@ -1284,9 +1290,15 @@ local function Skill_Auto(Key)
     if not Code then
         return
     end
+    if RJR_AimBegin then
+        RJR_AimBegin()
+    end
     VirtualInputManager:SendKeyEvent(true, Code, false, game)
     task.wait(0.1)
     VirtualInputManager:SendKeyEvent(false, Code, false, game)
+    if RJR_AimEndSoon then
+        RJR_AimEndSoon(0.6)
+    end
 end
 local function CoolDown_Chack(Cooldown)
     if LocalPlayer.Data.Race == "Ghoul"
@@ -1899,26 +1911,97 @@ local function LiveFixedCF(cf)
         return cf
     end
 end
-_G.RJR_KenLoopGen = 0
-_G.RJR_StartKenLoop = function()
-    _G.RJR_KenLoopGen = _G.RJR_KenLoopGen + 1
-    local myGen = _G.RJR_KenLoopGen
-    task.spawn(function()
-        while _G.RJR_KenLoopGen == myGen do
-            task.wait(5)
-            if _G.AutoKen then
-                pcall(function()
-                    local Remotes = RS:FindFirstChild("Remotes")
-                    local CommE2 = Remotes and Remotes:FindFirstChild("CommE")
-                    if CommE2 then
-                        CommE2:FireServer("Ken", true)
-                    end
-                end)
-            end
+do
+    local KenStatusKey, KenDetail = "ken.status.off", ""
+    _G.RJR_KenStatus = function()
+        return KenStatusKey, KenDetail
+    end
+    local function KenChar()
+        local char = LocalPlayer.Character
+        if not char or not char.Parent then
+            return nil
         end
-    end)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then
+            return nil
+        end
+        return char
+    end
+    local function KenActive(char)
+        local okTag, tagged = pcall(function()
+            return game:GetService("CollectionService"):HasTag(char, "Ken")
+        end)
+        if okTag and tagged then
+            return true
+        end
+        local blur = game:GetService("Lighting"):FindFirstChild("Blur")
+        if blur and blur.Enabled then
+            return true
+        end
+        local left = tonumber(char:GetAttribute("KenDodgesLeft"))
+        return left ~= nil and left > 0
+    end
+    local function KenDodges(char)
+        local left = tonumber(char:GetAttribute("KenDodgesLeft"))
+        local max = tonumber(char:GetAttribute("KenMaxDodges"))
+        if left and max then
+            return " (" .. left .. "/" .. max .. ")"
+        end
+        return ""
+    end
+    local function KenPressKey()
+        local code = Enum.KeyCode.E
+        VirtualInputManager:SendKeyEvent(true, code, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, code, false, game)
+    end
+    local function KenFireRemote()
+        local Remotes = RS:FindFirstChild("Remotes")
+        local CommE = Remotes and Remotes:FindFirstChild("CommE")
+        if not CommE then
+            return false
+        end
+        CommE:FireServer("Ken", true)
+        return true
+    end
+    local KenTryStage, KenNextAt = 0, 0
+    _G.RJR_KenLoopGen = 0
+    _G.RJR_StartKenLoop = function()
+        _G.RJR_KenLoopGen = _G.RJR_KenLoopGen + 1
+        local myGen = _G.RJR_KenLoopGen
+        task.spawn(function()
+            while _G.RJR_KenLoopGen == myGen do
+                task.wait(0.5)
+                if not _G.AutoKen then
+                    KenTryStage, KenNextAt = 0, 0
+                    KenStatusKey, KenDetail = "ken.status.off", ""
+                else
+                    local char = KenChar()
+                    if not char then
+                        KenTryStage, KenNextAt = 0, 0
+                    elseif KenActive(char) then
+                        KenTryStage, KenNextAt = 0, 0
+                        KenDetail = KenDodges(char)
+                        KenStatusKey = "ken.status.on"
+                    elseif os.clock() >= KenNextAt then
+                        if KenTryStage == 0 then
+                            KenStatusKey, KenDetail = "ken.status.trying", ""
+                            KenPressKey()
+                            KenTryStage, KenNextAt = 1, os.clock() + 3
+                        elseif KenTryStage == 1 then
+                            KenFireRemote()
+                            KenTryStage, KenNextAt = 2, os.clock() + 3
+                        else
+                            KenStatusKey, KenDetail = "ken.status.fail", ""
+                            KenTryStage, KenNextAt = 0, os.clock() + 30
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    _G.RJR_StartKenLoop()
 end
-_G.RJR_StartKenLoop()
 local function GetCannons(boat)
     local cannons = {}
     if boat then
@@ -2597,8 +2680,14 @@ local function fireShot(pos, hit)
     debug.setupvalue(shootFunc, idx.u24, u24)
     debug.setupvalue(shootFunc, idx.u25, u25)
     debug.setupvalue(shootFunc, idx.u26, u26)
+    if RJR_AimBegin then
+        RJR_AimBegin(hit)
+    end
     Validator2:FireServer(math.floor(u80 / u23 * 16777215), u26)
     ShootGunEvent:FireServer(pos, { hit })
+    if RJR_AimEndSoon then
+        RJR_AimEndSoon(0.3)
+    end
 end
 local SeaBoatModelsCache, SeaBoatModelsAt
 local function getAllPlayerBoatModels()
@@ -5190,126 +5279,325 @@ task.spawn(function()
         SailNoclipOn = on
     end
 end)
-local RJR_SilentAimTarget = (function()
-    local TargetPos, At = nil, 0
-    local function RootOf(model)
-        if not model then
-            return nil
-        end
-        return model:FindFirstChild("HumanoidRootPart")
-            or model:FindFirstChild("RootPart")
-            or model.PrimaryPart
-            or model:FindFirstChild("Head")
-            or model:FindFirstChildWhichIsA("BasePart")
+do
+local RJR_AimPos, RJR_AimTargetPart = nil, nil
+local RJR_AimToken, RJR_AimRewrites = 0, 0
+local RJR_AimHookReady, RJR_AimHookMT, RJR_AimHookOld = false, nil, nil
+local RJR_MouseHookReady, RJR_MouseMT, RJR_MouseStore = false, nil, nil
+local RJR_MouseOldIndex, RJR_MouseOldNewIndex, RJR_MouseMod = nil, nil, nil
+local function RJR_AimGate()
+    return _G.AutoLeviathanFull and _G.SilentAim
+end
+local function RJR_RootOf(model)
+    if not model then
+        return nil
     end
-    local function AimPoint(model, root)
-        if not model or not model.Parent then
-            return nil
-        end
-        local seg = model:FindFirstChild("Leviathan Segment") or model:FindFirstChild("Hitbox")
-        if seg and seg:IsA("BasePart") then
-            return seg.Position
-        end
-        if not root then
-            return nil
-        end
-        if model:FindFirstChild("Engine") then
-            return Vector3.new(root.Position.X, -58, root.Position.Z)
-        end
-        return Vector3.new(root.Position.X, math.max(root.Position.Y, 40), root.Position.Z)
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("RootPart")
+        or model.PrimaryPart
+        or model:FindFirstChild("Head")
+        or model:FindFirstChildWhichIsA("BasePart")
+end
+local function RJR_AimPoint(model, root)
+    if not model or not model.Parent then
+        return nil, nil
     end
+    local seg = model:FindFirstChild("Leviathan Segment") or model:FindFirstChild("Hitbox")
+    if seg and seg:IsA("BasePart") then
+        return seg.Position, seg
+    end
+    if not root then
+        return nil, nil
+    end
+    if model:FindFirstChild("Engine") then
+        return Vector3.new(root.Position.X, -58, root.Position.Z), root
+    end
+    return Vector3.new(root.Position.X, math.max(root.Position.Y, 40), root.Position.Z), root
+end
+local function RJR_AimPointFor(inst)
+    if not inst or not inst.Parent then
+        return nil, nil
+    end
+    if inst:IsA("BasePart") then
+        local model = inst:FindFirstAncestorOfClass("Model")
+        if model then
+            local pos, part = RJR_AimPoint(model, inst)
+            if pos then
+                return pos, part
+            end
+        end
+        return inst.Position, inst
+    end
+    if inst:IsA("Model") then
+        return RJR_AimPoint(inst, RJR_RootOf(inst))
+    end
+    return nil, nil
+end
+local RJR_FindAimTarget = (function()
+    local TargetPos, TargetPart, At = nil, nil, 0
     return function()
         local now = os.clock()
         if now - At < 0.2 then
-            return TargetPos
+            return TargetPos, TargetPart
         end
         At = now
-        TargetPos = nil
+        TargetPos, TargetPart = nil, nil
         local _, myHRP = GetCharacterParts()
         if not myHRP then
-            return nil
+            return nil, nil
+        end
+        if AttackModel and AttackModel.Parent then
+            local pos, part = RJR_AimPoint(AttackModel, RJR_RootOf(AttackModel))
+            if pos then
+                TargetPos, TargetPart = pos, part
+                return pos, part
+            end
         end
         local myPos = myHRP.Position
-        local best, bestDist = nil, nil
-        local function Consider(pos)
+        local best, bestPart, bestDist = nil, nil, nil
+        local function Consider(pos, part)
             if not pos then
                 return
             end
             local d = (pos - myPos).Magnitude
             if bestDist == nil or d < bestDist then
-                best, bestDist = pos, d
+                best, bestPart, bestDist = pos, part, d
             end
         end
         local lvModel, lvPart = SeaAPI.Leviathan_Find()
         if lvModel then
-            Consider(AimPoint(lvModel, lvPart))
-        end
-        if AttackModel and AttackModel.Parent then
-            Consider(AimPoint(AttackModel, RootOf(AttackModel)))
+            Consider(RJR_AimPoint(lvModel, lvPart))
         end
         local Mob, Root = SeaAPI.Sea_Mob(1500)
         if Mob then
-            Consider(AimPoint(Mob, Root))
+            Consider(RJR_AimPoint(Mob, Root))
         end
-        TargetPos = best
-        return best
+        TargetPos, TargetPart = best, bestPart
+        return best, bestPart
     end
 end)()
-RunService:BindToRenderStep("RJR_AimCamera", Enum.RenderPriority.Camera.Value + 1, function()
-    if not (_G.AutoLeviathanFull and _G.SilentAim and AttackModel) then
-        return
+local function RJR_SetAim(target)
+    if not target then
+        return nil
     end
-    local aimPos = RJR_SilentAimTarget()
-    local cam = workspace.CurrentCamera
-    local _, hrpAim = GetCharacterParts()
-    if not aimPos or not cam or not hrpAim then
-        return
+    local pos, part
+    local kind = typeof(target)
+    if kind == "Instance" then
+        pos, part = RJR_AimPointFor(target)
+    elseif kind == "Vector3" then
+        pos = target
+    elseif kind == "CFrame" then
+        pos = target.Position
     end
-    local flat = Vector3.new(aimPos.X - hrpAim.Position.X, 0, aimPos.Z - hrpAim.Position.Z)
-    if flat.Magnitude < 1 then
-        return
+    if not pos then
+        return nil
     end
-    local dir = flat.Unit
-    pcall(function()
-        cam.CFrame = CFrame.lookAt(hrpAim.Position - dir * 13 + Vector3.new(0, 7, 0),
-            hrpAim.Position + dir * 30 + Vector3.new(0, 3, 0))
+    RJR_AimPos = CFrame.new(pos)
+    RJR_AimTargetPart = part
+    return RJR_AimPos
+end
+RJR_AimBegin = function(target)
+    if not RJR_AimGate() then
+        return nil
+    end
+    RJR_AimToken = RJR_AimToken + 1
+    if target and RJR_SetAim(target) then
+        return RJR_AimToken
+    end
+    local pos, part = RJR_FindAimTarget()
+    if not pos then
+        RJR_AimPos = nil
+        RJR_AimTargetPart = nil
+        return nil
+    end
+    RJR_AimPos = CFrame.new(pos)
+    RJR_AimTargetPart = part
+    return RJR_AimToken
+end
+RJR_AimEndSoon = function(delay)
+    local token = RJR_AimToken
+    task.delay(delay or 0.6, function()
+        if RJR_AimToken == token then
+            RJR_AimPos = nil
+            RJR_AimTargetPart = nil
+        end
     end)
-end)
-pcall(function()
-    local mt = getrawmetatable(game)
-    local oldNamecall = mt.__namecall
-    setreadonly(mt, false)
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if method == "FireServer" or method == "InvokeServer" then
-            if _G.AutoLeviathanFull and _G.SilentAim and
-                (tostring(self) == "RemoteEvent" or tostring(self) == "CommE") then
-                local aimPos = RJR_SilentAimTarget()
-                local _, myHRP = GetCharacterParts()
-                if aimPos and myHRP then
-                    local args = {...}
-                    local toTarget = aimPos - myHRP.Position
-                    local redirected = false
-                    for i, v in pairs(args) do
-                        if typeof(v) == "Vector3" then
-                            if v.Magnitude > 500 then
-                                args[i] = aimPos
-                            elseif toTarget.Magnitude > 0.1 then
-                                args[i] = toTarget.Unit * math.max(v.Magnitude, 1)
-                            end
-                            redirected = true
-                        end
-                    end
-                    if redirected then
-                        return oldNamecall(self, unpack(args))
-                    end
+end
+local function RJR_InstallAimHook()
+    if RJR_AimHookReady then
+        return true
+    end
+    if type(getrawmetatable) ~= "function" or type(newcclosure) ~= "function" then
+        return false
+    end
+    local ok = pcall(function()
+        local mt = getrawmetatable(game)
+        local oldNamecall = mt.__namecall
+        setreadonly(mt, false)
+        mt.__namecall = newcclosure(function(self, ...)
+            if not (RJR_AimPos and RJR_AimGate()) then
+                return oldNamecall(self, ...)
+            end
+            local method = getnamecallmethod()
+            if method ~= "FireServer" and method ~= "InvokeServer" then
+                return oldNamecall(self, ...)
+            end
+            if type(checkcaller) == "function" and checkcaller() then
+                return oldNamecall(self, ...)
+            end
+            local nm = self.Name
+            if nm ~= "RemoteEvent" and nm ~= "RemoteFunction" and nm ~= "CommE" then
+                return oldNamecall(self, ...)
+            end
+            local n = select("#", ...)
+            if n == 0 then
+                return oldNamecall(self, ...)
+            end
+            local args = table.pack(...)
+            if typeof(args[1]) == "boolean" then
+                return oldNamecall(self, ...)
+            end
+            local pos = RJR_AimPos.Position
+            if tostring(pos.X) == "nan" then
+                return oldNamecall(self, ...)
+            end
+            local limit = math.min(8, n)
+            for i = 1, limit do
+                local v = args[i]
+                if typeof(v) == "CFrame" then
+                    args[i] = CFrame.new(v.Position, pos)
+                    RJR_AimRewrites = RJR_AimRewrites + 1
+                    return oldNamecall(self, table.unpack(args, 1, n))
+                elseif typeof(v) == "Vector3" then
+                    args[i] = pos
+                    RJR_AimRewrites = RJR_AimRewrites + 1
+                    return oldNamecall(self, table.unpack(args, 1, n))
                 end
             end
-        end
-        return oldNamecall(self, ...)
+            return oldNamecall(self, ...)
+        end)
+        setreadonly(mt, true)
+        RJR_AimHookMT = mt
+        RJR_AimHookOld = oldNamecall
     end)
-    setreadonly(mt, true)
+    RJR_AimHookReady = ok
+    return ok
+end
+local function RJR_InstallMouseHook()
+    if RJR_MouseHookReady then
+        return true
+    end
+    local mod = RS:FindFirstChild("Mouse")
+    if not mod then
+        return false
+    end
+    local okReq, MouseMod = pcall(require, mod)
+    if not okReq or type(MouseMod) ~= "table" then
+        return false
+    end
+    local ok = pcall(function()
+        local store = { Hit = rawget(MouseMod, "Hit"), Target = rawget(MouseMod, "Target") }
+        local mt = getrawmetatable(MouseMod)
+        if mt then
+            setreadonly(mt, false)
+        else
+            mt = {}
+            setmetatable(MouseMod, mt)
+        end
+        rawset(MouseMod, "Hit", nil)
+        rawset(MouseMod, "Target", nil)
+        local oldIndex = mt.__index
+        local oldNewIndex = mt.__newindex
+        mt.__index = function(self, key)
+            if RJR_AimPos and RJR_AimGate() and (key == "Hit" or key == "Target") then
+                if key == "Hit" then
+                    return RJR_AimPos
+                end
+                if RJR_AimTargetPart then
+                    return RJR_AimTargetPart
+                end
+            end
+            if type(oldIndex) == "function" then
+                return oldIndex(self, key)
+            end
+            if type(oldIndex) == "table" then
+                return oldIndex[key]
+            end
+            return store[key]
+        end
+        mt.__newindex = function(self, key, value)
+            if key == "Hit" or key == "Target" then
+                store[key] = value
+            elseif type(oldNewIndex) == "function" then
+                oldNewIndex(self, key, value)
+            else
+                rawset(self, key, value)
+            end
+        end
+        setreadonly(mt, true)
+        RJR_MouseMT = mt
+        RJR_MouseStore = store
+        RJR_MouseOldIndex = oldIndex
+        RJR_MouseOldNewIndex = oldNewIndex
+        RJR_MouseMod = MouseMod
+    end)
+    RJR_MouseHookReady = ok
+    return ok
+end
+local function RJR_UninstallMouseHook()
+    if not RJR_MouseHookReady or not RJR_MouseMT then
+        return
+    end
+    pcall(function()
+        local mt = RJR_MouseMT
+        setreadonly(mt, false)
+        mt.__index = RJR_MouseOldIndex
+        mt.__newindex = RJR_MouseOldNewIndex
+        setreadonly(mt, true)
+        if RJR_MouseMod and RJR_MouseStore then
+            rawset(RJR_MouseMod, "Hit", RJR_MouseStore.Hit)
+            rawset(RJR_MouseMod, "Target", RJR_MouseStore.Target)
+        end
+    end)
+    RJR_MouseHookReady = false
+    RJR_MouseMT = nil
+    RJR_MouseMod = nil
+end
+local function RJR_UninstallAimHook()
+    RJR_UninstallMouseHook()
+    if not RJR_AimHookReady or not RJR_AimHookMT then
+        return
+    end
+    pcall(function()
+        setreadonly(RJR_AimHookMT, false)
+        RJR_AimHookMT.__namecall = RJR_AimHookOld
+        setreadonly(RJR_AimHookMT, true)
+    end)
+    RJR_AimHookReady = false
+    RJR_AimHookMT = nil
+    RJR_AimHookOld = nil
+end
+_G.RJR_AimInstall = function()
+    local eventOk = RJR_InstallAimHook()
+    local mouseOk = RJR_InstallMouseHook()
+    if not eventOk then
+        print("[Aim] este executor no permite getrawmetatable: no se puede interceptar los remotes")
+    end
+    return eventOk, mouseOk
+end
+_G.RJR_AimUninstall = RJR_UninstallAimHook
+_G.RJR_AimStats = function()
+    print(string.format("[Aim] remotes reescritos: %d | objetivo: %s | ventana: %s",
+        RJR_AimRewrites,
+        RJR_AimTargetPart and RJR_AimTargetPart.Name or "ninguno",
+        RJR_AimPos and "abierta" or "cerrada"))
+end
+task.spawn(function()
+    if _G.SilentAim then
+        _G.RJR_AimInstall()
+    end
 end)
+end
 local function Update_Character()
     Character = LocalPlayer.Character
     HD = Character and (Character:FindFirstChild("Humanoid") or Character:WaitForChild("Humanoid"))
@@ -6214,6 +6502,15 @@ do
         Default = _G.SilentAim,
         Callback = function(State)
             _G.SilentAim = State
+            if State then
+                if _G.RJR_AimInstall then
+                    pcall(_G.RJR_AimInstall)
+                end
+            else
+                if _G.RJR_AimUninstall then
+                    pcall(_G.RJR_AimUninstall)
+                end
+            end
             SaveConfig()
         end,
     })
@@ -6350,6 +6647,27 @@ do
             SaveConfig()
         end,
     })
+    local KenPara = HakiSection:AddParagraph({
+        Title = T("ken.status"),
+        Content = T("ken.status.off"),
+    })
+    ParagraphKeys[#ParagraphKeys + 1] = { element = KenPara, title = "ken.status" }
+    task.spawn(function()
+        local lastKen = nil
+        while task.wait(1) do
+            pcall(function()
+                local key, detail = "ken.status.off", ""
+                if _G.RJR_KenStatus then
+                    key, detail = _G.RJR_KenStatus()
+                end
+                local text = T(key or "ken.status.off") .. (detail or "")
+                if text ~= lastKen then
+                    lastKen = text
+                    KenPara:SetDesc(text)
+                end
+            end)
+        end
+    end)
     HakiSection:AddToggle("auto.v3", {
         Title = T("auto.v3"),
         Description = T("auto.v3.desc"),
