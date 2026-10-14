@@ -84,6 +84,12 @@ T, ModeDisplay = (function()
         ["craft.status.noRecipe"] = { en = "Recipe not found: {name}", es = "Receta no encontrada: {name}", zh = "配方不存在: {name}" },
         ["craft.status.none"] = { en = "Off", es = "Desactivado", zh = "未开启" },
         ["craft.store"] = { en = "Auto Store Fruits", es = "Guardar frutas automáticamente", zh = "自动存果实" },
+        ["craft.unlock"] = { en = "Auto Unlock Mythical Scroll", es = "Desbloquear y fabricar pergamino mítico", zh = "自动解锁并合成神话卷轴" },
+        ["craft.unlock.desc"] = { en = "Crafts only the scrolls each tier is missing and stops after one Mythical Scroll", es = "Fabrica solo los pergaminos que le faltan a cada nivel y se detiene tras un pergamino mítico", zh = "只补齐各阶缺少的卷轴，合成一个神话卷轴后自动停止" },
+        ["craft.unlock.done"] = { en = "Mythical Scroll crafted: auto unlock stopped", es = "Pergamino mítico fabricado: desbloqueo detenido", zh = "神话卷轴已合成：自动解锁已停止" },
+        ["craft.unlock.retry"] = { en = "Retrying craft", es = "Reintentando fabricación", zh = "重试制作" },
+        ["craft.unlock.unknown"] = { en = "Mythical craft not confirmed: auto unlock stopped", es = "Fabricación mítica sin confirmar: desbloqueo detenido", zh = "神话制作未确认：自动解锁已停止" },
+        ["craft.unlock.wait"] = { en = "Waiting for the craft result", es = "Esperando el resultado de la fabricación", zh = "等待制作结果" },
         ["dc.popup.close"] = { en = "Close", es = "Cerrar", zh = "关闭" },
         ["dc.popup.copied"] = { en = "Copied!", es = "¡Copiado!", zh = "已复制!" },
         ["dc.popup.copy"] = { en = "Copy Invite Link", es = "Copiar invitación", zh = "复制邀请链接" },
@@ -271,6 +277,7 @@ if _G.BoatSpeed == nil then _G.BoatSpeed = 250 end
 if _G.PlayerTweenSpeed == nil then _G.PlayerTweenSpeed = 275 end
 if _G.AutoCraftScrolls == nil then _G.AutoCraftScrolls = false end
 if _G.CraftQuality == nil then _G.CraftQuality = "None" end
+if _G.AutoUnlockMythical == nil then _G.AutoUnlockMythical = false end
 if _G.AutoRandomFruit == nil then _G.AutoRandomFruit = false end
 if _G.AutoStoreFruits == nil then _G.AutoStoreFruits = false end
 if _G.HuntFightEvents == nil then _G.HuntFightEvents = false end
@@ -577,6 +584,7 @@ local ConfigKeys = {
     "CruiseReturn",
     "AutoCraftScrolls",
     "CraftQuality",
+    "AutoUnlockMythical",
     "AutoRandomFruit",
     "AutoStoreFruits",
     "HuntFightEvents",
@@ -2354,8 +2362,6 @@ local SEA_EVENT_OPTIONS_BY_MOB = {
     ["PirateGrandBrigade"] = "Pirate Grand Brigade Ship",
     ["PirateBasic"] = "Pirate Basic Ship",
 }
--- Fluent 的多选值可能是数组 / 字典 / 两者混合(旧值带数组部分时再勾选就变成混合表),
--- 这里统一成干净的名字数组, 只保留下拉里存在的选项, 避免新增的选择被丢掉
 local function Sea_NormalizeSelection(Value)
     local Raw = {}
     if type(Value) == "table" then
@@ -2383,7 +2389,6 @@ local function Sea_NormalizeSelection(Value)
     end
     return Out
 end
--- 返回 nil 表示不筛选(空选择 = 全部事件)
 local function Sea_SelectionSet()
     local Clean = Sea_NormalizeSelection(_G.HuntSelectEvents)
     if #Clean == 0 then
@@ -2395,7 +2400,6 @@ local function Sea_SelectionSet()
     end
     return Set
 end
--- 下拉里没有的海上怪(例如 Haunted Crew Member)不受筛选影响
 local function Sea_SelectionAllows(MobName)
     local Option = SEA_EVENT_OPTIONS_BY_MOB[MobName]
     if not Option then
@@ -3073,7 +3077,6 @@ SeaAPI.FightLeviathan = FightLeviathan
 SeaAPI.SeaEventOptions = SEA_EVENT_OPTIONS
 SeaAPI.NormalizeSelection = Sea_NormalizeSelection
 do
-    -- 启动时把配置里的选择归一化: 旧格式(字典/混合表)或写错的名字都不会再把筛选弄坏
     local RawSelection = _G.HuntSelectEvents
     local CleanSelection = Sea_NormalizeSelection(RawSelection)
     local Dirty = type(RawSelection) ~= "table" or #RawSelection ~= #CleanSelection
@@ -5349,6 +5352,73 @@ local CraftQualityList = {
     { Key = "LegendaryScroll", Label = "Legendary Scroll" },
     { Key = "MythicalScroll", Label = "Mythical Scroll" },
 }
+local function CountValue(value)
+    if type(value) == "table" then
+        value = value.Quantity or value.Count or value.Amount or value.Value
+    end
+    return tonumber(value)
+end
+function CraftQualityList.GetLabel(Key)
+    for _, scroll in ipairs(CraftQualityList) do
+        if scroll.Key == Key then
+            return scroll.Label
+        end
+    end
+end
+function CraftQualityList.Lookup(source, Key)
+    if not source then
+        return nil
+    end
+    local value = CountValue(source[Key])
+    if value == nil then
+        local label = CraftQualityList.GetLabel(Key)
+        if label then
+            value = CountValue(source[label])
+        end
+    end
+    return value
+end
+function CraftQualityList.GetCount(Prog, Etc, Key)
+    local preferred = (Key == "MythicalScroll") and Etc or Prog
+    local fallback = (preferred == Etc) and Prog or Etc
+    local value = CraftQualityList.Lookup(preferred, Key)
+    if value == nil then
+        value = CraftQualityList.Lookup(fallback, Key)
+    end
+    return value or 0
+end
+function CraftQualityList.GetProgressView(Prog, Etc)
+    local view = {}
+    for key, value in pairs(Prog or {}) do
+        view[key] = value
+    end
+    for _, scroll in ipairs(CraftQualityList) do
+        view[scroll.Key] = CraftQualityList.GetCount(Prog, Etc, scroll.Key)
+    end
+    return view
+end
+function CraftQualityList.GetNextUnlockKey(Recipes, Prog, Key, Depth)
+    Depth = Depth or 0
+    if Depth > #CraftQualityList then
+        return nil, "depth"
+    end
+    local recipe = Recipes[Key]
+    if not recipe then
+        return nil, "recipe", Key
+    end
+    for progressKey, required in pairs(recipe.ProgressionRequirement or {}) do
+        local current = CraftQualityList.Lookup(Prog, progressKey) or 0
+        local needed = tonumber(required) or 0
+        if current < needed then
+            local dependency = CraftQualityList.GetLabel(progressKey) and progressKey
+            if not dependency then
+                return nil, "progress", progressKey, current, needed
+            end
+            return CraftQualityList.GetNextUnlockKey(Recipes, Prog, dependency, Depth + 1)
+        end
+    end
+    return Key
+end
 local CraftRecipesCache = nil
 local function GetCraftRecipes()
     if not CraftRecipesCache then
@@ -5380,7 +5450,7 @@ local function CheckCraftRecipe(r, Etc, Prog)
             return false, TranslateStatus("Falta progreso " .. k .. " (" .. (Prog[k] or 0) .. "/" .. v .. ")")
         end
     end
-    for k, v in pairs(r.Ingredients) do
+    for k, v in pairs(r.Ingredients or {}) do
         if type(k) == "string" then
             if (Etc[k] or 0) < v then
                 return false, TranslateStatus("Falta " .. k .. " (" .. (Etc[k] or 0) .. "/" .. v .. ")")
@@ -5402,41 +5472,144 @@ task.spawn(function()
     while true do
         task.wait(5)
         local Q = _G.CraftQuality
-        if not _G.AutoCraftScrolls or Q == nil or Q == "None" then
-            if CraftStatus ~= T("craft.status.none") then
-                CraftStatus = T("craft.status.none")
-            end
-        else
-            pcall(function()
-                local Etc, Prog = GetCraftData()
-                local Recipes = GetCraftRecipes()
-                if not Etc or not Prog or not Recipes then
-                    CraftStatus = T("craft.status.error")
-                    return
+        if not _G.AutoUnlockMythical then
+            if not _G.AutoCraftScrolls or Q == nil or Q == "None" then
+                if CraftStatus ~= T("craft.status.none") then
+                    CraftStatus = T("craft.status.none")
                 end
-                local target
-                for _, c in ipairs(CraftQualityList) do
-                    if c.Label == Q then
-                        target = c
-                        break
+            else
+                pcall(function()
+                    local Etc, Prog = GetCraftData()
+                    local Recipes = GetCraftRecipes()
+                    if not Etc or not Prog or not Recipes then
+                        CraftStatus = T("craft.status.error")
+                        return
                     end
-                end
-                if not target then
-                    return
-                end
-                local r = Recipes[target.Key]
-                if not r then
-                    CraftStatus = TranslateStatus("Receta no encontrada: " .. target.Key)
-                    return
-                end
-                local okC, miss = CheckCraftRecipe(r, Etc, Prog)
-                if okC then
-                    TryCraft(target.Key)
-                    CraftStatus = TranslateStatus(target.Label .. ": fabricado")
-                else
-                    CraftStatus = TranslateStatus(target.Label .. ": " .. miss)
-                end
-            end)
+                    local target
+                    for _, c in ipairs(CraftQualityList) do
+                        if c.Label == Q then
+                            target = c
+                            break
+                        end
+                    end
+                    if not target then
+                        return
+                    end
+                    local r = Recipes[target.Key]
+                    if not r then
+                        CraftStatus = TranslateStatus("Receta no encontrada: " .. target.Key)
+                        return
+                    end
+                    local okC, miss = CheckCraftRecipe(r, Etc, Prog)
+                    if okC then
+                        TryCraft(target.Key)
+                        CraftStatus = TranslateStatus(target.Label .. ": fabricado")
+                    else
+                        CraftStatus = TranslateStatus(target.Label .. ": " .. miss)
+                    end
+                end)
+            end
+        end
+    end
+end)
+local function StopAutoUnlockMythical(statusKey)
+    _G.AutoUnlockMythical = false
+    SaveConfig()
+    if _G.RJR_AutoUnlockMythicalToggle then
+        pcall(function()
+            _G.RJR_AutoUnlockMythicalToggle:SetValue(false)
+        end)
+    end
+    CraftStatus = T(statusKey)
+end
+local function AutoUnlockMythicalStep()
+    local Etc, Prog = GetCraftData()
+    local Recipes = GetCraftRecipes()
+    if not Etc or not Prog or not Recipes then
+        CraftStatus = T("craft.status.error")
+        return
+    end
+    if CraftQualityList.Pending then
+        local pending = CraftQualityList.Pending
+        local current = CraftQualityList.GetCount(Prog, Etc, pending.Key)
+        if current > pending.Before then
+            CraftQualityList.Pending = nil
+            if pending.Key == "MythicalScroll" then
+                StopAutoUnlockMythical("craft.unlock.done")
+                return
+            end
+        elseif os.clock() - pending.At < 15 then
+            CraftStatus = T("craft.unlock.wait") .. ": " .. pending.Label
+            return
+        else
+            CraftQualityList.Pending = nil
+            if pending.Key == "MythicalScroll" and pending.Accepted then
+                StopAutoUnlockMythical("craft.unlock.unknown")
+                return
+            end
+        end
+    end
+    local craftKey, unlockError, detail, current, required =
+        CraftQualityList.GetNextUnlockKey(Recipes, CraftQualityList.GetProgressView(Prog, Etc), "MythicalScroll")
+    if not craftKey then
+        if unlockError == "progress" then
+            CraftStatus = TranslateStatus(
+                "Falta progreso " .. tostring(detail) .. " (" .. tostring(current) .. "/" .. tostring(required) .. ")"
+            )
+        elseif unlockError == "recipe" then
+            CraftStatus = TranslateStatus("Receta no encontrada: " .. tostring(detail))
+        else
+            CraftStatus = T("craft.status.error")
+        end
+        return
+    end
+    local recipe = Recipes[craftKey]
+    if not recipe then
+        CraftStatus = TranslateStatus("Receta no encontrada: " .. craftKey)
+        return
+    end
+    local canCraft, missing = CheckCraftRecipe(recipe, Etc, CraftQualityList.GetProgressView(Prog, Etc))
+    if not canCraft then
+        CraftStatus = T("craft.unlock") .. ": " .. missing
+        return
+    end
+    local RF = RS.Modules
+        and RS.Modules:FindFirstChild("Net")
+        and RS.Modules.Net:FindFirstChild("RF/Craft")
+    local label = CraftQualityList.GetLabel(craftKey) or craftKey
+    if not RF then
+        CraftStatus = T("craft.unlock.retry") .. ": " .. label
+        return
+    end
+    local ok, result = pcall(function()
+        return RF:InvokeServer("Craft", craftKey, 1, {})
+    end)
+    if ok then
+        CraftQualityList.Pending = {
+            Key = craftKey,
+            Before = CraftQualityList.GetCount(Prog, Etc, craftKey),
+            At = os.clock(),
+            Label = label,
+            Accepted = result ~= nil and result ~= false,
+        }
+        if result == false or result == nil then
+            CraftStatus = T("craft.unlock.retry") .. ": " .. label
+        else
+            CraftStatus = T("craft.unlock") .. ": " .. label
+        end
+    else
+        CraftStatus = T("craft.unlock.retry") .. ": " .. label
+    end
+end
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if _G.AutoUnlockMythical then
+            local ok, err = pcall(AutoUnlockMythicalStep)
+            if not ok then
+                print("[DEBUG] AutoUnlockMythicalStep: " .. tostring(err))
+                StopAutoUnlockMythical("craft.status.error")
+            end
         end
     end
 end)
@@ -6213,7 +6386,8 @@ do
             end)
         end
     end)
-    Tabs.Extra:AddToggle("craft.auto", {
+    local AutoCraftScrollsToggle
+    AutoCraftScrollsToggle = Tabs.Extra:AddToggle("craft.auto", {
         Title = T("craft.auto"),
         Description = T("craft.auto.desc"),
         Default = _G.AutoCraftScrolls,
@@ -6222,6 +6396,7 @@ do
             SaveConfig()
         end,
     })
+    _G.RJR_AutoCraftScrollsToggle = AutoCraftScrollsToggle
     Tabs.Extra:AddDropdown("craft.quality", {
         Title = T("craft.quality"),
         Description = T("craft.quality.desc"),
@@ -6251,6 +6426,32 @@ do
             SaveConfig()
         end,
     })
+    local AutoUnlockToggle
+    AutoUnlockToggle = Tabs.Extra:AddToggle("craft.unlock", {
+        Title = T("craft.unlock"),
+        Description = T("craft.unlock.desc"),
+        Default = _G.AutoUnlockMythical,
+        Callback = function(State)
+            if State and _G.AutoCraftScrolls then
+                _G.AutoCraftScrolls = false
+
+                if _G.RJR_AutoCraftScrollsToggle then
+                    pcall(function()
+                        _G.RJR_AutoCraftScrollsToggle:SetValue(false)
+                    end)
+                end
+            end
+
+            _G.AutoUnlockMythical = State
+
+            if not State then
+                CraftQualityList.Pending = nil
+            end
+
+            SaveConfig()
+        end,
+    })
+    _G.RJR_AutoUnlockMythicalToggle = AutoUnlockToggle
     local ResetButton = Tabs.Extra:AddButton({
         Title = T("reset.data"),
         Callback = function()
