@@ -56,7 +56,7 @@ T, ModeDisplay = (function()
         ["auto.fast.desc"] = { en = "Enables Fast Mode and reduces map materials", es = "Activa el modo rápido del juego y reduce los materiales del mapa", zh = "启用游戏快速模式并降低地图材质" },
         ["auto.full"] = { en = "Auto Leviathan Full", es = "Leviathan automático completo", zh = "全自动利维坦" },
         ["auto.ken"] = { en = "Auto Ken (Observation)", es = "Ken automático (Observacion)", zh = "自动见闻色 (Ken)" },
-        ["auto.ken.desc"] = { en = "Keeps Observation (Ken) on: presses the key, checks the game state and retries with the remote if needed", es = "Mantiene la Observacion (Ken) activa: pulsa la tecla, comprueba el estado y reintenta con el remote si hace falta", zh = "保持见闻色开启：先按键，用游戏状态确认，必要时改用 remote 重试" },
+        ["auto.ken.desc"] = { en = "Presses the game's Ken key (E) only while Observation is off and confirms it with the game's blur effect", es = "Pulsa la tecla Ken del juego (E) solo cuando la Observacion esta apagada y lo confirma con el efecto blur del juego", zh = "只在见闻色关闭时按游戏按键 E 开启，并用游戏模糊效果确认已生效" },
         ["auto.v3"] = { en = "Auto V3", es = "V3 automático", zh = "自动 V3" },
         ["auto.v3.desc"] = { en = "Auto activate race V3", es = "Activa la habilidad V3 de la raza", zh = "自动开启种族 V3" },
         ["auto.v4"] = { en = "Auto V4", es = "V4 automático", zh = "自动 V4" },
@@ -119,7 +119,8 @@ T, ModeDisplay = (function()
         ["info.ui"] = { en = "Info Display UI", es = "Panel de información", zh = "信息显示 UI" },
         ["info.ui.desc"] = { en = "Show live info overlay at top", es = "Muestra un panel con información en vivo en pantalla", zh = "开启后屏幕顶部生成实时信息浮层" },
         ["ken.status"] = { en = "Observation (Ken)", es = "Observacion (Ken)", zh = "见闻色 (Ken)" },
-        ["ken.status.fail"] = { en = "Could not enable (no uses left or not unlocked)", es = "No se pudo activar (sin usos o sin desbloquear)", zh = "无法开启（次数用尽或未解锁）" },
+        ["ken.status.fail"] = { en = "Could not enable (blocked or on cooldown)", es = "No se pudo activar (bloqueado o en enfriamiento)", zh = "无法开启（被限制或冷却中）" },
+        ["ken.status.locked"] = { en = "Ken is not unlocked on this account", es = "Esta cuenta no tiene el Ken desbloqueado", zh = "该账号未解锁见闻色" },
         ["ken.status.off"] = { en = "Off", es = "Desactivado", zh = "未开启" },
         ["ken.status.on"] = { en = "Active", es = "Activo", zh = "已开启" },
         ["ken.status.trying"] = { en = "Enabling...", es = "Activando...", zh = "正在开启..." },
@@ -1927,27 +1928,31 @@ do
         end
         return char
     end
-    local function KenActive(char)
+    local function KenUnlocked(char)
         local okTag, tagged = pcall(function()
             return game:GetService("CollectionService"):HasTag(char, "Ken")
         end)
-        if okTag and tagged then
-            return true
-        end
-        local blur = game:GetService("Lighting"):FindFirstChild("Blur")
-        if blur and blur.Enabled then
-            return true
-        end
-        local left = tonumber(char:GetAttribute("KenDodgesLeft"))
-        return left ~= nil and left > 0
+        return (okTag and tagged) and true or false
     end
-    local function KenDodges(char)
-        local left = tonumber(char:GetAttribute("KenDodgesLeft"))
-        local max = tonumber(char:GetAttribute("KenMaxDodges"))
-        if left and max then
-            return " (" .. left .. "/" .. max .. ")"
-        end
-        return ""
+    local function KenOn()
+        local blur = game:GetService("Lighting"):FindFirstChild("Blur")
+        return (blur and blur.Enabled) and true or false
+    end
+    local function KenDodgesText()
+        local ok, text = pcall(function()
+            local gui = LocalPlayer:FindFirstChild("PlayerGui")
+            local main = gui and gui:FindFirstChild("Main")
+            local list = main and main:FindFirstChild("BottomHUDList")
+            local buttons = list and list:FindFirstChild("UniversalContextButtons")
+            local button = buttons and buttons:FindFirstChild("BoundActionKen")
+            local label = button and button:FindFirstChild("DodgesLeftLabel")
+            local value = label and label.Text
+            if type(value) == "string" and value ~= "" then
+                return " (" .. value .. ")"
+            end
+            return ""
+        end)
+        return (ok and text) or ""
     end
     local function KenPressKey()
         local code = Enum.KeyCode.E
@@ -1955,16 +1960,7 @@ do
         task.wait(0.1)
         VirtualInputManager:SendKeyEvent(false, code, false, game)
     end
-    local function KenFireRemote()
-        local Remotes = RS:FindFirstChild("Remotes")
-        local CommE = Remotes and Remotes:FindFirstChild("CommE")
-        if not CommE then
-            return false
-        end
-        CommE:FireServer("Ken", true)
-        return true
-    end
-    local KenTryStage, KenNextAt = 0, 0
+    local KenNextAt, KenFailCount = 0, 0
     _G.RJR_KenLoopGen = 0
     _G.RJR_StartKenLoop = function()
         _G.RJR_KenLoopGen = _G.RJR_KenLoopGen + 1
@@ -1973,27 +1969,28 @@ do
             while _G.RJR_KenLoopGen == myGen do
                 task.wait(0.5)
                 if not _G.AutoKen then
-                    KenTryStage, KenNextAt = 0, 0
+                    KenNextAt, KenFailCount = 0, 0
                     KenStatusKey, KenDetail = "ken.status.off", ""
                 else
                     local char = KenChar()
                     if not char then
-                        KenTryStage, KenNextAt = 0, 0
-                    elseif KenActive(char) then
-                        KenTryStage, KenNextAt = 0, 0
-                        KenDetail = KenDodges(char)
+                        KenNextAt, KenFailCount = 0, 0
+                    elseif not KenUnlocked(char) then
+                        KenStatusKey, KenDetail = "ken.status.locked", ""
+                    elseif KenOn() then
+                        KenNextAt, KenFailCount = 0, 0
+                        KenDetail = KenDodgesText()
                         KenStatusKey = "ken.status.on"
                     elseif os.clock() >= KenNextAt then
-                        if KenTryStage == 0 then
+                        if KenFailCount >= 2 then
+                            KenStatusKey, KenDetail = "ken.status.fail", ""
+                            KenFailCount = 0
+                            KenNextAt = os.clock() + 30
+                        else
                             KenStatusKey, KenDetail = "ken.status.trying", ""
                             KenPressKey()
-                            KenTryStage, KenNextAt = 1, os.clock() + 3
-                        elseif KenTryStage == 1 then
-                            KenFireRemote()
-                            KenTryStage, KenNextAt = 2, os.clock() + 3
-                        else
-                            KenStatusKey, KenDetail = "ken.status.fail", ""
-                            KenTryStage, KenNextAt = 0, os.clock() + 30
+                            KenFailCount = KenFailCount + 1
+                            KenNextAt = os.clock() + 2.5
                         end
                     end
                 end
