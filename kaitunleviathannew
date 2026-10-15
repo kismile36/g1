@@ -437,6 +437,8 @@ TranslateStatus, SetStatus = (function(LanguageCode)
         ["Asiento fantasma: lo suelto y vuelvo a subir"] = { en = "Phantom seat: releasing it and boarding again", zh = "坐下状态未生效 松开座位 重新上船", th = "ที่นั่งผี: ปล่อยที่นั่งและขึ้นใหม่" },
         ["Sigo bloqueado: reinicio el personaje en Tiki"] = { en = "Still stuck, resetting the character at Tiki", zh = "仍未恢复 重置角色回Tiki", th = "ยังติดค้างอยู่ กำลังรีเซ็ตตัวละครที่ Tiki" },
         ["Corazón presente y sin barco: voy a comprar uno"] = { en = "Heart present but no boat: going to buy one", zh = "心脏已出现但没有船 去买船", th = "มีหัวใจแต่ไม่มีเรือ: กำลังไปซื้อเรือ" },
+        ["Reinicio en curso: espero para comprar barco"] = { en = "Character reset in progress, waiting before buying a boat", zh = "正在重置角色 等待后再买船", th = "กำลังรีเซ็ตตัวละคร รอก่อนซื้อเรือ" },
+        ["El reinicio en Tiki falló: reintentando"] = { en = "Reset at Tiki failed, retrying", zh = "Tiki 重置失败 正在重试", th = "รีเซ็ตที่ Tiki ล้มเหลว กำลังลองใหม่" },
     }
     local StatusPatterns = {
         { es = "Personaje bloqueado en el sitio ({1}): lo libero", en = "Character stuck in place ({1}): freeing it", zh = "人物卡在原地 ({1}) 正在解卡", nested = false, th = "ตัวละครติดอยู่กับที่ ({1}): กำลังปลด" },
@@ -2254,6 +2256,10 @@ local function DebugDumpBoats()
     end
 end
 local function BuyOwnBoat(Message)
+    if _G.RJR_Resetting then
+        SetStatus("Reinicio en curso: espero para comprar barco")
+        return false
+    end
     if OwnBoatUnusable(LocalPlayer, false) then
         SetStatus("Barco viejo inservible: espero el reinicio para recomprar")
         return false
@@ -2322,6 +2328,10 @@ end
 local LastRebuyAt = 0
 local function RebuyBoatAndBoard()
     LastRebuyAt = os.clock()
+    if _G.RJR_Resetting then
+        SetStatus("Reinicio en curso: espero para comprar barco")
+        return nil, nil
+    end
     if OwnBoatUnusable(LocalPlayer, false) then
         SetStatus("Barco viejo inservible: espero el reinicio para recomprar")
         return nil, nil
@@ -3223,47 +3233,60 @@ _G.RJR_ResetCharacterAtTiki = function(reason)
         return
     end
     _G.RJR_Resetting = true
-    local WaitStart = os.clock()
-    while _G.AutoLeviathanFull and os.clock() - WaitStart < 120 do
-        local M = select(1, SeaAPI.Sea_Mob(1200))
-        if not M then
-            break
+    -- The body below calls into game APIs (Sea_Mob, Leviathan_SegmentsExist,
+    -- OwnedBoatsOf) that can throw, and this function is normally started with
+    -- task.spawn(), which swallows the error. Without this pcall an error left
+    -- RJR_Resetting stuck true forever: OwnBoatUnusable() returns true whenever
+    -- that flag is set, so BuyOwnBoat() then refused to buy for the rest of the
+    -- session ("Barco viejo inservible: espero el reinicio para recomprar") and
+    -- this function could never run again to clear it. That is the captain
+    -- getting stuck without buying a boat.
+    local ok, err = pcall(function()
+        local WaitStart = os.clock()
+        while _G.AutoLeviathanFull and os.clock() - WaitStart < 120 do
+            local M = select(1, SeaAPI.Sea_Mob(1200))
+            if not M then
+                break
+            end
+            SetStatus(reason .. ": esperando a terminar el evento marino")
+            task.wait(1)
         end
-        SetStatus(reason .. ": esperando a terminar el evento marino")
-        task.wait(1)
-    end
-    if _G.RJR_LeviathanPresent() then
-        SetStatus("Leviathan, puerta o corazón presentes: no reinicio")
-        _G.RJR_Resetting = false
-        return
-    end
-    SetStatus(reason .. ": reiniciando en Tiki para comprar barco")
-    pcall(Unseat)
-    pcall(function()
-        local CommF2 = Leviathan_CommF()
-        if CommF2 then
-            CommF2:InvokeServer("SetLastSpawnPoint", "Tiki")
+        if _G.RJR_LeviathanPresent() then
+            SetStatus("Leviathan, puerta o corazón presentes: no reinicio")
+            return
+        end
+        SetStatus(reason .. ": reiniciando en Tiki para comprar barco")
+        pcall(Unseat)
+        pcall(function()
+            local CommF2 = Leviathan_CommF()
+            if CommF2 then
+                CommF2:InvokeServer("SetLastSpawnPoint", "Tiki")
+            end
+        end)
+        local _, _, hum = GetCharacterParts()
+        if hum and hum.Health > 0 then
+            pcall(function()
+                hum.Health = 0
+            end)
+        end
+        local Deadline = os.clock() + 20
+        while os.clock() < Deadline do
+            local _, h, hm = GetCharacterParts()
+            if h and hm and hm.Health > 0 then
+                break
+            end
+            task.wait(0.2)
+        end
+        for _, boat in ipairs(OwnedBoatsOf(LocalPlayer)) do
+            _G.RJR_AbandonedBoats[boat] = true
+            print("[Leviathan] Reinicio hecho, barco viejo abandonado: " .. boat.Name)
         end
     end)
-    local _, _, hum = GetCharacterParts()
-    if hum and hum.Health > 0 then
-        pcall(function()
-            hum.Health = 0
-        end)
-    end
-    local Deadline = os.clock() + 20
-    while os.clock() < Deadline do
-        local _, h, hm = GetCharacterParts()
-        if h and hm and hm.Health > 0 then
-            break
-        end
-        task.wait(0.2)
-    end
-    for _, boat in ipairs(OwnedBoatsOf(LocalPlayer)) do
-        _G.RJR_AbandonedBoats[boat] = true
-        print("[Leviathan] Reinicio hecho, barco viejo abandonado: " .. boat.Name)
-    end
     _G.RJR_Resetting = false
+    if not ok then
+        print("[Leviathan] Reinicio en Tiki falló: " .. tostring(err))
+        SetStatus("El reinicio en Tiki falló: reintentando")
+    end
 end
 _G.RJR_StartBoatDeadMonitor = function()
     if _G.RJR_BoatDeadMonitorRunning then
