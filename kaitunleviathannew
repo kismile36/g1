@@ -194,6 +194,7 @@ T, ModeDisplay = (function()
         ["target.hp"] = { en = "HP", es = "Vida", zh = "血量", th = "พลังชีวิต" },
         ["target.not.spawned"] = { en = "Not Spawned", es = "No apareció", zh = "未出现", th = "ยังไม่เกิด" },
         ["target.spawned"] = { en = "Spawned", es = "Aparecido", zh = "已出现", th = "เกิดแล้ว" },
+        ["tp.enchant"] = { en = "Teleport to Enchant NPC", es = "Teletransporte al NPC de encantamiento", zh = "传送到附魔NPC", th = "วาร์ปไปหา NPC คาถา" },
         ["ui.bribe"] = { en = "Bribe", es = "Soborno", zh = "贿赂", th = "สินบน" },
         ["ui.floatingball"] = { en = "Floating Button", es = "Botón flotante", zh = "悬浮球", th = "ปุ่มลอย" },
         ["ui.floatingball.desc"] = { en = "Draggable button to open/close this menu (hotkey G always works)", es = "Botón arrastrable para abrir/cerrar el menú (la tecla G siempre funciona)", zh = "可拖动的悬浮球，点击开关菜单（热键 G 始终可用）", th = "ปุ่มลากได้สำหรับเปิด/ปิดเมนูนี้ (ปุ่มลัด G ใช้ได้เสมอ)" },
@@ -205,12 +206,14 @@ T, ModeDisplay = (function()
         ["webhook.off"] = { en = "Off", es = "Desactivado", zh = "未开启", th = "ปิด" },
         ["webhook.send.bribe"] = { en = "Send On Cooldown Ready", es = "Enviar cuando el soborno este listo", zh = "CD好时发送", th = "ส่งเมื่อสินบนพร้อม" },
         ["webhook.send.bribe.desc"] = { en = "Send once when bribe CD is ready", es = "Envia un aviso cuando termina la espera del soborno", zh = "贿赂CD结束时可发送一次", th = "ส่งครั้งเดียวเมื่อคูลดาวน์สินบนพร้อม" },
+        ["webhook.send.heartgain"] = { en = "Send On Heart Obtained", es = "Enviar al obtener un corazón", zh = "获得心脏时发送", th = "ส่งเมื่อได้รับหัวใจ" },
         ["webhook.send.heartgot"] = { en = "Send On Heart Grabbed", es = "Enviar cuando se engancha el corazón", zh = "得到心脏时发送", th = "ส่งเมื่อเกี่ยวหัวใจได้" },
         ["webhook.send.heartspawn"] = { en = "Send On Heart Spawn", es = "Enviar cuando aparece el corazón", zh = "心脏出现时发送", th = "ส่งเมื่อหัวใจเกิด" },
         ["webhook.send.leviathan"] = { en = "Send On Leviathan Spawn", es = "Enviar cuando aparece el Leviathan", zh = "利维坦出现时发送", th = "ส่งเมื่อลีวายาธานเกิด" },
         ["webhook.send.now"] = { en = "Send Now", es = "Enviar progreso ahora", zh = "立即发送进度", th = "ส่งตอนนี้" },
         ["webhook.send.progress"] = { en = "Periodic Sail Progress", es = "Enviar progreso periodicamente", zh = "定时发送航海进度", th = "ส่งความคืบหน้าการเดินเรือเป็นระยะ" },
         ["webhook.send.progress.desc"] = { en = "Send status/heart/scale/scroll counts every interval", es = "Envia estado, corazones, escamas y pergaminos cada cierto tiempo", zh = "每设定秒数发送 状态/心脏/鳞片/卷轴 数量", th = "ส่งสถานะ/หัวใจ/สเกล/จำนวนม้วนตามช่วงเวลา" },
+        ["webhook.send.scrollgain"] = { en = "Send On Scroll Obtained", es = "Enviar al obtener un pergamino", zh = "获得卷轴时发送", th = "ส่งเมื่อได้รับม้วน" },
         ["webhook.sending"] = { en = "Sending...", es = "Enviando...", zh = "发送中...", th = "กำลังส่ง..." },
         ["webhook.sent"] = { en = "Sent: ", es = "Enviado: ", zh = "已发送: ", th = "ส่งแล้ว: " },
         ["webhook.status"] = { en = "Send Status", es = "Enviar estado", zh = "发送状态", th = "ส่งสถานะ" },
@@ -228,19 +231,23 @@ T, ModeDisplay = (function()
         ["wh.lowplayers.msg"] = { en = "Current players: ", es = "Jugadores actuales: ", zh = "当前人数: ", th = "จำนวนผู้เล่นตอนนี้: " },
         ["wh.material"] = { en = "Materials", es = "Materiales", zh = "材料", th = "วัตถุดิบ" },
         ["wh.msg.bribe.ready"] = { en = "[Auto Leviathan] Bribe CD ready - progress {n}/5", es = "[Auto Leviathan] Soborno disponible - progreso {n}/5", zh = "[Auto Leviathan] 贿赂CD已好 进度 {n}/5", th = "[Auto Leviathan] คูลดาวน์สินบนพร้อม - ความคืบหน้า {n}/5" },
+        ["wh.msg.heartgain"] = { en = "[Auto Leviathan] Heart obtained!", es = "[Auto Leviathan] ¡Corazón obtenido!", zh = "[Auto Leviathan] 获得心脏!", th = "[Auto Leviathan] ได้รับหัวใจ!" },
         ["wh.msg.heartgot"] = { en = "[Auto Leviathan] Heart hooked!", es = "[Auto Leviathan] Corazón enganchado", zh = "[Auto Leviathan] 已勾到心脏!", th = "[Auto Leviathan] เกี่ยวหัวใจได้แล้ว!" },
         ["wh.msg.heartspawn"] = { en = "[Auto Leviathan] Heart spawned!", es = "[Auto Leviathan] El corazón apareció", zh = "[Auto Leviathan] 心脏出现!", th = "[Auto Leviathan] หัวใจเกิดแล้ว!" },
         ["wh.msg.leviathan"] = { en = "[Auto Leviathan] Leviathan spawned!", es = "[Auto Leviathan] El Leviathan apareció", zh = "[Auto Leviathan] 利维坦出现!", th = "[Auto Leviathan] ลีวายาธานเกิดแล้ว!" },
+        ["wh.msg.scrollgain"] = { en = "[Auto Leviathan] Scroll obtained!", es = "[Auto Leviathan] ¡Pergamino obtenido!", zh = "[Auto Leviathan] 获得卷轴!", th = "[Auto Leviathan] ได้รับม้วน!" },
         ["wh.none"] = { en = "None", es = "Ninguno", zh = "无", th = "ไม่มี" },
         ["wh.scroll"] = { en = "Scrolls", es = "Pergaminos", zh = "卷轴", th = "ม้วน" },
         ["wh.sendfailed"] = { en = "Send Failed", es = "Error al enviar", zh = "发送失败", th = "ส่งไม่สำเร็จ" },
         ["wh.title.bribe"] = { en = "Bribe CD Ready", es = "Soborno disponible", zh = "贿赂CD已好", th = "คูลดาวน์สินบนพร้อม" },
+        ["wh.title.heartgain"] = { en = "Heart Obtained", es = "Corazón obtenido", zh = "获得心脏", th = "ได้รับหัวใจ" },
         ["wh.title.heartgot"] = { en = "Heart Grabbed", es = "Corazón enganchado", zh = "已勾到心脏", th = "เกี่ยวหัวใจได้" },
         ["wh.title.heartspawn"] = { en = "Heart Spawned", es = "Corazón aparecido", zh = "心脏出现", th = "หัวใจเกิด" },
         ["wh.title.leviathan"] = { en = "Leviathan Spawned", es = "Leviathan apareció", zh = "利维坦出现", th = "ลีวายาธานเกิด" },
         ["wh.title.lowplayers"] = { en = "Low Players", es = "Pocos jugadores", zh = "人数不足", th = "ผู้เล่นน้อย" },
         ["wh.title.manual"] = { en = "Manual Send", es = "Envio manual", zh = "手动发送", th = "ส่งด้วยตนเอง" },
         ["wh.title.progress"] = { en = "Sail Progress", es = "Progreso de navegación", zh = "航海进度", th = "ความคืบหน้าการเดินเรือ" },
+        ["wh.title.scrollgain"] = { en = "Scroll Obtained", es = "Pergamino obtenido", zh = "获得卷轴", th = "ได้รับม้วน" },
     }
     local function T(key)
         local entry = LangTable[key]
@@ -290,6 +297,7 @@ if _G.BoatLockY == nil then _G.BoatLockY = 150 end
 if _G.BoatHeight == nil then _G.BoatHeight = _G.BoatLockY end
 if _G.BoatSpeed == nil then _G.BoatSpeed = 250 end
 if _G.PlayerTweenSpeed == nil then _G.PlayerTweenSpeed = 275 end
+if _G.TeleportEnchantNPC == nil then _G.TeleportEnchantNPC = false end
 if _G.AutoCraftScrolls == nil then _G.AutoCraftScrolls = false end
 if _G.CraftQuality == nil then _G.CraftQuality = "None" end
 if _G.AutoUnlockMythical == nil then _G.AutoUnlockMythical = false end
@@ -309,6 +317,8 @@ if _G.WebhookSendBribeReady == nil then _G.WebhookSendBribeReady = false end
 if _G.WebhookSendLeviathan == nil then _G.WebhookSendLeviathan = false end
 if _G.WebhookSendHeartSpawn == nil then _G.WebhookSendHeartSpawn = false end
 if _G.WebhookSendHeartGot == nil then _G.WebhookSendHeartGot = false end
+if _G.WebhookSendHeartGain == nil then _G.WebhookSendHeartGain = false end
+if _G.WebhookSendScrollGain == nil then _G.WebhookSendScrollGain = false end
 if _G.WebhookSendLowPlayers == nil then _G.WebhookSendLowPlayers = false end
 local Character = LocalPlayer.Character
 local HD = Character and Character:FindFirstChild("Humanoid")
@@ -616,6 +626,8 @@ local ConfigKeys = {
     "WebhookSendHeartSpawn",
     "WebhookSendHeartGot",
     "WebhookSendLowPlayers",
+    "WebhookSendHeartGain",
+    "WebhookSendScrollGain",
     "ShowInfoUI",
 }
 local function EnsureConfigFolder()
@@ -6794,6 +6806,57 @@ do
         end,
     })
     ButtonKeys[#ButtonKeys + 1] = { element = ResetButton, key = "reset.data" }
+
+    -- ===== Teleport to Enchant NPC =====
+    -- Re-runs the tween towards the enchant NPC for as long as the switch is on.
+    -- It deliberately never stops on arrival: once the character reaches the NPC,
+    -- _tp() runs again and tweens from the current position, so the character stays
+    -- parked there until the switch is turned off. Turning it off also cancels any
+    -- tween still in flight and releases the hover hold, otherwise the character
+    -- would be dragged the rest of the way to the target after being switched off.
+    local TP_ENCHANT_POS = Vector3.new(-15906.6494, 483.391998, 945.215027)
+    local TpEnchantRunning = false
+    local function TpEnchantLoop()
+        if TpEnchantRunning then
+            return
+        end
+        TpEnchantRunning = true
+        task.spawn(function()
+            while _G.TeleportEnchantNPC do
+                pcall(function()
+                    _tp(TP_ENCHANT_POS)
+                end)
+                task.wait(0.1)
+            end
+            TpEnchantRunning = false
+            pcall(function()
+                ClearHover()
+            end)
+        end)
+    end
+    Tabs.Extra:AddToggle("tp.enchant", {
+        Title = T("tp.enchant"),
+        Default = _G.TeleportEnchantNPC,
+        Callback = function(State)
+            _G.TeleportEnchantNPC = State and true or false
+            if _G.TeleportEnchantNPC then
+                TpEnchantLoop()
+            else
+                pcall(function()
+                    StopTweenAll()
+                end)
+            end
+        end,
+    })
+    -- Keeps the loop alive if the flag is already set (e.g. after a forced reload).
+    task.spawn(function()
+        while true do
+            if _G.TeleportEnchantNPC and not TpEnchantRunning then
+                TpEnchantLoop()
+            end
+            task.wait(0.5)
+        end
+    end)
 end
 do
     local WebhookSendLock = false
@@ -6975,6 +7038,38 @@ do
         end
         return ScaleT, HeartT, ScrollT
     end
+    -- Live counters for the "obtained" notifications. Both return nil while the
+    -- craft/inventory remote has not answered yet, so the first real reading only
+    -- seeds the baseline instead of firing a false "obtained" notification.
+    local function GetHeartCount()
+        local Etc = GetCraftData()
+        if type(Etc) ~= "table" then
+            return nil
+        end
+        local Count = 0
+        for k, v in pairs(Etc) do
+            if type(v) == "number" then
+                local key = tostring(k)
+                if key:find("Leviathan") ~= nil and key:find("Heart") ~= nil then
+                    Count = v
+                end
+            end
+        end
+        return Count
+    end
+    local function GetScrollCounts()
+        local Etc = GetCraftData()
+        if type(Etc) ~= "table" then
+            return nil
+        end
+        local Out = {}
+        for k, v in pairs(Etc) do
+            if type(v) == "number" and tostring(k):find("Scroll") ~= nil then
+                Out[tostring(k)] = v
+            end
+        end
+        return Out
+    end
     local function BuildProgressMsg()
         local ScaleT, HeartT, ScrollT = GetMaterialCounts()
         return T("wh.bribe") .. ": " .. StatusText
@@ -7082,6 +7177,24 @@ do
             SaveConfig()
         end,
     })
+    Tabs.Webhook:AddToggle("webhook.send.heartgain", {
+        Title = T("webhook.send.heartgain"),
+        Description = "",
+        Default = _G.WebhookSendHeartGain,
+        Callback = function(State)
+            _G.WebhookSendHeartGain = State
+            SaveConfig()
+        end,
+    })
+    Tabs.Webhook:AddToggle("webhook.send.scrollgain", {
+        Title = T("webhook.send.scrollgain"),
+        Description = "",
+        Default = _G.WebhookSendScrollGain,
+        Callback = function(State)
+            _G.WebhookSendScrollGain = State
+            SaveConfig()
+        end,
+    })
     local SendNowButton = Tabs.Webhook:AddButton({
         Title = T("webhook.send.now"),
         Callback = function()
@@ -7119,9 +7232,13 @@ do
         local PrevHeartSpawn = false
         local PrevHeartGot = false
         local PrevLowPlayers = false
+        local PrevHeartCount = nil
+        local PrevScrolls = nil
         while true do
             task.wait(1)
-            if _G.AutoWebhook and _G.WebhookURL and _G.WebhookURL ~= "" then
+            -- Event notifications only need a webhook URL + their own toggle.
+            -- AutoWebhook remains the master switch for periodic progress only.
+            if _G.WebhookURL and _G.WebhookURL ~= "" then
                 pcall(function()
                     if _G.WebhookSendBribeReady then
                         local S = GetBribeStatus()
@@ -7164,6 +7281,43 @@ do
                             SendWebhookUI(T("wh.lowplayers.msg") .. tostring(N) .. "\n" .. BuildProgressMsg(), T("wh.title.lowplayers"), true)
                         end
                         PrevLowPlayers = Low
+                    end
+                    if _G.WebhookSendHeartGain then
+                        local NowHeart = GetHeartCount()
+                        if NowHeart ~= nil then
+                            if PrevHeartCount ~= nil and NowHeart > PrevHeartCount then
+                                print("[Webhook] Heart obtained, sending...")
+                                SendWebhookUI(
+                                    T("wh.msg.heartgain")
+                                        .. "\nLeviathan Heart: " .. tostring(NowHeart)
+                                        .. " (+" .. tostring(NowHeart - PrevHeartCount) .. ")",
+                                    T("wh.title.heartgain"))
+                            end
+                            PrevHeartCount = NowHeart
+                        end
+                    end
+                    if _G.WebhookSendScrollGain then
+                        local NowScrolls = GetScrollCounts()
+                        if NowScrolls ~= nil then
+                            if PrevScrolls ~= nil then
+                                local Gained = {}
+                                for k, v in pairs(NowScrolls) do
+                                    local Old = PrevScrolls[k] or 0
+                                    if v > Old then
+                                        Gained[#Gained + 1] = tostring(k) .. ": " .. tostring(v)
+                                            .. " (+" .. tostring(v - Old) .. ")"
+                                    end
+                                end
+                                if #Gained > 0 then
+                                    table.sort(Gained)
+                                    print("[Webhook] Scroll obtained, sending...")
+                                    SendWebhookUI(
+                                        T("wh.msg.scrollgain") .. "\n" .. table.concat(Gained, "\n"),
+                                        T("wh.title.scrollgain"))
+                                end
+                            end
+                            PrevScrolls = NowScrolls
+                        end
                     end
                 end)
             end
