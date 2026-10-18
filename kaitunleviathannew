@@ -8,10 +8,6 @@ if _G.AutoLeviathanFull_Loaded then
     print("[Auto Leviathan] Recarga forzada: la instancia anterior (menu y bucles) puede seguir activa.")
 end
 _G.AutoLeviathanFull_Loaded = true
--- 注意：主 chunk 的顶层 local 受 Luau 200 寄存器上限约束，超了会直接报
--- "Out of local registers when trying to allocate <name>: exceeded limit 200"。
--- 本文件里只被引用一次的辅助函数故意不加 local（定义成全局），调用点不用改；
--- 新增顶层 local 之前先跑 node tools/check_local_budget.js kaitunleviathan.lua
 repeat task.wait() until game:IsLoaded() and game:GetService("Players").LocalPlayer
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -951,10 +947,6 @@ local function _tp(targetPos, abortCheck)
                 tween:Cancel()
             end
         else
-            -- 注意：这里绝对不能因为角色 Y<0 就中止。
-            -- 游泳时 HumanoidRootPart 本来就在水面以下（约 -1~-5 格），
-            -- 一中止 _tp 就完全不动：上驾驶座失败、跟随飞行无效、打海怪发呆都是它。
-            -- 目标本身在水面以下（沉船等）仍由下面的 liveTarget 检查负责。
             if not seatedStop and curHum.SeatPart ~= nil then
                 seatedStop = true
                 arrived = true
@@ -1622,12 +1614,6 @@ local function IsFrozenHeartHarpooned()
     end
     return false
 end
--- 勾中判定：只认 Inside 上的 Harpooned 属性时，服务端属性若没同步到这里会一直判"没勾中"，
--- 于是永远卡在鱼叉座上重复上炮/发射，直到心脏自己消失。这里按可靠度依次补三路判定：
---   ① 心脏 Inside 的 Harpooned 属性（服务端勾中后写入）
---   ② 鱼叉球已被焊接：CannonBall 带 Harpoon 子物体且 Welded 属性为真（游戏内 Harpoon 脚本
---      勾住东西后就是靠这个属性切换姿态）
---   ③ 心脏被拖下来：勾中后服务端把心脏拉向船/水面，Y 相对开火前明显下降（掉到 <=110 或降 60 格）
 function HarpoonBallWelded()
     local roots = { workspace }
     local worldOrigin = workspace:FindFirstChild("_WorldOrigin")
@@ -1654,7 +1640,6 @@ local function HeartHookDetected(BaselineY)
         return false
     end
     local pos = GetHeartPos(heart)
-    -- 只有出生就在水面以上（>110）的心脏才用"被拉低"判断，避免心脏本来就生成得低时误判
     if pos and BaselineY and BaselineY > 110 then
         if pos.Y <= 110 then
             return true
@@ -2136,7 +2121,6 @@ local function CountTeammatesOnBoat(boat)
     end
     return Count
 end
--- 以某个位置为圆心，统计 5000 格内还活着的其他玩家（队员）数量
 function CountPlayersNear(pos, range)
     if not pos then
         return 0
@@ -3294,7 +3278,6 @@ _G.RJR_LeviathanPresent = function()
     end
     return SeaAPI.Leviathan_SegmentsExist()
 end
--- 离买船 NPC 5 千格以内不用重生：直接飞过去买船就行，死了反而更慢
 _G.RJR_NEAR_DEALER_RANGE = 5000
 _G.RJR_NearBoatDealer = function(range)
     local _, hrp = GetCharacterParts()
@@ -3312,24 +3295,12 @@ _G.RJR_ResetCharacterAtTiki = function(reason, force)
         SetStatus("Leviathan, puerta o corazón presentes: no reinicio")
         return
     end
-    -- 已经在买船点旁边就不要再死：重生的唯一目的就是回 Tiki 买船
     if not force and _G.RJR_NearBoatDealer() then
         SetStatus("Cerca del vendedor de barcos: compro barco sin reiniciar")
         return
     end
     _G.RJR_Resetting = true
-    -- The body below calls into game APIs (Sea_Mob, Leviathan_SegmentsExist,
-    -- OwnedBoatsOf) that can throw, and this function is normally started with
-    -- task.spawn(), which swallows the error. Without this pcall an error left
-    -- RJR_Resetting stuck true forever: OwnBoatUnusable() returns true whenever
-    -- that flag is set, so BuyOwnBoat() then refused to buy for the rest of the
-    -- session ("Barco viejo inservible: espero el reinicio para recomprar") and
-    -- this function could never run again to clear it. That is the captain
-    -- getting stuck without buying a boat.
     local ok, err = pcall(function()
-        -- 附近有海上事件时先等它打完再死，避免边打边重生（打完 1 秒内就会继续）。
-        -- 用当前角色的位置判断距离（模块级 HRP 是脚本启动时的旧角色，重生后会偏）。
-        -- 上限 120 秒；角色已经死了、或者 Leviathan/门/心脏出现就立刻退出等待。
         local WaitStart = os.clock()
         while _G.AutoLeviathanFull and os.clock() - WaitStart < 120 do
             if _G.RJR_LeviathanPresent() then
@@ -3358,7 +3329,6 @@ _G.RJR_ResetCharacterAtTiki = function(reason, force)
                 CommF2:InvokeServer("SetLastSpawnPoint", "Tiki")
             end
         end)
-        -- 死之前再确认一次：门/部件/心脏只要在场就绝不重生（把竞态窗口压到最小）
         if _G.RJR_LeviathanPresent() then
             SetStatus("Leviathan, puerta o corazón presentes: no reinicio")
             return
@@ -3413,7 +3383,6 @@ _G.RJR_StartBoatDeadMonitor = function()
                 local _, hrpSelf, humSelf = GetCharacterParts()
                 local SelfAlive = humSelf ~= nil and humSelf.Health > 0
                 if target then
-                    -- ① 船没了（整个实例消失）：队长和队员都重生
                     local Boats = OwnedBoatsOf(target)
                     if #Boats > 0 then
                         SawRealBoat = true
@@ -3424,11 +3393,9 @@ _G.RJR_StartBoatDeadMonitor = function()
                             Trigger = isCaptain and "Barco desaparecido" or "Barco del capitán desaparecido"
                         end
                     end
-                    -- ② 船还在但废了（血量 0 / 远到超过 BoatFindRange）
                     if not Trigger and OwnBoatUnusable(target, not isCaptain) then
                         Trigger = isCaptain and "Barco destruido (vida 0)" or "Barco del capitán inservible"
                     end
-                    -- ③ 队长死了，队员跟着重生（自己已经死了就不用再触发）
                     if not Trigger and not isCaptain then
                         local CChar = target.Character
                         local CHum = CChar and CChar:FindFirstChildOfClass("Humanoid")
@@ -3442,8 +3409,6 @@ _G.RJR_StartBoatDeadMonitor = function()
                             if not SelfAlive then
                                 CaptainDeathFollowed = true
                             else
-                                -- 能读到 Humanoid 就用 1.5 秒；Character 直接没了（重生/掉线）等 6 秒；
-                                -- 从头到尾没见过队长活着（脚本后开/队长先死）等 15 秒再跟，避免开局误杀
                                 local Needed = 15
                                 if CHum ~= nil then
                                     Needed = 1.5
@@ -3457,14 +3422,12 @@ _G.RJR_StartBoatDeadMonitor = function()
                             end
                         end
                     end
-                    -- ④ 航行中船上座位没坐满，5000 内又凑不齐 4 个队员 -> 重生集合
                     if not Trigger and isCaptain and not _G.SoloSeaFarm and hrpSelf then
                         local boat = GetOwnBoat()
                         local DriverSeat = boat and boat:FindFirstChild("VehicleSeat")
                         if boat and DriverSeat and IsSittingOn(DriverSeat) then
                             local OnBoard = CountTeammatesOnBoat(boat)
                             local Near = CountPlayersNear(hrpSelf.Position, TEAMMATE_RANGE)
-                            -- 服务器里本来就凑不出 4 个队员时不触发，免得无限重生
                             local CanFill = (#Players:GetPlayers() - 1) >= TEAMMATE_WANTED
                             if OnBoard < TEAMMATE_WANTED and Near < TEAMMATE_WANTED and CanFill
                                 and not _G.RJR_Resetting then
@@ -3480,15 +3443,12 @@ _G.RJR_StartBoatDeadMonitor = function()
                         end
                     end
                 end
-                -- 利维坦本体/部件、门、心脏在场：绝不重生
                 if Trigger and _G.RJR_LeviathanPresent and _G.RJR_LeviathanPresent() then
                     Trigger = nil
                 end
-                -- 已经在买船 NPC 5000 格内：飞过去买船就行，不重生(也不消耗 armed)
                 if Trigger and _G.RJR_NearBoatDealer and _G.RJR_NearBoatDealer() then
                     Trigger = nil
                 end
-                -- 已经在重生流程里：不重复触发，也不消耗 armed 标记
                 if Trigger and _G.RJR_Resetting then
                     Trigger = nil
                 end
@@ -3577,7 +3537,6 @@ local function RecoverPositionLock(reason)
                 RecoverLock.since = os.clock()
                 RecoverLock.lastResetAt = os.clock()
                 SetStatus("Sigo bloqueado: reinicio el personaje en Tiki")
-                -- force=true: 卡死解卡和买船无关，即使在买船 NPC 旁边也要重置
                 pcall(_G.RJR_ResetCharacterAtTiki, "Personaje bloqueado", true)
             end
         end
@@ -3625,12 +3584,6 @@ task.spawn(function()
     end
 end)
 end
--- 鱼叉弹道解算。游戏内 ReplicatedStorage.Harpoon 的预测公式是
---   Position + Velocity * t + Vector3.new(0, 0.5, 0) * (-workspace.Gravity) * t * t
--- 初速固定 400，炮管仰角被夹在 -10°..45°（老版固定 45° 用的就是上限）。
--- 之前用 atan2(dy, 水平距离) 直瞄，完全没算重力下坠：300 格外、比炮口高 190 格的心脏，
--- 直瞄≈32° 打出去会低 50~60 格从心脏下面掠过，勾不中就一直重来，直到心脏消失。
--- 这里按真实弹道反解仰角（低伸解优先，超出 45° 再取高抛解）。
 local HARPOON_SPEED = 400
 HARPOON_YAW = 0
 local HARPOON_PITCH_MIN = math.rad(-10)
@@ -3650,7 +3603,6 @@ function HarpoonSolvePitch(FromPos, ToPos)
     end
     local Disc = v2 * v2 - Gravity * (Gravity * R * R + 2 * dy * v2)
     if Disc < 0 then
-        -- 这个距离上打不到：用最大仰角（老版固定 45° 的兜底行为）
         return HARPOON_PITCH_MAX
     end
     local Root = math.sqrt(Disc)
@@ -3664,7 +3616,6 @@ function HarpoonSolvePitch(FromPos, ToPos)
     end
     return math.clamp(Low, HARPOON_PITCH_MIN, HARPOON_PITCH_MAX)
 end
--- 真正的炮口：游戏内按 Seat.TubeWeld.Part1 的位置和朝向生成鱼叉球
 function HarpoonMuzzle(Harpoon, HarpoonSeat)
     local Tube = HarpoonSeat and HarpoonSeat:FindFirstChild("TubeWeld")
     local Tip = Tube and Tube.Part1
@@ -3679,7 +3630,6 @@ function HarpoonMuzzle(Harpoon, HarpoonSeat)
         or Harpoon.PrimaryPart
         or HarpoonSeat
 end
--- 发射成功服务端会在 Harpoon 下挂 Cooldown 直到装填完毕，冷却中再发射会被拒
 function HarpoonCooling(Harpoon)
     return Harpoon ~= nil and Harpoon:FindFirstChild("Cooldown") ~= nil
 end
@@ -3819,15 +3769,12 @@ function HarpoonHeart()
         end
         local FireRejected = false
         if CommF2 then
-            -- 冷却中发射会被服务端直接拒掉（游戏内客户端也是等 Cooldown 消失才允许再射），
-            -- 先等装填完，免得白打一发还要白等 10 秒判定
             local CdStart = os.clock()
             while _G.AutoLeviathanFull and HarpoonCooling(Harpoon) and os.clock() - CdStart < 10 do
                 SetStatus("Enganche: espero la recarga del arpón (intento " .. Rounds .. ")")
                 task.wait(0.2)
             end
             SetStatus("Enganche: disparo el arpón nº " .. Rounds .. " (ángulo " .. string.format("%.1f", math.deg(Pitch)) .. "°)")
-            -- 单独线程 + 超时：InvokeServer 万一被服务端挂住，绝不能把船长主循环一起冻死
             local FireDone, FireResult = false, nil
             task.spawn(function()
                 local ok, res = pcall(function()
@@ -3850,7 +3797,6 @@ function HarpoonHeart()
         Fires = Fires + 1
         local GrabbedNow = false
         if FireRejected then
-            -- 服务端没接受这一发，不用白等 10 秒判定，直接进下一轮
             task.wait(0.5)
         else
             local PostWaitStart = os.clock()
@@ -4298,7 +4244,6 @@ local function WaitForTeammates(boat, DriverSeat, ShouldStop, FightEvents, NoReb
                 BoardSeatRetry(DriverSeat)
             end
         else
-            -- 等队友上船期间：连续等满 30 秒就下船一次再上来，防止坐太久卡在座位/焊接失效
             local CrewNow = CountTeammatesOnBoat(boat)
             if CrewNow ~= LastCrewCount then
                 LastCrewCount = CrewNow
@@ -7091,13 +7036,6 @@ do
     })
     ButtonKeys[#ButtonKeys + 1] = { element = ResetButton, key = "reset.data" }
 
-    -- ===== Teleport to Enchant NPC =====
-    -- Re-runs the tween towards the enchant NPC for as long as the switch is on.
-    -- It deliberately never stops on arrival: once the character reaches the NPC,
-    -- _tp() runs again and tweens from the current position, so the character stays
-    -- parked there until the switch is turned off. Turning it off also cancels any
-    -- tween still in flight and releases the hover hold, otherwise the character
-    -- would be dragged the rest of the way to the target after being switched off.
     local TP_ENCHANT_POS = Vector3.new(-15906.6494, 483.391998, 945.215027)
     local TpEnchantRunning = false
     local function TpEnchantLoop()
@@ -7132,7 +7070,6 @@ do
             end
         end,
     })
-    -- Keeps the loop alive if the flag is already set (e.g. after a forced reload).
     task.spawn(function()
         while true do
             if _G.TeleportEnchantNPC and not TpEnchantRunning then
@@ -7322,9 +7259,6 @@ do
         end
         return ScaleT, HeartT, ScrollT
     end
-    -- Live counters for the "obtained" notifications. Both return nil while the
-    -- craft/inventory remote has not answered yet, so the first real reading only
-    -- seeds the baseline instead of firing a false "obtained" notification.
     local function GetHeartCount()
         local Etc = GetCraftData()
         if type(Etc) ~= "table" then
@@ -7520,8 +7454,6 @@ do
         local PrevScrolls = nil
         while true do
             task.wait(1)
-            -- Event notifications only need a webhook URL + their own toggle.
-            -- AutoWebhook remains the master switch for periodic progress only.
             if _G.WebhookURL and _G.WebhookURL ~= "" then
                 pcall(function()
                     if _G.WebhookSendBribeReady then
