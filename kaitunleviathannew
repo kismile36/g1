@@ -432,7 +432,6 @@ TranslateStatus, SetStatus = (function(LanguageCode)
         ["Me teletransporto al corazón"] = { en = "Teleporting to heart", zh = "传送到心脏位置", th = "กำลังวาร์ปไปที่หัวใจ" },
         ["Siguiendo al capitán (esperando el corazón)"] = { en = "Following captain (waiting heart)", zh = "跟随队长 (等心脏出现)", th = "กำลังตามกัปตัน (รอหัวใจ)" },
         ["El capitán está a pie, sin objetivo: en espera"] = { en = "Captain off, no target, standby", zh = "队长下船中 无目标 待命", th = "กัปตันลงจากเรือ ไม่มีเป้าหมาย ยืนรอ" },
-        ["El capitán está al timón: vuelvo a subir"] = { en = "Captain at the helm: boarding again", zh = "队长在驾驶: 重新上船", th = "กัปตันอยู่ที่พวงมาลัย: กำลังขึ้นเรือใหม่" },
         ["Barco hundido (Y<0)"] = { en = "Boat Y below 0", zh = "船Y轴低于0", th = "เรืออยู่ต่ำกว่า Y 0" },
         ["Barco destruido (vida 0)"] = { en = "Boat destroyed (0 HP)", zh = "船血量为0", th = "เรือถูกทำลาย (พลังชีวิต 0)" },
         ["Barco del capitán inservible"] = { en = "Captain's boat unusable", zh = "队长船不可用", th = "เรือของกัปตันใช้ไม่ได้" },
@@ -4923,7 +4922,6 @@ local function StartFollower()
     end
     task.spawn(function()
         local GateTweening = false
-        local OffBoatSince = nil
         while _G.AutoLeviathanFull and _G.Mode == "Seguidor" do
             StatusPrefix = "follow"
             local ok, err = pcall(function()
@@ -5038,13 +5036,6 @@ local function StartFollower()
                             _tp(LiveCaptainTopCF(35), function()
                                 return not _G.AutoLeviathanFull
                             end)
-                        elseif not IsOnBoat() then
-                            -- 队长看不到(死了/重生/掉线)时不能啥都不干，至少浮着别沉水里；
-                            -- 这是"队员下船后宕机泡水"的直接原因之一
-                            SetStatus("El capitán está a pie, sin objetivo: en espera")
-                            _tp(LiveSelfCF(50), function()
-                                return not _G.AutoLeviathanFull
-                            end)
                         end
                     else
                         local Mob, Root, Skill = nil, nil, false
@@ -5072,21 +5063,6 @@ local function StartFollower()
             end)
             if not ok then
                 task.wait(0.5)
-            end
-            -- 兜底：队长已经坐在驾驶座、船就在附近，自己却连续 8 秒没上船
-            -- (海上事件打完/掉座之后常见) -> 强制重新上船，别一直漂在水里
-            if _G.Mode == "Seguidor" then
-                local capBoat = GetCaptainBoat()
-                if capBoat and IsCaptainOnBoat(capBoat) and not IsOnCaptainBoat(capBoat) then
-                    OffBoatSince = OffBoatSince or os.clock()
-                    if os.clock() - OffBoatSince >= 8 then
-                        OffBoatSince = nil
-                        SetStatus("El capitán está al timón: vuelvo a subir")
-                        FollowerBoardSeat(capBoat)
-                    end
-                else
-                    OffBoatSince = nil
-                end
             end
             if FollowSeatsFull and not IsOnBoat() then
                 if GetCaptainHRP() then
