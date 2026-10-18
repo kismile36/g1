@@ -950,12 +950,11 @@ local function _tp(targetPos, abortCheck)
             if tween then
                 tween:Cancel()
             end
-        elseif curHRP.Position.Y < 0 then
-            aborted = true
-            if tween then
-                tween:Cancel()
-            end
         else
+            -- 注意：这里绝对不能因为角色 Y<0 就中止。
+            -- 游泳时 HumanoidRootPart 本来就在水面以下（约 -1~-5 格），
+            -- 一中止 _tp 就完全不动：上驾驶座失败、跟随飞行无效、打海怪发呆都是它。
+            -- 目标本身在水面以下（沉船等）仍由下面的 liveTarget 检查负责。
             if not seatedStop and curHum.SeatPart ~= nil then
                 seatedStop = true
                 arrived = true
