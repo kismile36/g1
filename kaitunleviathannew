@@ -447,6 +447,7 @@ TranslateStatus, SetStatus = (function(LanguageCode)
     }
     local StatusPatterns = {
         { es = "Personaje bloqueado en el sitio ({1}): lo libero", en = "Character stuck in place ({1}): freeing it", zh = "人物卡在原地 ({1}) 正在解卡", nested = false, th = "ตัวละครติดอยู่กับที่ ({1}): กำลังปลด" },
+        { es = "Personaje bloqueado en el sitio ({1}): teletransporte forzado", en = "Character stuck in place ({1}): forcing a teleport", zh = "人物卡在原地 ({1}) 强制传送解卡", nested = false, th = "ตัวละครติดอยู่กับที่ ({1}): บังคับวาร์ป" },
         { es = "Siguiendo: el barco del capitán está a más de {1} — no lo persigo", en = "Following: captain's boat is over {1} away - not chasing it", zh = "跟随 队长船超出{1} 不追", nested = false, th = "กำลังตาม: เรือของกัปตันอยู่ห่างเกิน {1} - ไม่ไล่ตาม" },
         { es = "Volviendo a Tiki: corazón a {1} — voy justo debajo del corazón", en = "Returning, heart {1} away, moving under heart", zh = "回Tiki 心脏离船 {1} 开向心脏正下方", nested = false, th = "กำลังกลับ หัวใจห่าง {1} กำลังไปใต้หัวใจ" },
         { es = "Enganche: espero el resultado (disparo {1}, esperando {2} s)", en = "Hook: waiting after shot ({1} fired, {2}s)", zh = "勾心脏 发射后等待判断 (第{1}发 已等 {2} 秒)", nested = false, th = "เกี่ยว: รอผลหลังยิง (ยิงไป {1} นัด, {2} วินาที)" },
@@ -842,6 +843,74 @@ function GetTweenPart()
     part.Parent = workspace
     return part
 end
+local function StandUpFromSeat(seat, hum, hrp)
+    local char = LocalPlayer.Character
+    if not hum then
+        return false
+    end
+    if seat then
+        pcall(function()
+            local Weld = seat:FindFirstChild("SeatWeld")
+            local p1 = Weld and Weld.Part1
+            if Weld and ((not p1) or (p1:IsA("BasePart") and char and p1:IsDescendantOf(char))) then
+                Weld:Destroy()
+            end
+        end)
+        pcall(function()
+            for _, d in ipairs(seat:GetDescendants()) do
+                if d:IsA("Weld") or d:IsA("WeldConstraint") then
+                    local p0, p1 = d.Part0, d.Part1
+                    if char and ((p0 and p0:IsDescendantOf(char)) or (p1 and p1:IsDescendantOf(char))) then
+                        d:Destroy()
+                    end
+                end
+            end
+        end)
+        local SeatRoot = seat.Parent
+        if SeatRoot and SeatRoot ~= workspace then
+            pcall(function()
+                for _, d in ipairs(SeatRoot:GetDescendants()) do
+                    if d:IsA("Weld") or d:IsA("WeldConstraint") then
+                        local p0, p1 = d.Part0, d.Part1
+                        if char and ((p0 and p0:IsDescendantOf(char)) or (p1 and p1:IsDescendantOf(char))) then
+                            d:Destroy()
+                        end
+                    end
+                end
+            end)
+        end
+    end
+    if char then
+        for _, d in ipairs(char:GetDescendants()) do
+            if d:IsA("Weld") or d:IsA("WeldConstraint") then
+                local p0, p1 = d.Part0, d.Part1
+                local IsSeatWeld = d.Name == "SeatWeld"
+                    or (p0 ~= nil and p0:IsA("Seat"))
+                    or (p1 ~= nil and p1:IsA("Seat"))
+                if IsSeatWeld then
+                    pcall(function()
+                        d:Destroy()
+                    end)
+                end
+            end
+        end
+    end
+    pcall(function()
+        hum.Sit = false
+        hum.PlatformStand = false
+        hum.Jump = true
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end)
+    if hrp then
+        pcall(function()
+            hrp.Anchored = false
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            hrp.CFrame = hrp.CFrame + Vector3.new(0, 25, 0)
+        end)
+    end
+    return true
+end
 local function _tp(targetPos, abortCheck)
     local startChar = LocalPlayer.Character
     local myHRP = select(2, GetCharacterParts())
@@ -901,13 +970,7 @@ local function _tp(targetPos, abortCheck)
     end
     local _, _, humS = GetCharacterParts()
     if humS and (humS.Sit or humS.SeatPart ~= nil) then
-        pcall(function()
-            humS.Sit = false
-            humS.PlatformStand = false
-        end)
-        pcall(function()
-            myHRP.CFrame = myHRP.CFrame + Vector3.new(0, 10, 0)
-        end)
+        StandUpFromSeat(humS.SeatPart, humS, myHRP)
         task.wait(0.2)
     end
     local part = GetTweenPart()
@@ -1193,38 +1256,19 @@ _G.RJR_SeatConfirmed = function(seat)
     return true
 end
 _G.RJR_BreakPhantomSeat = function(seat)
-    local char, hrp, hum = GetCharacterParts()
+    local _, hrp, hum = GetCharacterParts()
     if not hum then
         return false
     end
     local Target = seat or hum.SeatPart
-    pcall(function()
-        hum.Sit = false
-        hum.PlatformStand = false
-    end)
-    if Target and Target.Parent then
-        local Weld = Target:FindFirstChild("SeatWeld")
-        local p1 = Weld and Weld.Part1
-        if Weld and ((not p1) or (p1:IsA("BasePart") and char and p1:IsDescendantOf(char))) then
-            pcall(function()
-                Weld:Destroy()
-            end)
-        end
-    end
-    if hrp then
-        pcall(function()
-            hrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0)
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end)
-    end
+    StandUpFromSeat(Target, hum, hrp)
     ClearHover()
     if Target then
         SeatPhantomState.since[Target] = nil
     end
     task.wait(0.15)
     local _, _, hum2 = GetCharacterParts()
-    return hum2 == nil or not hum2.Sit
+    return hum2 == nil or (not hum2.Sit and hum2.SeatPart == nil)
 end
 end
 local function CheckItem(Item, Mode)
@@ -2155,33 +2199,15 @@ local function Unseat()
         pcall(RestoreWallClip)
     end
     ClearHover()
+    AttackModel = nil
+    AttackStandFn = nil
+    FightTarget = nil
     for _ = 1, 3 do
         local _, hrp, hum = GetCharacterParts()
         if not hum or (not hum.Sit and hum.SeatPart == nil) then
             return true
         end
-        pcall(function()
-            local char = LocalPlayer.Character
-            local seat = hum and hum.SeatPart
-            if char and seat and seat.Parent then
-                local Weld = seat:FindFirstChild("SeatWeld")
-                local p1 = Weld and Weld.Part1
-                if Weld and ((not p1) or (p1:IsA("BasePart") and p1:IsDescendantOf(char))) then
-                    Weld:Destroy()
-                end
-            end
-        end)
-        if hum then
-            pcall(function()
-                hum.Sit = false
-                hum.PlatformStand = false
-            end)
-        end
-        if hrp then
-            pcall(function()
-                hrp.CFrame = hrp.CFrame + Vector3.new(0, 10, 0)
-            end)
-        end
+        StandUpFromSeat(hum.SeatPart, hum, hrp)
         local UnseatStart = os.clock()
         while os.clock() - UnseatStart < 2 do
             local _, _, hum2 = GetCharacterParts()
@@ -2189,6 +2215,8 @@ local function Unseat()
                 pcall(function()
                     hum2.Sit = false
                     hum2.PlatformStand = false
+                    hum2.Jump = true
+                    hum2:ChangeState(Enum.HumanoidStateType.GettingUp)
                 end)
                 task.wait(0.2)
             else
@@ -3166,10 +3194,7 @@ local function FightLeviathan(ShouldBreak, WaitSec)
                     local _, hrp2 = GetCharacterParts()
                     local _, _, hum2 = GetCharacterParts()
                     if hum2 and (hum2.Sit or hum2.SeatPart ~= nil) then
-                        pcall(function()
-                            hum2.Sit = false
-                            hum2.PlatformStand = false
-                        end)
+                        StandUpFromSeat(hum2.SeatPart, hum2, hrp2)
                     end
                     if hrp2 and FleeY then
                         hrp2.CFrame = CFrame.new(hrp2.Position.X, FleeY, hrp2.Position.Z)
@@ -3507,6 +3532,10 @@ local function RecoverPositionLock(reason)
         if Phantom then
             RecoverLock.tries = RecoverLock.tries + 1
         end
+        AttackModel = nil
+        AttackStandFn = nil
+        FightTarget = nil
+        ClearHover()
         SetStatus("Personaje bloqueado en el sitio (" .. tostring(reason or "?") .. "): lo libero")
         pcall(function()
             local _, _, hum = GetCharacterParts()
@@ -3527,7 +3556,36 @@ local function RecoverPositionLock(reason)
             end
             task.wait(0.2)
         end
-        if ((not Freed) or RecoverLock.tries >= 2) and _G.AutoLeviathanFull and not _G.RJR_Resetting then
+        if not Freed then
+            SetStatus("Personaje bloqueado en el sitio (" .. tostring(reason or "?") .. "): teletransporte forzado")
+            pcall(function()
+                local _, hrpF, humF = GetCharacterParts()
+                if humF then
+                    pcall(function()
+                        humF.Sit = false
+                        humF.PlatformStand = false
+                        humF.Jump = true
+                        humF:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    end)
+                end
+                if hrpF then
+                    hrpF.Anchored = false
+                    hrpF.AssemblyLinearVelocity = Vector3.zero
+                    hrpF.AssemblyAngularVelocity = Vector3.zero
+                    hrpF.CFrame = CFrame.new(hrpF.Position.X, math.max(hrpF.Position.Y, 60) + 80, hrpF.Position.Z)
+                end
+            end)
+            local ForceAt = os.clock() + 2
+            while os.clock() < ForceAt do
+                local _, _, humF2 = GetCharacterParts()
+                if not humF2 or (not humF2.Sit and humF2.SeatPart == nil) then
+                    Freed = true
+                    break
+                end
+                task.wait(0.1)
+            end
+        end
+        if not Freed and _G.AutoLeviathanFull and not _G.RJR_Resetting then
             if _G.RJR_LeviathanPresent and _G.RJR_LeviathanPresent() then
                 SetStatus("Sigo bloqueado, pero hay Leviathan/puerta/corazón: no reinicio")
             elseif os.clock() - (RecoverLock.lastResetAt or 0) < 180 then
