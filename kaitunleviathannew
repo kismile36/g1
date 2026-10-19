@@ -5958,25 +5958,38 @@ function CraftQualityList.GetLabel(Key)
         end
     end
 end
+function CraftQualityList.GetKey(KeyOrLabel)
+    if KeyOrLabel == nil then
+        return nil
+    end
+    local normalized = tostring(KeyOrLabel):lower():gsub("%s+", ""):gsub("_", "")
+    for _, scroll in ipairs(CraftQualityList) do
+        local key = tostring(scroll.Key):lower():gsub("%s+", ""):gsub("_", "")
+        local label = tostring(scroll.Label):lower():gsub("%s+", ""):gsub("_", "")
+        if normalized == key or normalized == label then
+            return scroll.Key
+        end
+    end
+end
 function CraftQualityList.Lookup(source, Key)
     if not source then
         return nil
     end
-    local value = CountValue(source[Key])
+    local canonical = CraftQualityList.GetKey(Key) or Key
+    local value = CountValue(source[canonical])
     if value == nil then
-        local label = CraftQualityList.GetLabel(Key)
-        if label then
-            value = CountValue(source[label])
-        end
+        local label = CraftQualityList.GetLabel(canonical) or tostring(Key)
+        value = CountValue(source[label])
     end
     return value
 end
 function CraftQualityList.GetCount(Prog, Etc, Key)
-    local preferred = (Key == "MythicalScroll") and Etc or Prog
+    local canonical = CraftQualityList.GetKey(Key) or Key
+    local preferred = (canonical == "MythicalScroll") and Etc or Prog
     local fallback = (preferred == Etc) and Prog or Etc
-    local value = CraftQualityList.Lookup(preferred, Key)
+    local value = CraftQualityList.Lookup(preferred, canonical)
     if value == nil then
-        value = CraftQualityList.Lookup(fallback, Key)
+        value = CraftQualityList.Lookup(fallback, canonical)
     end
     return value or 0
 end
@@ -5986,7 +5999,9 @@ function CraftQualityList.GetProgressView(Prog, Etc)
         view[key] = value
     end
     for _, scroll in ipairs(CraftQualityList) do
-        view[scroll.Key] = CraftQualityList.GetCount(Prog, Etc, scroll.Key)
+        local count = CraftQualityList.GetCount(Prog, Etc, scroll.Key)
+        view[scroll.Key] = count
+        view[scroll.Label] = count
     end
     return view
 end
@@ -5995,22 +6010,23 @@ function CraftQualityList.GetNextUnlockKey(Recipes, Prog, Key, Depth)
     if Depth > #CraftQualityList then
         return nil, "depth"
     end
-    local recipe = Recipes[Key]
+    local canonical = CraftQualityList.GetKey(Key) or Key
+    local recipe = Recipes[canonical]
     if not recipe then
-        return nil, "recipe", Key
+        return nil, "recipe", canonical
     end
     for progressKey, required in pairs(recipe.ProgressionRequirement or {}) do
+        local dependency = CraftQualityList.GetKey(progressKey)
         local current = CraftQualityList.Lookup(Prog, progressKey) or 0
         local needed = tonumber(required) or 0
         if current < needed then
-            local dependency = CraftQualityList.GetLabel(progressKey) and progressKey
             if not dependency then
                 return nil, "progress", progressKey, current, needed
             end
             return CraftQualityList.GetNextUnlockKey(Recipes, Prog, dependency, Depth + 1)
         end
     end
-    return Key
+    return canonical
 end
 local CraftRecipesCache = nil
 local function GetCraftRecipes()
@@ -6037,7 +6053,26 @@ local function GetCraftData()
     end
     return nil, nil
 end
-local function CheckCraftRecipe(r, Etc, Prog)
+local function CheckCraftRecipe(r, Etc, Prog, UseScrollLookup)
+    if UseScrollLookup then
+        for k, v in pairs(r.ProgressionRequirement or {}) do
+            local current = CraftQualityList.Lookup(Prog, k) or 0
+            local required = tonumber(v) or 0
+            if current < required then
+                return false, TranslateStatus("Falta progreso " .. tostring(k) .. " (" .. current .. "/" .. required .. ")")
+            end
+        end
+        for k, v in pairs(r.Ingredients or {}) do
+            if type(k) == "string" then
+                local current = CountValue(Etc and Etc[k]) or 0
+                local required = tonumber(v) or 0
+                if current < required then
+                    return false, TranslateStatus("Falta " .. k .. " (" .. current .. "/" .. required .. ")")
+                end
+            end
+        end
+        return true
+    end
     for k, v in pairs(r.ProgressionRequirement or {}) do
         if (Prog[k] or 0) < v then
             return false, TranslateStatus("Falta progreso " .. k .. " (" .. (Prog[k] or 0) .. "/" .. v .. ")")
@@ -6128,7 +6163,18 @@ function AutoUnlockMythicalStep()
         if current > pending.Before then
             CraftQualityList.Pending = nil
             if pending.Key == "MythicalScroll" then
+                local continueMythicalCrafting = _G.CraftQuality == "Mythical Scroll"
                 StopAutoUnlockMythical("craft.unlock.done")
+                if continueMythicalCrafting then
+                    _G.AutoCraftScrolls = true
+                    if _G.RJR_AutoCraftScrollsToggle then
+                        pcall(function()
+                            _G.RJR_AutoCraftScrollsToggle:SetValue(true)
+                        end)
+                    else
+                        SaveConfig()
+                    end
+                end
                 return
             end
         elseif os.clock() - pending.At < 15 then
@@ -6161,7 +6207,7 @@ function AutoUnlockMythicalStep()
         CraftStatus = TranslateStatus("Receta no encontrada: " .. craftKey)
         return
     end
-    local canCraft, missing = CheckCraftRecipe(recipe, Etc, CraftQualityList.GetProgressView(Prog, Etc))
+    local canCraft, missing = CheckCraftRecipe(recipe, Etc, CraftQualityList.GetProgressView(Prog, Etc), true)
     if not canCraft then
         CraftStatus = T("craft.unlock") .. ": " .. missing
         return
