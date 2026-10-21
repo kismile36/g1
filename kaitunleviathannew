@@ -969,8 +969,6 @@ local function StandUpFromSeat(seat, hum, hrp)
 end
 local function _tp(targetPos, abortCheck, allowNavigationOwner)
     if NavigationOwner and not allowNavigationOwner then
-        -- A navigation owner may be running its own tween in CurrentTween.
-        -- Block this new request, but never cancel the active owner's movement.
         return false
     end
     local startChar = LocalPlayer.Character
@@ -3082,9 +3080,6 @@ local function FightSeaEvent(Mob, Root, Skill, ShouldBreak)
             SetStatus("El capitán volvió al barco: dejo de pelear y vuelvo")
             break
         end
-        -- Recheck on every attack tick, including when a target was acquired
-        -- before the dropdown changed. Empty selection keeps its existing
-        -- meaning outside Solo Sea Farm; Solo Sea Farm remains strict.
         if not Sea_SelectionAllows(Mob and Mob.Name) then
             SetStatus(T("hunt.skip.unselected"))
             break
@@ -5254,8 +5249,6 @@ local function StartFollower()
                     return
                 end
                 if boat and CaptainOn then
-                    -- Match Banana's flow: each follower scans its own selected sea events
-                    -- before boarding/waiting, so a full boat does not prevent event farming.
                     local Mob, Root, Skill = nil, nil, false
                     if _G.HuntFightEvents then
                         Mob, Root, Skill = SeaAPI.Sea_Mob(5000)
@@ -6554,7 +6547,6 @@ task.spawn(function()
         end
     end
 end)
--- 自动抽果 / 自动存果实：逻辑与 main.lua 保持一致
 local FruitStoreBlackList = {}
 local FruitStoreFailCount = {}
 local function FruitCommF()
@@ -8219,7 +8211,6 @@ do
                 end
             end)
         end
-        -- 游戏 UI 在附魔时会置 Character.Busy，服务端按它判断是否空闲
         local function SetBusy(state)
             pcall(function()
                 local char = LocalPlayer.Character
@@ -8293,8 +8284,6 @@ do
             end
             return nil
         end
-        -- 官方 UI 的判定规则：Check 返回的 Scrolls[卷轴] = {数量, 稀有度, 需要Grade}，
-        -- 需要Grade > Upgrades 就是 Locked（用了会毁武器），数量 <= 0 就是没钱/没货。
         local function EnchantCanUseScroll(info, scrollName)
             if type(info) ~= "table" then
                 return false, "读取不到武器附魔数据"
@@ -8353,7 +8342,6 @@ do
                 EnchantWebhookWorker = false
             end)
         end
-        -- 统一出口：关掉自动附魔、清悬停、归还导航，保证主流程一定能继续
         local function StopAutoEnchant(statusText)
             _G.AutoEnchantOnHeart = false
             EnchantArmedHeart = nil
@@ -8445,7 +8433,6 @@ do
                 EnchantBeatAt = os.clock()
                 local scrollCount = tonumber((ReadEnchantInventory()))
                 if scrollCount == nil then
-                    -- 读不到背包数量时先当作“有”，真正的可用性由下面 Check 返回的 Scrolls 决定
                     scrollCount = 1
                 end
                 if scrollCount <= 0 then
@@ -8486,7 +8473,6 @@ do
                             EnchantRunning = false
                             return
                         end
-                        -- 用官方 UI 的规则判断这张卷轴能不能用（不再用不存在的 "Check1"）
                         local canRoll, whyNot = EnchantCanUseScroll(before, ENCHANT_SCROLL)
                         if not canRoll then
                             StopAndReturn(tostring(whyNot) .. "：已停止自动附魔并归还导航")
@@ -8499,7 +8485,6 @@ do
                             return InvokeEnchantAction(flags, enchantRemote, commF, "Enchant", tool, ENCHANT_SCROLL)
                         end)
                         SetBusy(false)
-                        -- 服务端成功时直接返回结果表；返回不了才回退去数背包
                         local consumed = rolled and type(rollResult) == "table"
                         if not consumed then
                             for _ = 1, 8 do
@@ -8575,7 +8560,6 @@ do
                             SetEnchantStatus("请先选择至少一个目标附魔；等待下一颗心脏")
                         elseif heartCount > EnchantArmedHeart then
                             EnchantArmedHeart = heartCount
-                            -- 前置条件不满足就不拿导航锁，主流程照常跑
                             if NavigationOwner ~= nil and NavigationOwner ~= "home-return" then
                                 SetEnchantStatus("导航正被占用（" .. tostring(NavigationOwner)
                                     .. "）；本次跳过，不影响主流程")
@@ -8608,7 +8592,6 @@ do
                 end
             end
         end)
-        -- 兜底：附魔线程万一卡死（remote 无限挂起等），强制把导航还给主流程
         task.spawn(function()
             while true do
                 task.wait(5)
