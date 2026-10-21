@@ -2403,6 +2403,14 @@ local function DebugDumpBoats()
     end
 end
 local function BuyOwnBoat(Message)
+    if NavigationOwner == "enchant" then
+        SetStatus("附魔正在使用导航：等附魔结束后继续前往购买船只")
+        local waitStarted = os.clock()
+        while _G.AutoLeviathanFull and NavigationOwner == "enchant"
+            and os.clock() - waitStarted < 180 do
+            task.wait(0.1)
+        end
+    end
     if NavigationOwner then
         SetStatus("Navigation reserved: waiting before buying a boat")
         return false
@@ -7632,9 +7640,6 @@ do
         Default = _G.AutoEnchantOnHeart,
         Callback = function(State)
             _G.AutoEnchantOnHeart = State and true or false
-            if not _G.AutoEnchantOnHeart and NavigationOwner == "enchant" then
-                NavigationOwner = nil
-            end
             SaveConfig()
         end,
     })
@@ -8286,45 +8291,11 @@ do
             SetEnchantStatus("命中所选附魔，自动附魔已停止")
         end
         local function StopAutoEnchantOnNoScroll()
-            _G.AutoEnchantOnHeart = false
             EnchantArmedHeart = nil
             SaveConfig()
-            if _G.RJR_AutoEnchantOnHeartToggle then
-                pcall(function()
-                    _G.RJR_AutoEnchantOnHeartToggle:SetValue(false)
-                end)
-            end
-            SetEnchantStatus("神话卷轴已用完，返回主流程")
+            SetEnchantStatus("神话卷轴已用完，等待再次达到10个；自动附魔保持待命")
             if _G.AutoLeviathanFull then
-                task.spawn(function()
-                    SetStatus("神话卷轴已用完：重启主流程，准备购买船只")
-                    _G.AutoLeviathanFull = false
-                    NavigationOwner = nil
-                    pcall(StopTweenAll)
-                    pcall(function() _G.RJR_ResetMapNoclipState() end)
-                    local stopStarted = os.clock()
-                    while (CaptainRunning or FollowerRunning) and os.clock() - stopStarted < 20 do
-                        task.wait(0.1)
-                    end
-                    if os.clock() - stopStarted >= 20 then
-                        _G.AutoLeviathanFull = true
-                        SaveConfig()
-                        return
-                    end
-                    _G.AutoLeviathanFull = true
-                    SaveConfig()
-                    RefreshPlayerList()
-                    if _G.Mode == "Capitán" then
-                        StartCaptain()
-                    else
-                        StartFollower()
-                    end
-                    StatusText = T("status.on") .. " (" .. ModeDisplay() .. ")"
-                    _G.RJR_BoatDeadArmed = true
-                    if _G.RJR_StartBoatDeadMonitor then
-                        _G.RJR_StartBoatDeadMonitor()
-                    end
-                end)
+                SetStatus("神话卷轴已用完：附魔待命，主流程继续")
             end
         end
         local function RunEnchantAfterHeart(token)
@@ -8480,6 +8451,11 @@ do
                                     SetEnchantStatus("附魔流程出错: " .. tostring(err))
                                 end
                                 if NavigationOwner == "enchant" then
+                                    if CurrentTween then
+                                        pcall(function() CurrentTween:Cancel() end)
+                                        CurrentTween = nil
+                                    end
+                                    pcall(ClearHover)
                                     NavigationOwner = nil
                                 end
                                 EnchantRunning = false
