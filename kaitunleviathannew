@@ -2403,14 +2403,6 @@ local function DebugDumpBoats()
     end
 end
 local function BuyOwnBoat(Message)
-    if NavigationOwner == "enchant" then
-        SetStatus("附魔正在使用导航：等附魔结束后继续前往购买船只")
-        local waitStarted = os.clock()
-        while _G.AutoLeviathanFull and NavigationOwner == "enchant"
-            and os.clock() - waitStarted < 180 do
-            task.wait(0.1)
-        end
-    end
     if NavigationOwner then
         SetStatus("Navigation reserved: waiting before buying a boat")
         return false
@@ -4807,7 +4799,9 @@ local function HeartFinishPhase()
     end
     if _G.ReturnMode == "Home" then
         SetStatus("Heart phase ended: waiting at Tiki for the boat")
-        while _G.AutoLeviathanFull do
+        local BoatBack = false
+        local BoatWaitStart = os.clock()
+        while _G.AutoLeviathanFull and os.clock() - BoatWaitStart < 180 do
             local bWait = GetOwnBoat()
             local sWait = bWait and bWait:FindFirstChild("VehicleSeat")
             if sWait and Vector3.new(
@@ -4815,6 +4809,7 @@ local function HeartFinishPhase()
                 0,
                 sWait.Position.Z - TikiReturnCF.Position.Z
             ).Magnitude <= 2500 then
+                BoatBack = true
                 SetStatus("Boat returned to Tiki; resuming the main flow")
                 break
             end
@@ -4822,7 +4817,8 @@ local function HeartFinishPhase()
         end
         if NavigationOwner == "home-return" then NavigationOwner = nil end
         if not _G.AutoLeviathanFull then return end
-        return
+        if BoatBack then return end
+        SetStatus("Boat did not return to Tiki in time: rebuying to resume the main flow")
     elseif not Unseat() then
         SetStatus("El corazón desapareció y no pude bajarme: voy igual a comprar")
     end
@@ -7640,6 +7636,9 @@ do
         Default = _G.AutoEnchantOnHeart,
         Callback = function(State)
             _G.AutoEnchantOnHeart = State and true or false
+            if not _G.AutoEnchantOnHeart and NavigationOwner == "enchant" then
+                NavigationOwner = nil
+            end
             SaveConfig()
         end,
     })
@@ -8175,10 +8174,27 @@ do
         local EnchantRunToken = 0
         local EnchantWebhookQueue = {}
         local EnchantWebhookWorker = false
+        local ENCHANT_MAX_TELEPORT_TRIES = 8
+        local ENCHANT_MAX_CHECK_FAILS = 6
+        local ENCHANT_MAX_ROLL_FAILS = 5
+        local ENCHANT_MAX_WEAPON_WAITS = 12
+        local ENCHANT_LOCK_TIMEOUT = 240
+        local EnchantLockAt = 0
+        local EnchantBeatAt = 0
         local function SetEnchantStatus(text)
             pcall(function()
                 if _G.RJR_EnchantStatusPara then
                     _G.RJR_EnchantStatusPara:SetDesc(tostring(text))
+                end
+            end)
+        end
+        -- 游戏 UI 在附魔时会置 Character.Busy，服务端按它判断是否空闲
+        local function SetBusy(state)
+            pcall(function()
+                local char = LocalPlayer.Character
+                local busy = char and char:FindFirstChild("Busy")
+                if busy then
+                    busy.Value = state and true or false
                 end
             end)
         end
@@ -8246,6 +8262,32 @@ do
             end
             return nil
         end
+        -- 官方 UI 的判定规则：Check 返回的 Scrolls[卷轴] = {数量, 稀有度, 需要Grade}，
+        -- 需要Grade > Upgrades 就是 Locked（用了会毁武器），数量 <= 0 就是没钱/没货。
+        local function EnchantCanUseScroll(info, scrollName)
+            if type(info) ~= "table" then
+                return false, "读取不到武器附魔数据"
+            end
+            local entry = type(info.Scrolls) == "table" and info.Scrolls[scrollName] or nil
+            if type(entry) ~= "table" then
+                local inventory = tonumber((ReadEnchantInventory()))
+                if inventory and inventory > 0 then
+                    return true
+                end
+                return false, "没有" .. tostring(scrollName)
+            end
+            local count = tonumber(entry[1]) or 0
+            local need = tonumber(entry[3]) or 0
+            local grade = tonumber(info.Upgrades) or 0
+            if count <= 0 then
+                return false, "没有" .. tostring(scrollName)
+            end
+            if need > grade then
+                return false, tostring(scrollName) .. " 需要武器的 Grade ≥ "
+                    .. tostring(need) .. "（当前 " .. tostring(grade) .. "），用了会毁武器"
+            end
+            return true
+        end
         local function InvokeEnchantAction(flags, enchantRemote, commF, action, tool, scroll)
             if flags and flags.ENCHANT_USES_NEW_SERVICE and enchantRemote then
                 if scroll ~= nil then
@@ -8280,33 +8322,59 @@ do
                 EnchantWebhookWorker = false
             end)
         end
-        local function StopAutoEnchantOnHit()
+        -- 统一出口：关掉自动附魔、清悬停、归还导航，保证主流程一定能继续
+        local function StopAutoEnchant(statusText)
             _G.AutoEnchantOnHeart = false
+            EnchantArmedHeart = nil
+            EnchantBeatAt = 0
+            EnchantLockAt = 0
             SaveConfig()
             if _G.RJR_AutoEnchantOnHeartToggle then
                 pcall(function()
                     _G.RJR_AutoEnchantOnHeartToggle:SetValue(false)
                 end)
             end
-            SetEnchantStatus("命中所选附魔，自动附魔已停止")
-        end
-        local function StopAutoEnchantOnNoScroll()
-            EnchantArmedHeart = nil
-            SaveConfig()
-            SetEnchantStatus("神话卷轴已用完，等待再次达到10个；自动附魔保持待命")
-            if _G.AutoLeviathanFull then
-                SetStatus("神话卷轴已用完：附魔待命，主流程继续")
+            SetBusy(false)
+            pcall(ClearHover)
+            if NavigationOwner == "enchant" then
+                NavigationOwner = nil
+            end
+            if statusText ~= nil then
+                SetEnchantStatus(statusText)
             end
         end
+        local function StopAutoEnchantOnHit()
+            StopAutoEnchant("命中所选附魔，自动附魔已停止，导航已归还主流程")
+        end
+        local function StopAutoEnchantOnNoScroll()
+            StopAutoEnchant("神话卷轴已用完，已返回主流程")
+        end
         local function RunEnchantAfterHeart(token)
+            local function Cancelled()
+                return not _G.AutoEnchantOnHeart or token ~= EnchantRunToken
+            end
+            local function StopAndReturn(statusText)
+                StopAutoEnchant(statusText)
+                EnchantRunning = false
+            end
+
+            EnchantLockAt = os.clock()
+            EnchantBeatAt = os.clock()
             NavigationOwner = "enchant"
             if CurrentTween then
                 pcall(function() CurrentTween:Cancel() end)
                 CurrentTween = nil
             end
+            if next(WantedEnchantLookup()) == nil then
+                StopAndReturn("请先选择至少一个目标附魔：自动附魔已关闭，导航已归还主流程")
+                return
+            end
             SetEnchantStatus("心脏已结算，前往龙爪贤者")
             local arrived = false
-            while _G.AutoEnchantOnHeart and token == EnchantRunToken and not arrived do
+            local tpTries = 0
+            while not Cancelled() and not arrived and tpTries < ENCHANT_MAX_TELEPORT_TRIES do
+                tpTries = tpTries + 1
+                EnchantBeatAt = os.clock()
                 local ok, result = pcall(function()
                     return _tp(ENCHANT_TARGET, function()
                         return not _G.AutoEnchantOnHeart or token ~= EnchantRunToken
@@ -8314,18 +8382,19 @@ do
                 end)
                 local _, root = GetCharacterParts()
                 arrived = ok and result and root and (root.Position - ENCHANT_TARGET).Magnitude <= 20
-                if not arrived and _G.AutoEnchantOnHeart and token == EnchantRunToken then
-                    SetEnchantStatus("前往龙爪贤者失败，稍后重试")
-                    task.wait(4)
-                end
-            end
-            if not (_G.AutoEnchantOnHeart and token == EnchantRunToken) then return end
-            local wanted = WantedEnchantLookup()
-            if next(wanted) == nil then
-                SetEnchantStatus("请先选择至少一个目标附魔")
-                while _G.AutoEnchantOnHeart and token == EnchantRunToken and next(WantedEnchantLookup()) == nil do
+                if not arrived and not Cancelled() then
+                    SetEnchantStatus("前往龙爪贤者失败，稍后重试 ("
+                        .. tpTries .. "/" .. ENCHANT_MAX_TELEPORT_TRIES .. ")")
                     task.wait(3)
                 end
+            end
+            if Cancelled() then
+                StopAndReturn(nil)
+                return
+            end
+            if not arrived then
+                StopAndReturn("到不了龙爪贤者（" .. ENCHANT_MAX_TELEPORT_TRIES .. " 次）：已停止自动附魔并归还导航")
+                return
             end
             local flags
             pcall(function() flags = require(RS.Modules.Flags) end)
@@ -8336,85 +8405,123 @@ do
             end
             local remotes = RS:FindFirstChild("Remotes")
             local commF = remotes and remotes:FindFirstChild("CommF_")
-            while _G.AutoEnchantOnHeart and token == EnchantRunToken do
-                local scrollCount = ReadEnchantInventory()
-                scrollCount = tonumber(scrollCount) or 0
+            if not enchantRemote and not commF then
+                StopAndReturn("附魔 remote 不可用：已停止自动附魔并归还导航")
+                return
+            end
+            local weaponWaits, checkFails, rollFails = 0, 0, 0
+            while not Cancelled() do
+                EnchantBeatAt = os.clock()
+                local scrollCount = tonumber((ReadEnchantInventory()))
+                if scrollCount == nil then
+                    -- 读不到背包数量时先当作“有”，真正的可用性由下面 Check 返回的 Scrolls 决定
+                    scrollCount = 1
+                end
                 if scrollCount <= 0 then
                     StopAutoEnchantOnNoScroll()
+                    EnchantRunning = false
                     return
+                end
+                local tool = FindEnchantWeapon()
+                if not tool then
+                    weaponWaits = weaponWaits + 1
+                    if weaponWaits > ENCHANT_MAX_WEAPON_WAITS then
+                        StopAndReturn("未找到所选武器（" .. tostring(_G.EnchantWeaponName)
+                            .. "）：已停止自动附魔并归还导航")
+                        return
+                    end
+                    SetEnchantStatus("未找到所选武器，等待武器可用 ("
+                        .. weaponWaits .. "/" .. ENCHANT_MAX_WEAPON_WAITS .. ")")
+                    task.wait(5)
                 else
-                    local tool = FindEnchantWeapon()
-                    if not tool then
-                        SetEnchantStatus("未找到所选武器，等待武器可用")
-                        task.wait(5)
+                    local checked, before = pcall(function()
+                        return InvokeEnchantAction(flags, enchantRemote, commF, "Check", tool)
+                    end)
+                    if not checked or type(before) ~= "table" then
+                        checkFails = checkFails + 1
+                        if checkFails > ENCHANT_MAX_CHECK_FAILS then
+                            StopAndReturn("读取武器附魔数据失败（" .. ENCHANT_MAX_CHECK_FAILS
+                                .. " 次）：已停止自动附魔并归还导航")
+                            return
+                        end
+                        SetEnchantStatus("读取武器附魔失败，重试中 ("
+                            .. checkFails .. "/" .. ENCHANT_MAX_CHECK_FAILS .. ")")
+                        task.wait(3)
                     else
-                        local checked, before = pcall(function()
-                            return InvokeEnchantAction(flags, enchantRemote, commF, "Check", tool)
+                        checkFails = 0
+                        local _, beforeHit = DescribeEnchantResult(before.Modifiers)
+                        if beforeHit then
+                            StopAutoEnchantOnHit()
+                            EnchantRunning = false
+                            return
+                        end
+                        -- 用官方 UI 的规则判断这张卷轴能不能用（不再用不存在的 "Check1"）
+                        local canRoll, whyNot = EnchantCanUseScroll(before, ENCHANT_SCROLL)
+                        if not canRoll then
+                            StopAndReturn(tostring(whyNot) .. "：已停止自动附魔并归还导航")
+                            return
+                        end
+                        SetEnchantStatus("正在使用神话卷轴附魔 " .. tool.Name)
+                        local beforeScrolls = scrollCount
+                        SetBusy(true)
+                        local rolled, rollResult = pcall(function()
+                            return InvokeEnchantAction(flags, enchantRemote, commF, "Enchant", tool, ENCHANT_SCROLL)
                         end)
-                        if not checked or type(before) ~= "table" then
-                            SetEnchantStatus("读取武器附魔失败，重试中")
-                            task.wait(3)
-                        else
-                            local beforeText, beforeHit = DescribeEnchantResult(before.Modifiers)
-                            if beforeHit then
-                                StopAutoEnchantOnHit()
-                                return
-                            end
-                            local checked1, canEnchant = pcall(function()
-                                return InvokeEnchantAction(flags, enchantRemote, commF, "Check1", tool)
-                            end)
-                            if not checked1 or canEnchant ~= true then
-                                SetEnchantStatus("当前武器暂不可附魔，稍后重试")
-                                task.wait(3)
-                            else
-                                SetEnchantStatus("正在使用神话卷轴附魔 " .. tool.Name)
-                                local beforeScrolls = scrollCount
-                                local rolled, rollResult = pcall(function()
-                                    return InvokeEnchantAction(flags, enchantRemote, commF, "Enchant", tool, ENCHANT_SCROLL)
-                                end)
-                                local afterScrolls = beforeScrolls
-                                for _ = 1, 8 do
-                                    task.wait(0.5)
-                                    local currentScrolls = ReadEnchantInventory()
-                                    currentScrolls = tonumber(currentScrolls)
-                                    if currentScrolls and currentScrolls < beforeScrolls then
-                                        afterScrolls = currentScrolls
-                                        break
-                                    end
-                                end
-                                local resultMods = type(rollResult) == "table" and rollResult.Modifiers or nil
-                                if type(resultMods) ~= "table" or next(resultMods) == nil then
-                                    local checkOK, afterInfo = pcall(function()
-                                        return InvokeEnchantAction(flags, enchantRemote, commF, "Check", tool)
-                                    end)
-                                    if checkOK and type(afterInfo) == "table" then
-                                        resultMods = afterInfo.Modifiers
-                                    end
-                                end
-                                local resultText, hit = DescribeEnchantResult(resultMods)
-                                if not rolled then
-                                    resultText = "附魔请求返回错误: " .. tostring(rollResult) .. "; " .. resultText
-                                end
-                                if afterScrolls < beforeScrolls then
-                                    SendEnchantWebhook(tool.Name, ENCHANT_SCROLL, resultText, hit)
-                                    if hit then
-                                        StopAutoEnchantOnHit()
-                                        return
-                                    end
-                                else
-                                    if not rolled then
-                                        SetEnchantStatus("附魔请求失败且卷轴未消耗，稍后重试")
-                                    else
-                                        SetEnchantStatus("服务器尚未确认消耗卷轴，稍后重试")
-                                    end
-                                    task.wait(3)
-                                end
+                        SetBusy(false)
+                        -- 服务端成功时直接返回结果表；返回不了才回退去数背包
+                        local consumed = rolled and type(rollResult) == "table"
+                        if not consumed then
+                            for _ = 1, 8 do
                                 task.wait(0.5)
+                                local currentScrolls = tonumber((ReadEnchantInventory()))
+                                if currentScrolls and currentScrolls < beforeScrolls then
+                                    consumed = true
+                                    break
+                                end
                             end
                         end
+                        local resultMods = type(rollResult) == "table" and rollResult.Modifiers or nil
+                        if type(resultMods) ~= "table" or next(resultMods) == nil then
+                            local checkOK, afterInfo = pcall(function()
+                                return InvokeEnchantAction(flags, enchantRemote, commF, "Check", tool)
+                            end)
+                            if checkOK and type(afterInfo) == "table" then
+                                resultMods = afterInfo.Modifiers
+                            end
+                        end
+                        local resultText, hit = DescribeEnchantResult(resultMods)
+                        if not rolled then
+                            resultText = "附魔请求返回错误: " .. tostring(rollResult) .. "; " .. resultText
+                        end
+                        if consumed then
+                            rollFails = 0
+                            EnchantBeatAt = os.clock()
+                            SendEnchantWebhook(tool.Name, ENCHANT_SCROLL, resultText, hit)
+                            if hit then
+                                StopAutoEnchantOnHit()
+                                EnchantRunning = false
+                                return
+                            end
+                        else
+                            rollFails = rollFails + 1
+                            if rollFails > ENCHANT_MAX_ROLL_FAILS then
+                                StopAndReturn("附魔连续失败（卷轴未消耗）：已停止自动附魔并归还导航")
+                                return
+                            end
+                            if not rolled then
+                                SetEnchantStatus("附魔请求失败且卷轴未消耗，稍后重试 ("
+                                    .. rollFails .. "/" .. ENCHANT_MAX_ROLL_FAILS .. ")")
+                            else
+                                SetEnchantStatus("服务器尚未确认消耗卷轴，稍后重试 ("
+                                    .. rollFails .. "/" .. ENCHANT_MAX_ROLL_FAILS .. ")")
+                            end
+                            task.wait(3)
+                        end
+                        task.wait(0.5)
                     end
                 end
             end
+            StopAndReturn(nil)
         end
         task.spawn(function()
             while true do
@@ -8437,31 +8544,70 @@ do
                             SetEnchantStatus("请先选择至少一个目标附魔；等待下一颗心脏")
                         elseif heartCount > EnchantArmedHeart then
                             EnchantArmedHeart = heartCount
-                            EnchantRunning = true
-                            NavigationOwner = "enchant"
-                            EnchantRunToken += 1
-                            local token = EnchantRunToken
-                            task.spawn(function()
-                                local ok, err = xpcall(function()
-                                    RunEnchantAfterHeart(token)
-                                end, function(message)
-                                    return tostring(message)
-                                end)
-                                if not ok then
-                                    SetEnchantStatus("附魔流程出错: " .. tostring(err))
-                                end
-                                if NavigationOwner == "enchant" then
-                                    if CurrentTween then
-                                        pcall(function() CurrentTween:Cancel() end)
-                                        CurrentTween = nil
+                            -- 前置条件不满足就不拿导航锁，主流程照常跑
+                            if NavigationOwner ~= nil and NavigationOwner ~= "home-return" then
+                                SetEnchantStatus("导航正被占用（" .. tostring(NavigationOwner)
+                                    .. "）；本次跳过，不影响主流程")
+                            elseif not FindEnchantWeapon() then
+                                SetEnchantStatus("未找到所选武器（" .. tostring(_G.EnchantWeaponName)
+                                    .. "）；本次跳过，不影响主流程")
+                            else
+                                EnchantRunning = true
+                                NavigationOwner = "enchant"
+                                EnchantRunToken += 1
+                                local token = EnchantRunToken
+                                task.spawn(function()
+                                    local ok, err = xpcall(function()
+                                        RunEnchantAfterHeart(token)
+                                    end, function(message)
+                                        return tostring(message)
+                                    end)
+                                    if not ok then
+                                        SetEnchantStatus("附魔流程出错: " .. tostring(err))
+                                    end
+                                    if NavigationOwner == "enchant" then
+                                        NavigationOwner = nil
                                     end
                                     pcall(ClearHover)
-                                    NavigationOwner = nil
-                                end
-                                EnchantRunning = false
-                            end)
+                                    EnchantRunning = false
+                                end)
+                            end
                         end
                     end)
+                end
+            end
+        end)
+        -- 兜底：附魔线程万一卡死（remote 无限挂起等），强制把导航还给主流程
+        task.spawn(function()
+            while true do
+                task.wait(5)
+                if NavigationOwner == "enchant" then
+                    local lastBeat = EnchantBeatAt
+                    if lastBeat <= 0 then
+                        lastBeat = EnchantLockAt
+                    end
+                    if lastBeat > 0 and os.clock() - lastBeat > ENCHANT_LOCK_TIMEOUT then
+                        SetEnchantStatus("附魔流程超时（" .. ENCHANT_LOCK_TIMEOUT
+                            .. " 秒无进展）：已强制归还导航")
+                        NavigationOwner = nil
+                        EnchantRunning = false
+                        _G.AutoEnchantOnHeart = false
+                        EnchantArmedHeart = nil
+                        EnchantBeatAt = 0
+                        EnchantLockAt = 0
+                        EnchantRunToken += 1
+                        SaveConfig()
+                        if _G.RJR_AutoEnchantOnHeartToggle then
+                            pcall(function()
+                                _G.RJR_AutoEnchantOnHeartToggle:SetValue(false)
+                            end)
+                        end
+                        SetBusy(false)
+                        pcall(ClearHover)
+                    end
+                else
+                    EnchantBeatAt = 0
+                    EnchantLockAt = 0
                 end
             end
         end)
