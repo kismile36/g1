@@ -6554,36 +6554,64 @@ task.spawn(function()
         end
     end
 end)
-local FruitsBlackList = {}
-local LastRandomFruitAt = 0
+-- 自动抽果 / 自动存果实：逻辑与 main.lua 保持一致
+local FruitStoreBlackList = {}
+local FruitStoreFailCount = {}
+local function FruitCommF()
+    if CommF and CommF.Parent then
+        return CommF
+    end
+    local remotes = RS:FindFirstChild("Remotes")
+    return remotes and remotes:FindFirstChild("CommF_")
+end
+local function GachaPull()
+    local modules = RS:FindFirstChild("Modules")
+    local net = modules and modules:FindFirstChild("Net")
+    local gacha = net and net:FindFirstChild("RF/GachaNetworkRF")
+    if not gacha then
+        return false
+    end
+    pcall(function()
+        gacha:InvokeServer({ Context = "Purchase", BoxName = "ZiolesGacha" })
+    end)
+    return true
+end
 task.spawn(function()
     while true do
-        task.wait(0.5)
+        task.wait(120)
         if _G.AutoRandomFruit and HRP and HD and HD.Health > 0 then
-            if os.clock() - LastRandomFruitAt >= 60 then
-                LastRandomFruitAt = os.clock()
-                pcall(function()
-                    CommF:InvokeServer("Check", "DLCBoxData")
-                    CommF:InvokeServer("Cousin", "DLCBoxData")
-                end)
-            end
+            GachaPull()
         end
     end
 end)
 task.spawn(function()
     while task.wait(1) do
         if _G.AutoStoreFruits and HRP then
-            local Containers = {LocalPlayer.Backpack, Character}
-            for _, container in ipairs(Containers) do
+            local containers = { LocalPlayer:FindFirstChild("Backpack"), LocalPlayer.Character }
+            for _, container in ipairs(containers) do
                 if container then
-                    for _, k in ipairs(container:GetChildren()) do
-                        if k:IsA("Tool") and string.find(k.Name, "Fruit", 1, true)
-                            and not FruitsBlackList[k:GetAttribute("OriginalName")] then
-                            local ok, result = pcall(function()
-                                return CommF:InvokeServer("StoreFruit", k:GetAttribute("OriginalName"), k)
-                            end)
-                            if ok and result == 1 then
-                                FruitsBlackList[k:GetAttribute("OriginalName")] = true
+                    for _, tool in ipairs(container:GetChildren()) do
+                        if tool:IsA("Tool") and string.find(tool.Name, "Fruit", 1, true) then
+                            local original = tool:GetAttribute("OriginalName")
+                            local key = original or tool.Name
+                            if not FruitStoreBlackList[key] then
+                                local home = tool.Parent
+                                local comm = FruitCommF()
+                                if comm then
+                                    pcall(function()
+                                        comm:InvokeServer("StoreFruit", key, tool)
+                                    end)
+                                end
+                                task.wait(0.2)
+                                if tool.Parent == home then
+                                    local fails = (FruitStoreFailCount[key] or 0) + 1
+                                    FruitStoreFailCount[key] = fails
+                                    if fails >= 3 then
+                                        FruitStoreBlackList[key] = true
+                                    end
+                                else
+                                    FruitStoreFailCount[key] = nil
+                                end
                             end
                         end
                     end
@@ -7456,6 +7484,9 @@ do
         Default = _G.AutoRandomFruit,
         Callback = function(State)
             _G.AutoRandomFruit = State
+            if State then
+                GachaPull()
+            end
             SaveConfig()
         end,
     })
