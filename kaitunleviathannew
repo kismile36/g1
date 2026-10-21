@@ -969,6 +969,8 @@ local function StandUpFromSeat(seat, hum, hrp)
 end
 local function _tp(targetPos, abortCheck, allowNavigationOwner)
     if NavigationOwner and not allowNavigationOwner then
+        -- A navigation owner may be running its own tween in CurrentTween.
+        -- Block this new request, but never cancel the active owner's movement.
         return false
     end
     local startChar = LocalPlayer.Character
@@ -3080,6 +3082,9 @@ local function FightSeaEvent(Mob, Root, Skill, ShouldBreak)
             SetStatus("El capitán volvió al barco: dejo de pelear y vuelvo")
             break
         end
+        -- Recheck on every attack tick, including when a target was acquired
+        -- before the dropdown changed. Empty selection keeps its existing
+        -- meaning outside Solo Sea Farm; Solo Sea Farm remains strict.
         if not Sea_SelectionAllows(Mob and Mob.Name) then
             SetStatus(T("hunt.skip.unselected"))
             break
@@ -5245,6 +5250,8 @@ local function StartFollower()
                     return
                 end
                 if boat and CaptainOn then
+                    -- Match Banana's flow: each follower scans its own selected sea events
+                    -- before boarding/waiting, so a full boat does not prevent event farming.
                     local Mob, Root, Skill = nil, nil, false
                     if _G.HuntFightEvents then
                         Mob, Root, Skill = SeaAPI.Sea_Mob(5000)
@@ -8288,6 +8295,37 @@ do
                 end)
             end
             SetEnchantStatus("神话卷轴已用完，返回主流程")
+            if _G.AutoLeviathanFull then
+                task.spawn(function()
+                    SetStatus("神话卷轴已用完：重启主流程，准备购买船只")
+                    _G.AutoLeviathanFull = false
+                    NavigationOwner = nil
+                    pcall(StopTweenAll)
+                    pcall(function() _G.RJR_ResetMapNoclipState() end)
+                    local stopStarted = os.clock()
+                    while (CaptainRunning or FollowerRunning) and os.clock() - stopStarted < 20 do
+                        task.wait(0.1)
+                    end
+                    if os.clock() - stopStarted >= 20 then
+                        _G.AutoLeviathanFull = true
+                        SaveConfig()
+                        return
+                    end
+                    _G.AutoLeviathanFull = true
+                    SaveConfig()
+                    RefreshPlayerList()
+                    if _G.Mode == "Capitán" then
+                        StartCaptain()
+                    else
+                        StartFollower()
+                    end
+                    StatusText = T("status.on") .. " (" .. ModeDisplay() .. ")"
+                    _G.RJR_BoatDeadArmed = true
+                    if _G.RJR_StartBoatDeadMonitor then
+                        _G.RJR_StartBoatDeadMonitor()
+                    end
+                end)
+            end
         end
         local function RunEnchantAfterHeart(token)
             NavigationOwner = "enchant"
