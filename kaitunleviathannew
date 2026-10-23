@@ -8342,19 +8342,17 @@ do
                 EnchantWebhookWorker = false
             end)
         end
-        local function StopAutoEnchant(statusText, disableFeature)
-            if disableFeature then
-                _G.AutoEnchantOnHeart = false
-                SaveConfig()
-                if _G.RJR_AutoEnchantOnHeartToggle then
-                    pcall(function()
-                        _G.RJR_AutoEnchantOnHeartToggle:SetValue(false)
-                    end)
-                end
-            end
+        local function StopAutoEnchant(statusText)
+            _G.AutoEnchantOnHeart = false
             EnchantArmedHeart = nil
             EnchantBeatAt = 0
             EnchantLockAt = 0
+            SaveConfig()
+            if _G.RJR_AutoEnchantOnHeartToggle then
+                pcall(function()
+                    _G.RJR_AutoEnchantOnHeartToggle:SetValue(false)
+                end)
+            end
             SetBusy(false)
             pcall(ClearHover)
             if NavigationOwner == "enchant" then
@@ -8365,67 +8363,30 @@ do
             end
         end
         local function StopAutoEnchantOnHit()
-            StopAutoEnchant("命中所选附魔，自动附魔已关闭（重新打开才会继续）", true)
+            StopAutoEnchant("命中所选附魔，自动附魔已停止，导航已归还主流程")
         end
         local function StopAutoEnchantOnNoScroll()
-            StopAutoEnchant("神话卷轴已用完，本次结束；开关保持开启，攒够10个后下一颗心脏继续")
+            StopAutoEnchant("神话卷轴已用完，已返回主流程")
         end
         local function RunEnchantAfterHeart(token)
             local function Cancelled()
                 return not _G.AutoEnchantOnHeart or token ~= EnchantRunToken
             end
-            local function StopAndReturn(statusText, disableFeature)
-                StopAutoEnchant(statusText, disableFeature)
+            local function StopAndReturn(statusText)
+                StopAutoEnchant(statusText)
                 EnchantRunning = false
             end
 
-            EnchantBeatAt = os.clock()
-            if next(WantedEnchantLookup()) == nil then
-                StopAndReturn("请先选择至少一个目标附魔，本次跳过（开关保持开启）")
-                return
-            end
-            local flags
-            pcall(function() flags = require(RS.Modules.Flags) end)
-            local net = RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Net")
-            local enchantRemote = net and net:FindFirstChild("RF/EnchantInvoke")
-            if not enchantRemote and net then
-                pcall(function() enchantRemote = net:WaitForChild("RF/EnchantInvoke", 10) end)
-            end
-            local remotes = RS:FindFirstChild("Remotes")
-            local commF = remotes and remotes:FindFirstChild("CommF_")
-            if not enchantRemote and not commF then
-                StopAndReturn("附魔 remote 不可用，本次跳过（开关保持开启）")
-                return
-            end
-            local readyTool = FindEnchantWeapon()
-            if not readyTool then
-                StopAndReturn("未找到所选武器（" .. tostring(_G.EnchantWeaponName)
-                    .. "），本次跳过（开关保持开启）")
-                return
-            end
-            local readyOK, readyInfo = pcall(function()
-                return InvokeEnchantAction(flags, enchantRemote, commF, "Check", readyTool)
-            end)
-            if not readyOK or type(readyInfo) ~= "table" then
-                StopAndReturn("读取武器附魔失败，本次跳过（开关保持开启）")
-                return
-            end
-            local _, readyHit = DescribeEnchantResult(readyInfo.Modifiers)
-            if readyHit then
-                StopAndReturn("武器已有目标附魔，自动附魔已关闭（重新打开才会继续）", true)
-                return
-            end
-            local readyRoll, readyWhy = EnchantCanUseScroll(readyInfo, ENCHANT_SCROLL)
-            if not readyRoll then
-                StopAndReturn(tostring(readyWhy) .. "，本次跳过（开关保持开启）")
-                return
-            end
             EnchantLockAt = os.clock()
             EnchantBeatAt = os.clock()
             NavigationOwner = "enchant"
             if CurrentTween then
                 pcall(function() CurrentTween:Cancel() end)
                 CurrentTween = nil
+            end
+            if next(WantedEnchantLookup()) == nil then
+                StopAndReturn("请先选择至少一个目标附魔：自动附魔已关闭，导航已归还主流程")
+                return
             end
             SetEnchantStatus("心脏已结算，前往龙爪贤者")
             local arrived = false
@@ -8451,7 +8412,20 @@ do
                 return
             end
             if not arrived then
-                StopAndReturn("到不了龙爪贤者（" .. ENCHANT_MAX_TELEPORT_TRIES .. " 次），本次结束（开关保持开启）")
+                StopAndReturn("到不了龙爪贤者（" .. ENCHANT_MAX_TELEPORT_TRIES .. " 次）：已停止自动附魔并归还导航")
+                return
+            end
+            local flags
+            pcall(function() flags = require(RS.Modules.Flags) end)
+            local net = RS:FindFirstChild("Modules") and RS.Modules:FindFirstChild("Net")
+            local enchantRemote = net and net:FindFirstChild("RF/EnchantInvoke")
+            if not enchantRemote and net then
+                pcall(function() enchantRemote = net:WaitForChild("RF/EnchantInvoke", 10) end)
+            end
+            local remotes = RS:FindFirstChild("Remotes")
+            local commF = remotes and remotes:FindFirstChild("CommF_")
+            if not enchantRemote and not commF then
+                StopAndReturn("附魔 remote 不可用：已停止自动附魔并归还导航")
                 return
             end
             local weaponWaits, checkFails, rollFails = 0, 0, 0
@@ -8471,7 +8445,7 @@ do
                     weaponWaits = weaponWaits + 1
                     if weaponWaits > ENCHANT_MAX_WEAPON_WAITS then
                         StopAndReturn("未找到所选武器（" .. tostring(_G.EnchantWeaponName)
-                            .. "），本次结束（开关保持开启）")
+                            .. "）：已停止自动附魔并归还导航")
                         return
                     end
                     SetEnchantStatus("未找到所选武器，等待武器可用 ("
@@ -8485,7 +8459,7 @@ do
                         checkFails = checkFails + 1
                         if checkFails > ENCHANT_MAX_CHECK_FAILS then
                             StopAndReturn("读取武器附魔数据失败（" .. ENCHANT_MAX_CHECK_FAILS
-                                .. " 次），本次结束（开关保持开启）")
+                                .. " 次）：已停止自动附魔并归还导航")
                             return
                         end
                         SetEnchantStatus("读取武器附魔失败，重试中 ("
@@ -8501,7 +8475,7 @@ do
                         end
                         local canRoll, whyNot = EnchantCanUseScroll(before, ENCHANT_SCROLL)
                         if not canRoll then
-                            StopAndReturn(tostring(whyNot) .. "，本次结束（开关保持开启）")
+                            StopAndReturn(tostring(whyNot) .. "：已停止自动附魔并归还导航")
                             return
                         end
                         SetEnchantStatus("正在使用神话卷轴附魔 " .. tool.Name)
@@ -8547,7 +8521,7 @@ do
                         else
                             rollFails = rollFails + 1
                             if rollFails > ENCHANT_MAX_ROLL_FAILS then
-                                StopAndReturn("附魔连续失败（卷轴未消耗），本次结束（开关保持开启）")
+                                StopAndReturn("附魔连续失败（卷轴未消耗）：已停止自动附魔并归还导航")
                                 return
                             end
                             if not rolled then
@@ -8628,24 +8602,20 @@ do
                     end
                     if lastBeat > 0 and os.clock() - lastBeat > ENCHANT_LOCK_TIMEOUT then
                         SetEnchantStatus("附魔流程超时（" .. ENCHANT_LOCK_TIMEOUT
-                            .. " 秒无进展），本次结束（开关保持开启）")
+                            .. " 秒无进展）：已强制归还导航")
                         NavigationOwner = nil
                         EnchantRunning = false
+                        _G.AutoEnchantOnHeart = false
                         EnchantArmedHeart = nil
                         EnchantBeatAt = 0
                         EnchantLockAt = 0
                         EnchantRunToken += 1
-                        SetBusy(false)
-                        pcall(ClearHover)
-                    end
-                elseif EnchantRunning then
-                    if EnchantBeatAt > 0 and os.clock() - EnchantBeatAt > ENCHANT_LOCK_TIMEOUT then
-                        SetEnchantStatus("附魔前置检查超时，本次结束（开关保持开启）")
-                        EnchantRunning = false
-                        EnchantArmedHeart = nil
-                        EnchantBeatAt = 0
-                        EnchantLockAt = 0
-                        EnchantRunToken += 1
+                        SaveConfig()
+                        if _G.RJR_AutoEnchantOnHeartToggle then
+                            pcall(function()
+                                _G.RJR_AutoEnchantOnHeartToggle:SetValue(false)
+                            end)
+                        end
                         SetBusy(false)
                         pcall(ClearHover)
                     end
